@@ -181,7 +181,7 @@ ct read 2 [count]  # recent messages of terminal #2 (default 20)
 
 Both are allowed without a permission prompt. So you can ask, for example, "check that this doesn't conflict with what #1 is doing".
 
-![Claude in terminal #4 listing the terminals and reading the conversation of terminal #1](docs/images/ct.webp)
+![Claude in terminal #5 listing the terminals and reading the conversation of terminal #4](docs/images/ct.webp)
 
 > [!WARNING]
 > `ct read` parses Claude Code's transcript files, whose format is internal and may change.
