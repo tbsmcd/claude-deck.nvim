@@ -115,8 +115,8 @@ function M.list(opts)
                 "#%d [%s]\t%s\t%s\t%s",
                 term.id,
                 state.label(term.state),
-                state.title(term),
                 vim.fn.fnamemodify(term.cwd, ":~"),
+                state.title(term),
                 term.session_id and term.session_id:sub(1, 8) or ""
             ),
         })
