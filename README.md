@@ -1,8 +1,8 @@
-# claude-terminals.nvim
+# claude-deck.nvim
 
 English | [日本語](README.ja.md)
 
-Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions side by side in Neovim terminals, and always know which one needs you.
+Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions side by side in Neovim terminals, and always know which one needs you. Think of it as a deck: one place where all your sessions are laid out in view.
 
 - **Status at a glance**: each terminal shows its id, status and task title in the winbar (colored per status), and its cwd and session id in the statusline
 - **Desktop notifications** when a session finishes or asks for permission (skipped for the terminal you are looking at)
@@ -26,7 +26,7 @@ Optional (everything works without them):
 - [fzf-lua](https://github.com/ibhagwan/fzf-lua): pickers with split keys; falls back to `vim.ui.select`
 - [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua): file tree in focus mode; falls back to netrw
 - [zoxide](https://github.com/ajeetdsouza/zoxide): extra directories in `pick_dir()`
-- [jq](https://jqlang.org/): pretty-prints the JSON of `:ClaudeTerminals settings`
+- [jq](https://jqlang.org/): pretty-prints the JSON of `:ClaudeDeck settings`
 - Desktop notifications: `osascript` on macOS (built in; `lsappinfo` is also used to check the frontmost app), `notify-send` on Linux, or your own `notify.notifier`
 
 The hook script and `ct` are POSIX `sh` scripts that call `nvim --server`, so `nvim` must be on the `PATH` seen by Claude Code.
@@ -37,21 +37,21 @@ The hook script and `ct` are POSIX `sh` scripts that call `nvim --server`, so `n
 
 ```lua
 {
-    "tbsmcd/claude-terminals.nvim",
-    cmd = "ClaudeTerminals",
+    "tbsmcd/claude-deck.nvim",
+    cmd = "ClaudeDeck",
     -- Optional: fzf-lua for the pickers, nvim-tree.lua for the focus mode tree
     -- Uncomment to install them together:
     -- dependencies = { "ibhagwan/fzf-lua", "nvim-tree/nvim-tree.lua" },
     opts = {},
     keys = {
-        { "<leader>cc", function() require("claude-terminals").toggle() end, desc = "Claude: open / focus / add" },
-        { "<leader>cv", function() require("claude-terminals").new("right") end, desc = "Claude: new to the right" },
-        { "<leader>cs", function() require("claude-terminals").new("below") end, desc = "Claude: new below" },
-        { "<leader>cl", function() require("claude-terminals").list() end, desc = "Claude: list terminals" },
-        { "<leader>cd", function() require("claude-terminals").pick_dir() end, desc = "Claude: new in directory" },
-        { "<leader>cf", function() require("claude-terminals").fork() end, desc = "Claude: fork session" },
-        { "<leader>cr", function() require("claude-terminals").rename() end, desc = "Claude: rename task" },
-        { "<leader>co", function() require("claude-terminals").focus() end, desc = "Claude: focus mode" },
+        { "<leader>cc", function() require("claude-deck").toggle() end, desc = "Claude: open / focus / add" },
+        { "<leader>cv", function() require("claude-deck").new("right") end, desc = "Claude: new to the right" },
+        { "<leader>cs", function() require("claude-deck").new("below") end, desc = "Claude: new below" },
+        { "<leader>cl", function() require("claude-deck").list() end, desc = "Claude: list terminals" },
+        { "<leader>cd", function() require("claude-deck").pick_dir() end, desc = "Claude: new in directory" },
+        { "<leader>cf", function() require("claude-deck").fork() end, desc = "Claude: fork session" },
+        { "<leader>cr", function() require("claude-deck").rename() end, desc = "Claude: rename task" },
+        { "<leader>co", function() require("claude-deck").focus() end, desc = "Claude: focus mode" },
     },
 }
 ```
@@ -71,15 +71,15 @@ opts = {
 
 | Lua API | Command | Description |
 | --- | --- | --- |
-| `toggle()` | `:ClaudeTerminals` | Outside a terminal: focus a visible one, or open a new one. Inside: add one to the right |
-| `new(where?)` | `:ClaudeTerminals new [right\|below]` | Open a new terminal by splitting the current window |
-| `list(opts?)` | `:ClaudeTerminals list` | Pick a terminal (including hidden ones) to show |
-| `pick_dir(opts?)` | `:ClaudeTerminals dir` | Pick a directory and open a new terminal there |
-| `fork(where?)` | `:ClaudeTerminals fork` | Fork the current session into a new terminal |
-| `rename()` | `:ClaudeTerminals rename` | Rename the current task |
-| `show_settings()` | `:ClaudeTerminals settings` | Show the Claude Code settings JSON (hooks, permissions) |
-| `focus()` | `:ClaudeTerminals focus` | Toggle focus mode |
-| `show(id, where?)` | `:ClaudeTerminals show <id>` | Show a terminal by id |
+| `toggle()` | `:ClaudeDeck` | Outside a terminal: focus a visible one, or open a new one. Inside: add one to the right |
+| `new(where?)` | `:ClaudeDeck new [right\|below]` | Open a new terminal by splitting the current window |
+| `list(opts?)` | `:ClaudeDeck list` | Pick a terminal (including hidden ones) to show |
+| `pick_dir(opts?)` | `:ClaudeDeck dir` | Pick a directory and open a new terminal there |
+| `fork(where?)` | `:ClaudeDeck fork` | Fork the current session into a new terminal |
+| `rename()` | `:ClaudeDeck rename` | Rename the current task |
+| `show_settings()` | `:ClaudeDeck settings` | Show the Claude Code settings JSON (hooks, permissions) |
+| `focus()` | `:ClaudeDeck focus` | Toggle focus mode |
+| `show(id, where?)` | `:ClaudeDeck show <id>` | Show a terminal by id |
 
 Where a new terminal opens (without `where`):
 
@@ -97,7 +97,7 @@ In the fzf-lua pickers, `enter` opens with the rule above, `ctrl-v` splits right
 
 ![Focus mode: file tree, editor and terminal](docs/images/focus.webp)
 
-Closing a terminal window (`:q`) only hides it. The Claude session keeps running and still updates its status and sends notifications. Bring it back with `list()` (`:ClaudeTerminals list`). Exit Claude (`/exit`) to end it.
+Closing a terminal window (`:q`) only hides it. The Claude session keeps running and still updates its status and sends notifications. Bring it back with `list()` (`:ClaudeDeck list`). Exit Claude (`/exit`) to end it.
 
 This also holds when the terminal is the last window: `:q` (and `ZZ`, `<C-w>q`, `:x`) leaves Neovim open with an empty window, and a message tells how many terminals are still running in the background. Use `:qa` to quit Neovim. Running `:q` again in the empty window quits Neovim too, and with it every Claude session. This behavior can be turned off with `keep_alive_on_quit`.
 
@@ -107,9 +107,9 @@ Keys typed in a terminal go to Claude, so leave terminal mode first to use windo
 
 | Key | Action |
 | --- | --- |
-| `<C-q>` | Leave terminal mode (only in claude terminals; `keymaps.normal_mode`) |
+| `<C-q>` | Leave terminal mode (only in claude-deck terminals; `keymaps.normal_mode`) |
 | `<C-\><C-n>` | Leave terminal mode (built in) |
-| `<C-]>` | Send `<Esc>` to Claude (only in claude terminals; `keymaps.send_esc`). Press twice for `Esc Esc` |
+| `<C-]>` | Send `<Esc>` to Claude (only in claude-deck terminals; `keymaps.send_esc`). Press twice for `Esc Esc` |
 | `<C-w>h` / `<C-w>j` / `<C-w>k` / `<C-w>l` | Move to another window (normal mode) |
 | `<C-w><` / `<C-w>>` / `<C-w>-` / `<C-w>+` | Resize (normal mode; e.g. `10<C-w>>`) |
 | `<C-w>=` | Make windows equal size |
@@ -136,7 +136,7 @@ for _, key in ipairs({ "h", "j", "k", "l" }) do
 end
 ```
 
-These keys then no longer reach Claude Code: `Esc` (interrupt, `Esc Esc` to rewind), `Ctrl+K` (delete to end of line), `Ctrl+L` (redraw) and `Ctrl+H` (backspace in most terminals). They also apply to every terminal, not only claude terminals.
+These keys then no longer reach Claude Code: `Esc` (interrupt, `Esc Esc` to rewind), `Ctrl+K` (delete to end of line), `Ctrl+L` (redraw) and `Ctrl+H` (backspace in most terminals). They also apply to every terminal, not only claude-deck terminals.
 
 > [!NOTE]
 > Neovim's terminal sends `<Esc>` to Claude (interrupt). If you map `<Esc>` in terminal mode to leave terminal mode yourself, press `<C-]>` to send `<Esc>` to Claude (twice for `Esc Esc`).
@@ -193,7 +193,7 @@ Both are allowed without a permission prompt. So you can ask, for example, "chec
 Defaults:
 
 ```lua
-require("claude-terminals").setup({
+require("claude-deck").setup({
     cmd = { "claude" },
     claude_settings = true, -- pass hooks and `ct` permissions with `claude --settings`
     title_width = 60, -- characters kept for the task title; the winbar cuts it to fit
@@ -215,7 +215,7 @@ require("claude-terminals").setup({
         skip_when_watching = true,
         notifier = nil, -- function({ title, subtitle, body, state, terminal })
     },
-    keymaps = { -- terminal-mode keys in claude terminals; false to disable
+    keymaps = { -- terminal-mode keys in claude-deck terminals; false to disable
         normal_mode = "<C-q>",
         window = false, -- e.g. "<C-w>"
         send_esc = "<C-]>", -- send <Esc> to Claude
@@ -239,23 +239,23 @@ The default status colors are based on the [Okabe-Ito](https://jfly.uni-koeln.de
 
 | Group | Default |
 | --- | --- |
-| `ClaudeTerminalsIdle` | gray |
-| `ClaudeTerminalsRunning` | sky blue |
-| `ClaudeTerminalsWaiting` | yellow |
-| `ClaudeTerminalsAttention` | vermillion |
-| `ClaudeTerminalsExited` | dark gray |
-| `ClaudeTerminalsCwd` | links to `Directory` |
+| `ClaudeDeckIdle` | gray |
+| `ClaudeDeckRunning` | sky blue |
+| `ClaudeDeckWaiting` | yellow |
+| `ClaudeDeckAttention` | vermillion |
+| `ClaudeDeckExited` | dark gray |
+| `ClaudeDeckCwd` | links to `Directory` |
 
 ## How it works
 
-- Each terminal runs `claude --settings <json>`. The JSON registers [hooks](https://docs.claude.com/en/docs/claude-code/hooks) that call `bin/claude-terminals-hook`, which forwards the event to Neovim over `$NVIM` (`nvim --server $NVIM --remote-expr`). Your `~/.claude/settings.json` is not modified, and `claude` started elsewhere is unaffected.
-- Terminals are identified by `$CLAUDE_TERMINALS_ID`.
+- Each terminal runs `claude --settings <json>`. The JSON registers [hooks](https://docs.claude.com/en/docs/claude-code/hooks) that call `bin/claude-deck-hook`, which forwards the event to Neovim over `$NVIM` (`nvim --server $NVIM --remote-expr`). Your `~/.claude/settings.json` is not modified, and `claude` started elsewhere is unaffected.
+- Terminals are identified by `$CLAUDE_DECK_ID`.
 
 ### Without `--settings`
 
 Set `claude_settings = false` to start `claude` without `--settings`. Without the hooks, status, notifications, task titles and `fork()` do not work, and `ct` asks for permission.
 
-To keep them, add the hooks to your own Claude Code settings (e.g. `~/.claude/settings.json`). `:ClaudeTerminals settings` shows the JSON. The hook script does nothing outside claude-terminals, so registering it globally is safe.
+To keep them, add the hooks to your own Claude Code settings (e.g. `~/.claude/settings.json`). `:ClaudeDeck settings` shows the JSON. The hook script does nothing outside claude-deck, so registering it globally is safe.
 
 ## Limitations
 
@@ -267,7 +267,7 @@ To keep them, add the hooks to your own Claude Code settings (e.g. `~/.claude/se
 ## Health check
 
 ```vim
-:checkhealth claude-terminals
+:checkhealth claude-deck
 ```
 
 ## Development

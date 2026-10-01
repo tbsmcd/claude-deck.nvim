@@ -1,5 +1,5 @@
 #!/bin/sh
-# Inspect other claude-terminals terminals. Works only inside a claude-terminals terminal.
+# Inspect other claude-deck terminals. Works only inside a claude-deck terminal.
 #   ct list                 list terminals
 #   ct read <id> [count]    recent conversation of a terminal (default 20 messages)
 usage() {
@@ -7,7 +7,7 @@ usage() {
     exit 1
 }
 
-[ -n "$NVIM" ] || { echo "ct: run this inside a claude-terminals terminal" >&2; exit 1; }
+[ -n "$NVIM" ] || { echo "ct: run this inside a claude-deck terminal" >&2; exit 1; }
 
 is_number() {
     case "$1" in '' | *[!0-9]*) return 1 ;; esac
@@ -15,15 +15,15 @@ is_number() {
 
 case "$1" in
 list)
-    self="${CLAUDE_TERMINALS_ID:-0}"
+    self="${CLAUDE_DECK_ID:-0}"
     is_number "$self" || self=0
-    expr="v:lua.require'claude-terminals.cli'.list($self)"
+    expr="v:lua.require'claude-deck.cli'.list($self)"
     ;;
 read)
     id="${2#\#}"
     count="${3:-20}"
     is_number "$id" && is_number "$count" || usage
-    expr="v:lua.require'claude-terminals.cli'.read($id,$count)"
+    expr="v:lua.require'claude-deck.cli'.read($id,$count)"
     ;;
 *)
     usage

@@ -1,5 +1,5 @@
 -- Pickers backed by fzf-lua (with split keys) or vim.ui.select.
-local config = require("claude-terminals.config")
+local config = require("claude-deck.config")
 
 local M = {}
 
@@ -12,7 +12,7 @@ local function use_fzf()
     end
     local ok = pcall(require, "fzf-lua")
     if not ok and picker == "fzf-lua" then
-        vim.notify("claude-terminals: fzf-lua is not installed", vim.log.levels.WARN)
+        vim.notify("claude-deck: fzf-lua is not installed", vim.log.levels.WARN)
     end
     return ok
 end

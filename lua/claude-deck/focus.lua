@@ -1,6 +1,6 @@
 -- Focus mode: a new tab with tree | editor | terminal in the terminal's cwd.
-local config = require("claude-terminals.config")
-local state = require("claude-terminals.state")
+local config = require("claude-deck.config")
+local state = require("claude-deck.state")
 
 local M = {}
 
@@ -50,7 +50,7 @@ function M.toggle()
 
     local term = state.current()
     if not term then
-        vim.notify("claude-terminals: run this inside a terminal", vim.log.levels.WARN)
+        vim.notify("claude-deck: run this inside a terminal", vim.log.levels.WARN)
         return
     end
 

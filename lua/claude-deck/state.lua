@@ -1,5 +1,5 @@
 -- Registry of terminals and their status.
-local config = require("claude-terminals.config")
+local config = require("claude-deck.config")
 
 local M = {}
 
@@ -10,7 +10,7 @@ M.next_id = 1
 M.nvim_focused = true
 
 function M.of_buf(buf)
-    local id = vim.b[buf].claude_terminal_id
+    local id = vim.b[buf].claude_deck_id
     return id and M.terminals[id] or nil
 end
 
@@ -73,7 +73,7 @@ function M.set_title(term, title)
             end
         end
     end
-    require("claude-terminals.ui").redraw()
+    require("claude-deck.ui").redraw()
 end
 
 function M.add(term)
@@ -86,8 +86,8 @@ end
 
 function M.set_state(term, state, message)
     term.state = state
-    require("claude-terminals.ui").redraw()
-    require("claude-terminals.notify").on_state(term, state, message)
+    require("claude-deck.ui").redraw()
+    require("claude-deck.notify").on_state(term, state, message)
 end
 
 return M

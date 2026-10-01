@@ -1,21 +1,21 @@
-*claude-terminals.txt*  Multiple Claude Code sessions in Neovim terminals
+*claude-deck.txt*  Multiple Claude Code sessions in Neovim terminals
 
 ==============================================================================
-CONTENTS                                             *claude-terminals-contents*
+CONTENTS                                                  *claude-deck-contents*
 
-  1. Introduction ............ |claude-terminals-intro|
-  2. Setup ................... |claude-terminals-setup|
-  3. Usage ................... |claude-terminals-usage|
-  4. Status and notifications  |claude-terminals-status|
-  5. The ct command .......... |claude-terminals-ct|
-  6. Configuration ........... |claude-terminals-config|
-  7. Highlights .............. |claude-terminals-highlights|
-  8. Limitations ............. |claude-terminals-limitations|
+  1. Introduction ............ |claude-deck-intro|
+  2. Setup ................... |claude-deck-setup|
+  3. Usage ................... |claude-deck-usage|
+  4. Status and notifications  |claude-deck-status|
+  5. The ct command .......... |claude-deck-ct|
+  6. Configuration ........... |claude-deck-config|
+  7. Highlights .............. |claude-deck-highlights|
+  8. Limitations ............. |claude-deck-limitations|
 
 ==============================================================================
-1. INTRODUCTION                                         *claude-terminals-intro*
+1. INTRODUCTION                                              *claude-deck-intro*
 
-claude-terminals.nvim runs Claude Code in Neovim terminals. Each terminal
+claude-deck.nvim runs Claude Code in Neovim terminals. Each terminal
 shows its id, status and task title in the winbar, its cwd and session id
 in the statusline, sends a desktop
 notification when it waits for you, and lets Claude inspect the other
@@ -28,21 +28,21 @@ Code.
 Optional (everything works without them):
 - fzf-lua: pickers with split keys; falls back to |vim.ui.select()|
 - nvim-tree.lua: file tree in focus mode; falls back to netrw
-- zoxide: extra directories in |claude-terminals.pick_dir()|
-- jq: pretty-prints the JSON of |claude-terminals.show_settings()|
+- zoxide: extra directories in |claude-deck.pick_dir()|
+- jq: pretty-prints the JSON of |claude-deck.show_settings()|
 - osascript (macOS, with lsappinfo for the frontmost app check) or
   notify-send (Linux) for desktop notifications, or your own
   `notify.notifier`
 
 ==============================================================================
-2. SETUP                                                *claude-terminals-setup*
+2. SETUP                                                     *claude-deck-setup*
 
 >lua
-    require("claude-terminals").setup({})
+    require("claude-deck").setup({})
 <
 No keymaps are created. Map the functions below, for example:
 >lua
-    local ct = require("claude-terminals")
+    local ct = require("claude-deck")
     vim.keymap.set("n", "<leader>cc", ct.toggle)
     vim.keymap.set("n", "<leader>cv", function() ct.new("right") end)
     vim.keymap.set("n", "<leader>cs", function() ct.new("below") end)
@@ -53,17 +53,17 @@ No keymaps are created. Map the functions below, for example:
     vim.keymap.set("n", "<leader>co", ct.focus)
 <
 ==============================================================================
-3. USAGE                                                *claude-terminals-usage*
+3. USAGE                                                     *claude-deck-usage*
 
-                                                             *:ClaudeTerminals*
-:ClaudeTerminals [{subcommand} [{args}]]
+                                                                  *:ClaudeDeck*
+:ClaudeDeck [{subcommand} [{args}]]
     Without a subcommand, same as `toggle`.
 
-toggle()                                             *claude-terminals.toggle()*
+toggle()                                                  *claude-deck.toggle()*
     Outside a terminal, focus a visible terminal or open a new one. Inside a
     terminal, open a new one to the right.
 
-new({where})                                            *claude-terminals.new()*
+new({where})                                                 *claude-deck.new()*
     Open a new terminal. {where} is "right" or "below" to split the current
     window, or nil to use the default placement:
     - inside a terminal: to the right
@@ -71,37 +71,37 @@ new({where})                                            *claude-terminals.new()*
     - otherwise: at the far right
     The new terminal uses the current terminal's cwd, or |getcwd()|.
 
-list({opts})                                           *claude-terminals.list()*
+list({opts})                                                *claude-deck.list()*
     Pick a terminal, including hidden ones, and show it. With fzf-lua,
     <CR> opens with the default placement, <C-v> splits right and <C-s>
     splits below. {opts}.where sets the placement for |vim.ui.select|.
 
-pick_dir({opts})                                   *claude-terminals.pick_dir()*
+pick_dir({opts})                                        *claude-deck.pick_dir()*
     Pick a directory and open a new terminal there. Candidates: current
     directory, cwds of terminals, children of `dir_roots`, and zoxide.
 
-fork({where})                                          *claude-terminals.fork()*
+fork({where})                                               *claude-deck.fork()*
     Open a new terminal that runs `claude --resume <session> --fork-session`
     for the current terminal's session.
 
-rename()                                             *claude-terminals.rename()*
+rename()                                                  *claude-deck.rename()*
     Rename the current terminal's task.
 
-focus()                                               *claude-terminals.focus()*
+focus()                                                    *claude-deck.focus()*
     Inside a terminal, open a new tab with file tree | editor | terminal and
     |:tcd| to the terminal's cwd. In that tab, close it and return to the
     original window.
 
-show_settings()                               *claude-terminals.show_settings()*
+show_settings()                                    *claude-deck.show_settings()*
     Show the Claude Code settings JSON (hooks and `ct` permissions) in a
     scratch buffer. Use it to add the hooks to your own settings when
     `claude_settings` is false.
 
-show({id}, {where})                                    *claude-terminals.show()*
+show({id}, {where})                                         *claude-deck.show()*
     Show terminal {id}.
 
 Closing a terminal window with |:q| hides it; Claude keeps running. Bring it
-back with |claude-terminals.list()| (`:ClaudeTerminals list`).
+back with |claude-deck.list()| (`:ClaudeDeck list`).
 
 This also holds for the last window: |:q| (and |ZZ|, |CTRL-W_q|, |:x|) leaves
 Neovim open with an empty window, and a message tells how many terminals are
@@ -109,7 +109,7 @@ still running. Use |:qa| to quit Neovim. |:q| again in the empty window quits
 Neovim too, ending every Claude session. Turn this off with
 `keep_alive_on_quit = false`.
 
-                                                      *claude-terminals-windows*
+                                                           *claude-deck-windows*
 Keys typed in a terminal go to Claude. Leave terminal mode with <C-q>
 (`keymaps.normal_mode`) or <C-\><C-n>, then use |CTRL-W| commands. Moving
 back into a terminal window enters terminal mode (`auto_insert`). Set
@@ -122,11 +122,11 @@ twice for <Esc><Esc>. Useful if you map <Esc> to leave terminal mode.
 Opening a terminal does not resize other windows, even with 'equalalways'.
 
 ==============================================================================
-4. STATUS AND NOTIFICATIONS                            *claude-terminals-status*
+4. STATUS AND NOTIFICATIONS                                 *claude-deck-status*
 
 Status comes from Claude Code hooks registered with `claude --settings`, so
 your own settings are not modified. With `claude_settings = false`, add the
-hooks to your own settings (|claude-terminals.show_settings()|); otherwise
+hooks to your own settings (|claude-deck.show_settings()|); otherwise
 status, notifications, task titles and fork do not work.
 
     New        started, `SessionStart`
@@ -143,7 +143,7 @@ A notification is skipped when Neovim has focus, the current window shows
 that terminal and, on macOS, the terminal app is the frontmost app.
 
 ==============================================================================
-5. THE CT COMMAND                                          *claude-terminals-ct*
+5. THE CT COMMAND                                               *claude-deck-ct*
 
 Inside a terminal, `ct` is on PATH and Claude is told about it:
 
@@ -154,7 +154,7 @@ Both are allowed without a permission prompt. `ct read` parses Claude Code's
 transcript files, whose format is internal and may change.
 
 ==============================================================================
-6. CONFIGURATION                                      *claude-terminals-config*
+6. CONFIGURATION                                           *claude-deck-config*
 
     cmd                   command to start Claude  (default: { "claude" })
     claude_settings       pass hooks and `ct` permissions with
@@ -188,21 +188,21 @@ transcript files, whose format is internal and may change.
     cli.system_prompt     tell Claude about `ct`  (default: true)
 
 ==============================================================================
-7. HIGHLIGHTS                                     *claude-terminals-highlights*
+7. HIGHLIGHTS                                          *claude-deck-highlights*
 
 The default status colors are based on the Okabe-Ito palette and differ in
 lightness as well as hue, so they stay distinguishable with color vision
 deficiencies. All are defined with `default = true` and can be overridden.
 
-    ClaudeTerminalsIdle         gray
-    ClaudeTerminalsRunning      sky blue
-    ClaudeTerminalsWaiting      yellow
-    ClaudeTerminalsAttention    vermillion
-    ClaudeTerminalsExited       dark gray
-    ClaudeTerminalsCwd          links to |hl-Directory|
+    ClaudeDeckIdle         gray
+    ClaudeDeckRunning      sky blue
+    ClaudeDeckWaiting      yellow
+    ClaudeDeckAttention    vermillion
+    ClaudeDeckExited       dark gray
+    ClaudeDeckCwd          links to |hl-Directory|
 
 ==============================================================================
-8. LIMITATIONS                                   *claude-terminals-limitations*
+8. LIMITATIONS                                        *claude-deck-limitations*
 
 - Interrupting Claude does not fire `Stop`; the status stays Running until
   the next prompt.

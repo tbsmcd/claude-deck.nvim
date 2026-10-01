@@ -1,8 +1,8 @@
--- claude-terminals.nvim: run multiple Claude Code sessions in Neovim terminals,
+-- claude-deck.nvim: run multiple Claude Code sessions in Neovim terminals,
 -- with status in the winbar, desktop notifications and cross-session inspection.
-local config = require("claude-terminals.config")
-local state = require("claude-terminals.state")
-local terminal = require("claude-terminals.terminal")
+local config = require("claude-deck.config")
+local state = require("claude-deck.state")
+local terminal = require("claude-deck.terminal")
 
 local M = {}
 
@@ -53,7 +53,7 @@ local function keep_alive_on_quit()
 
     local empty = vim.api.nvim_open_win(empty_buffer(), false, { split = "left" })
     -- Do not carry over the terminal's header and window style
-    require("claude-terminals.ui").unstyle_window(empty, true)
+    require("claude-deck.ui").unstyle_window(empty, true)
 
     vim.schedule(function()
         -- The quit failed (e.g. `:xa` with E948): remove the empty window again
@@ -74,7 +74,7 @@ local function keep_alive_on_quit()
         if running > 0 then
             vim.notify(
                 string.format(
-                    "claude-terminals: %d terminal%s still running (:qa to quit Neovim)",
+                    "claude-deck: %d terminal%s still running (:qa to quit Neovim)",
                     running,
                     running == 1 and "" or "s"
                 ),
@@ -88,10 +88,10 @@ function M.setup(opts)
     config.setup(opts)
     did_setup = true
 
-    local ui = require("claude-terminals.ui")
+    local ui = require("claude-deck.ui")
     ui.set_highlights()
 
-    local group = vim.api.nvim_create_augroup("ClaudeTerminals", { clear = true })
+    local group = vim.api.nvim_create_augroup("ClaudeDeck", { clear = true })
     vim.api.nvim_create_autocmd("ColorScheme", { group = group, callback = ui.set_highlights })
     vim.api.nvim_create_autocmd("FocusGained", {
         group = group,
@@ -187,7 +187,7 @@ function M.list(opts)
     ensure_setup()
     local list = state.sorted()
     if #list == 0 then
-        vim.notify("claude-terminals: no terminals", vim.log.levels.INFO)
+        vim.notify("claude-deck: no terminals", vim.log.levels.INFO)
         return
     end
 
@@ -206,7 +206,7 @@ function M.list(opts)
         })
     end
 
-    require("claude-terminals.picker").pick(items, { prompt = "Terminals>", where = (opts or {}).where }, M.show)
+    require("claude-deck.picker").pick(items, { prompt = "Terminals>", where = (opts or {}).where }, M.show)
 end
 
 local function dir_candidates()
@@ -239,7 +239,7 @@ end
 -- Pick a directory and open a new terminal there.
 function M.pick_dir(opts)
     ensure_setup()
-    require("claude-terminals.picker").pick(
+    require("claude-deck.picker").pick(
         dir_candidates(),
         { prompt = "Directory>", where = (opts or {}).where },
         function(dir, where)
@@ -254,7 +254,7 @@ function M.fork(where)
     local parent = state.current()
     if not parent or not parent.session_id then
         vim.notify(
-            "claude-terminals: run this inside a terminal whose session id is known (needs the hooks)",
+            "claude-deck: run this inside a terminal whose session id is known (needs the hooks)",
             vim.log.levels.WARN
         )
         return
@@ -268,7 +268,7 @@ end
 -- for adding to your own settings when `claude_settings` is false.
 function M.show_settings()
     ensure_setup()
-    local json = require("claude-terminals.hooks").settings_json()
+    local json = require("claude-deck.hooks").settings_json()
     local lines = vim.fn.systemlist({ "jq", "." }, json)
     if vim.v.shell_error ~= 0 then
         lines = { json }
@@ -287,7 +287,7 @@ function M.rename()
     ensure_setup()
     local term = state.current()
     if not term then
-        vim.notify("claude-terminals: run this inside a terminal", vim.log.levels.WARN)
+        vim.notify("claude-deck: run this inside a terminal", vim.log.levels.WARN)
         return
     end
 
@@ -301,7 +301,7 @@ end
 -- Toggle focus mode (tree | editor | terminal in a new tab).
 function M.focus()
     ensure_setup()
-    require("claude-terminals.focus").toggle()
+    require("claude-deck.focus").toggle()
 end
 
 local SUBCOMMANDS = {
@@ -341,7 +341,7 @@ function M.command(fargs)
     local name = fargs[1] or "toggle"
     local sub = SUBCOMMANDS[name]
     if not sub then
-        vim.notify("claude-terminals: unknown subcommand " .. name, vim.log.levels.ERROR)
+        vim.notify("claude-deck: unknown subcommand " .. name, vim.log.levels.ERROR)
         return
     end
     sub(vim.list_slice(fargs, 2))

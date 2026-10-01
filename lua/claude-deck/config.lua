@@ -1,6 +1,6 @@
 local M = {}
 
--- Root directory of the plugin (…/claude-terminals.nvim)
+-- Root directory of the plugin (…/claude-deck.nvim)
 M.root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
 M.bin_dir = M.root .. "/bin"
 
@@ -9,7 +9,7 @@ M.defaults = {
     cmd = { "claude" },
     -- Pass the hooks (status, notifications, task titles, session ids) and the `ct` permissions
     -- with `claude --settings`. Set to false to start claude without --settings; then register
-    -- the hooks in your own Claude Code settings (`:ClaudeTerminals settings` shows them) or
+    -- the hooks in your own Claude Code settings (`:ClaudeDeck settings` shows them) or
     -- go without status tracking.
     claude_settings = true,
     -- Max characters kept for the task title (taken from the first prompt). The winbar
@@ -43,7 +43,7 @@ M.defaults = {
         -- notifier (osascript on macOS, notify-send elsewhere).
         notifier = nil,
     },
-    -- Terminal-mode keys mapped only in claude terminals. Set an entry to false to disable it.
+    -- Terminal-mode keys mapped only in claude-deck terminals. Set an entry to false to disable it.
     keymaps = {
         -- Leave terminal mode. Claude Code does not use <C-q>; <C-\><C-n> always works too.
         normal_mode = "<C-q>",
@@ -55,7 +55,7 @@ M.defaults = {
         -- For users who map <Esc> themselves to leave terminal mode.
         send_esc = "<C-]>",
     },
-    -- Enter terminal mode when you move into a claude terminal window.
+    -- Enter terminal mode when you move into a claude-deck terminal window.
     auto_insert = true,
     -- Keep Neovim (and Claude) running when `:q` closes the last window and it shows a running
     -- terminal: an empty window is opened first, so `:q` only hides the terminal.

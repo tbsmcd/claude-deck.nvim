@@ -2,9 +2,9 @@ local M = {}
 
 function M.check()
     local health = vim.health
-    local config = require("claude-terminals.config")
+    local config = require("claude-deck.config")
 
-    health.start("claude-terminals")
+    health.start("claude-deck")
 
     if vim.fn.has("nvim-0.11") == 1 then
         health.ok("Neovim >= 0.11")
@@ -24,11 +24,11 @@ function M.check()
     else
         health.info(
             "`claude_settings` is false: status, notifications, task titles and fork need the hooks "
-                .. "in your own Claude Code settings (`:ClaudeTerminals settings`)"
+                .. "in your own Claude Code settings (`:ClaudeDeck settings`)"
         )
     end
 
-    for _, script in ipairs({ "claude-terminals-hook", "ct" }) do
+    for _, script in ipairs({ "claude-deck-hook", "ct" }) do
         if vim.fn.executable(config.bin_dir .. "/" .. script) == 1 then
             health.ok("bin/" .. script .. " is executable")
         else

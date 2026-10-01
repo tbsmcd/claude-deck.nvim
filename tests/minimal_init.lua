@@ -6,7 +6,7 @@ local out = assert(vim.env.TEST_OUT, "TEST_OUT is not set")
 _G.notifications = {}
 
 _G.T_opts = {
-    cmd = { "sh", "-c", 'printf "%s\\n" "$@" > "' .. out .. '/args.$CLAUDE_TERMINALS_ID"; sleep 300', "dummy" },
+    cmd = { "sh", "-c", 'printf "%s\\n" "$@" > "' .. out .. '/args.$CLAUDE_DECK_ID"; sleep 300', "dummy" },
     dir_roots = { root .. "/tests/fixtures/roots" },
     zoxide = false,
     picker = "fzf-lua",
@@ -16,7 +16,7 @@ _G.T_opts = {
         end,
     },
 }
-require("claude-terminals").setup(_G.T_opts)
+require("claude-deck").setup(_G.T_opts)
 
 -- Stub fzf-lua so tests can trigger picker actions directly
 package.loaded["fzf-lua"] = {

@@ -1,6 +1,6 @@
 -- Desktop notifications.
-local config = require("claude-terminals.config")
-local state = require("claude-terminals.state")
+local config = require("claude-deck.config")
+local state = require("claude-deck.state")
 
 local M = {}
 

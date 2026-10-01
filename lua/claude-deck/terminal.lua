@@ -1,13 +1,13 @@
 -- Starting terminals and placing their windows.
-local config = require("claude-terminals.config")
-local state = require("claude-terminals.state")
-local ui = require("claude-terminals.ui")
+local config = require("claude-deck.config")
+local state = require("claude-deck.state")
+local ui = require("claude-deck.ui")
 
 local M = {}
 
 local function system_prompt(id)
     return table.concat({
-        string.format("You are running inside claude-terminals terminal #%d in Neovim.", id),
+        string.format("You are running inside terminal #%d of claude-deck (a Neovim plugin that runs multiple Claude Code sessions).", id),
         "Other terminals in the same Neovim run their own Claude Code sessions. You can inspect them with:",
         "- `ct list`: list terminals (id, status, task title, cwd, session_id, transcript path)",
         "- `ct read <id> [count]`: recent conversation of a terminal (default 20 messages)",
@@ -37,7 +37,7 @@ function M.start(win, cwd, extra_args)
     local buf = vim.api.nvim_create_buf(true, false)
     vim.api.nvim_win_set_buf(win, buf)
     vim.bo[buf].bufhidden = "hide"
-    vim.b[buf].claude_terminal_id = id
+    vim.b[buf].claude_deck_id = id
     set_keymaps(buf)
 
     local term = { id = id, buf = buf, cwd = cwd, title = "", state = "idle" }
@@ -45,14 +45,14 @@ function M.start(win, cwd, extra_args)
 
     local cmd = vim.deepcopy(opts.cmd)
     if opts.claude_settings then
-        vim.list_extend(cmd, { "--settings", require("claude-terminals.hooks").settings_json() })
+        vim.list_extend(cmd, { "--settings", require("claude-deck.hooks").settings_json() })
     end
     if opts.cli.enabled and opts.cli.system_prompt then
         vim.list_extend(cmd, { "--append-system-prompt", system_prompt(id) })
     end
     vim.list_extend(cmd, extra_args or {})
 
-    local env = { CLAUDE_TERMINALS_ID = tostring(id) }
+    local env = { CLAUDE_DECK_ID = tostring(id) }
     if opts.cli.enabled then
         env.PATH = config.bin_dir .. ":" .. vim.env.PATH
     end

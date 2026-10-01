@@ -1,5 +1,5 @@
 -- Backend of the `ct` command (bin/ct), called via `nvim --remote-expr`.
-local state = require("claude-terminals.state")
+local state = require("claude-deck.state")
 
 local M = {}
 

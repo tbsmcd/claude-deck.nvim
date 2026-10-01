@@ -1,17 +1,17 @@
 -- Winbar and highlights.
-local state = require("claude-terminals.state")
+local state = require("claude-deck.state")
 
 local M = {}
 
-M.WINBAR = "%!v:lua.require'claude-terminals.ui'.winbar()"
-M.STATUSLINE = "%!v:lua.require'claude-terminals.ui'.statusline()"
+M.WINBAR = "%!v:lua.require'claude-deck.ui'.winbar()"
+M.STATUSLINE = "%!v:lua.require'claude-deck.ui'.statusline()"
 
 M.highlights = {
-    idle = "ClaudeTerminalsIdle",
-    running = "ClaudeTerminalsRunning",
-    waiting = "ClaudeTerminalsWaiting",
-    attention = "ClaudeTerminalsAttention",
-    exited = "ClaudeTerminalsExited",
+    idle = "ClaudeDeckIdle",
+    running = "ClaudeDeckRunning",
+    waiting = "ClaudeDeckWaiting",
+    attention = "ClaudeDeckAttention",
+    exited = "ClaudeDeckExited",
 }
 
 -- Defined with `default = true` so colorschemes and user config can override them.
@@ -19,12 +19,12 @@ M.highlights = {
 -- (they differ in lightness as well as hue); text contrast is at least 4.5:1.
 function M.set_highlights()
     local hl = vim.api.nvim_set_hl
-    hl(0, "ClaudeTerminalsIdle", { default = true, fg = "#000000", bg = "#999999", bold = true })
-    hl(0, "ClaudeTerminalsRunning", { default = true, fg = "#000000", bg = "#56b4e9", bold = true })
-    hl(0, "ClaudeTerminalsWaiting", { default = true, fg = "#000000", bg = "#f0e442", bold = true })
-    hl(0, "ClaudeTerminalsAttention", { default = true, fg = "#000000", bg = "#d55e00", bold = true })
-    hl(0, "ClaudeTerminalsExited", { default = true, fg = "#c8c8c8", bg = "#3b3b3b" })
-    hl(0, "ClaudeTerminalsCwd", { default = true, link = "Directory" })
+    hl(0, "ClaudeDeckIdle", { default = true, fg = "#000000", bg = "#999999", bold = true })
+    hl(0, "ClaudeDeckRunning", { default = true, fg = "#000000", bg = "#56b4e9", bold = true })
+    hl(0, "ClaudeDeckWaiting", { default = true, fg = "#000000", bg = "#f0e442", bold = true })
+    hl(0, "ClaudeDeckAttention", { default = true, fg = "#000000", bg = "#d55e00", bold = true })
+    hl(0, "ClaudeDeckExited", { default = true, fg = "#c8c8c8", bg = "#3b3b3b" })
+    hl(0, "ClaudeDeckCwd", { default = true, link = "Directory" })
 end
 
 local function escape(s)
@@ -57,7 +57,7 @@ end
 
 -- True when the cwd and session id go to the window's own statusline (second line)
 local function two_lines()
-    return require("claude-terminals.config").options.statusline and vim.o.laststatus ~= 3
+    return require("claude-deck.config").options.statusline and vim.o.laststatus ~= 3
 end
 
 -- Line 1: " #2 Running │ task title". Without the statusline, the cwd is right-aligned here,
@@ -87,7 +87,7 @@ function M.winbar()
     title = truncate(title, cwd == "" and available or available - width(cwd) - 3)
     local line = string.format("%%#%s#%s%s %%*", M.highlights[term.state], escape(prefix), escape(title))
     if cwd ~= "" then
-        line = line .. "%=%#ClaudeTerminalsCwd# " .. escape(cwd) .. " %*"
+        line = line .. "%=%#ClaudeDeckCwd# " .. escape(cwd) .. " %*"
     end
     return line
 end
@@ -102,7 +102,7 @@ function M.statusline()
 
     local session = term.session_id and ("session " .. term.session_id:sub(1, 8)) or ""
     return string.format(
-        "%%#ClaudeTerminalsCwd# %%<%s %%*%%=%s ",
+        "%%#ClaudeDeckCwd# %%<%s %%*%%=%s ",
         escape(vim.fn.fnamemodify(term.cwd, ":~")),
         escape(session)
     )
@@ -124,7 +124,7 @@ function M.style_window(win)
         set_local(win, name, value)
     end
     set_local(win, "winbar", M.WINBAR)
-    if require("claude-terminals.config").options.statusline then
+    if require("claude-deck.config").options.statusline then
         set_local(win, "statusline", M.STATUSLINE)
     end
 end

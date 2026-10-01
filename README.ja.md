@@ -1,8 +1,8 @@
-# claude-terminals.nvim
+# claude-deck.nvim
 
 [English](README.md) | 日本語
 
-Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claude-code) のセッションを複数並べて動かし、どのセッションが自分を待っているかをひと目で分かるようにするプラグインです。
+Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claude-code) のセッションを複数並べて動かし、どのセッションが自分を待っているかをひと目で分かるようにするプラグインです。名前の deck は、複数のセッションを並べて見渡す場所という意味です。
 
 - **状態がひと目で分かる**: 各ターミナルの winbar に番号・状態・タスク名を（状態ごとの色で）表示し、ステータスラインに cwd と session id を表示します
 - **デスクトップ通知**: セッションが入力待ちになったときや、許可を求めているときに通知します（今見ているターミナルは除く）
@@ -26,7 +26,7 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
 - [fzf-lua](https://github.com/ibhagwan/fzf-lua): 分割キー付きのピッカー。ない場合は `vim.ui.select` を使います
 - [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua): 集中モードのファイルツリー。ない場合は netrw を使います
 - [zoxide](https://github.com/ajeetdsouza/zoxide): `pick_dir()` の候補にディレクトリを追加します
-- [jq](https://jqlang.org/): `:ClaudeTerminals settings` の JSON を整形して表示します
+- [jq](https://jqlang.org/): `:ClaudeDeck settings` の JSON を整形して表示します
 - デスクトップ通知: macOS では `osascript`（標準搭載。最前面のアプリの判定に `lsappinfo` も使います）、Linux では `notify-send`。`notify.notifier` で独自の通知方法も指定できます
 
 フックスクリプトと `ct` は `nvim --server` を呼ぶ POSIX `sh` スクリプトです。Claude Code から見える `PATH` に `nvim` が必要です。
@@ -37,21 +37,21 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
 
 ```lua
 {
-    "tbsmcd/claude-terminals.nvim",
-    cmd = "ClaudeTerminals",
+    "tbsmcd/claude-deck.nvim",
+    cmd = "ClaudeDeck",
     -- 任意: ピッカー用の fzf-lua、集中モードのツリー用の nvim-tree.lua
     -- 一緒にインストールする場合はコメントを外す:
     -- dependencies = { "ibhagwan/fzf-lua", "nvim-tree/nvim-tree.lua" },
     opts = {},
     keys = {
-        { "<leader>cc", function() require("claude-terminals").toggle() end, desc = "Claude: 開く / 移動 / 追加" },
-        { "<leader>cv", function() require("claude-terminals").new("right") end, desc = "Claude: 右に新規" },
-        { "<leader>cs", function() require("claude-terminals").new("below") end, desc = "Claude: 下に新規" },
-        { "<leader>cl", function() require("claude-terminals").list() end, desc = "Claude: 一覧" },
-        { "<leader>cd", function() require("claude-terminals").pick_dir() end, desc = "Claude: ディレクトリを選んで新規" },
-        { "<leader>cf", function() require("claude-terminals").fork() end, desc = "Claude: セッションを分岐" },
-        { "<leader>cr", function() require("claude-terminals").rename() end, desc = "Claude: タスク名を変更" },
-        { "<leader>co", function() require("claude-terminals").focus() end, desc = "Claude: 集中モード" },
+        { "<leader>cc", function() require("claude-deck").toggle() end, desc = "Claude: 開く / 移動 / 追加" },
+        { "<leader>cv", function() require("claude-deck").new("right") end, desc = "Claude: 右に新規" },
+        { "<leader>cs", function() require("claude-deck").new("below") end, desc = "Claude: 下に新規" },
+        { "<leader>cl", function() require("claude-deck").list() end, desc = "Claude: 一覧" },
+        { "<leader>cd", function() require("claude-deck").pick_dir() end, desc = "Claude: ディレクトリを選んで新規" },
+        { "<leader>cf", function() require("claude-deck").fork() end, desc = "Claude: セッションを分岐" },
+        { "<leader>cr", function() require("claude-deck").rename() end, desc = "Claude: タスク名を変更" },
+        { "<leader>co", function() require("claude-deck").focus() end, desc = "Claude: 集中モード" },
     },
 }
 ```
@@ -71,15 +71,15 @@ opts = {
 
 | Lua API | コマンド | 説明 |
 | --- | --- | --- |
-| `toggle()` | `:ClaudeTerminals` | ターミナルの外では、表示中のターミナルへ移動するか、新しく開きます。ターミナルの中では右に追加します |
-| `new(where?)` | `:ClaudeTerminals new [right\|below]` | 今の window を分割して新しいターミナルを開きます |
-| `list(opts?)` | `:ClaudeTerminals list` | ターミナルを選んで表示します（非表示のものも含む） |
-| `pick_dir(opts?)` | `:ClaudeTerminals dir` | ディレクトリを選んで新しいターミナルを開きます |
-| `fork(where?)` | `:ClaudeTerminals fork` | 今のセッションを分岐させた新しいターミナルを開きます |
-| `rename()` | `:ClaudeTerminals rename` | 今のタスク名を変更します |
-| `show_settings()` | `:ClaudeTerminals settings` | Claude Code に渡す設定の JSON（hook と権限）を表示します |
-| `focus()` | `:ClaudeTerminals focus` | 集中モードを切り替えます |
-| `show(id, where?)` | `:ClaudeTerminals show <番号>` | 番号を指定してターミナルを表示します |
+| `toggle()` | `:ClaudeDeck` | ターミナルの外では、表示中のターミナルへ移動するか、新しく開きます。ターミナルの中では右に追加します |
+| `new(where?)` | `:ClaudeDeck new [right\|below]` | 今の window を分割して新しいターミナルを開きます |
+| `list(opts?)` | `:ClaudeDeck list` | ターミナルを選んで表示します（非表示のものも含む） |
+| `pick_dir(opts?)` | `:ClaudeDeck dir` | ディレクトリを選んで新しいターミナルを開きます |
+| `fork(where?)` | `:ClaudeDeck fork` | 今のセッションを分岐させた新しいターミナルを開きます |
+| `rename()` | `:ClaudeDeck rename` | 今のタスク名を変更します |
+| `show_settings()` | `:ClaudeDeck settings` | Claude Code に渡す設定の JSON（hook と権限）を表示します |
+| `focus()` | `:ClaudeDeck focus` | 集中モードを切り替えます |
+| `show(id, where?)` | `:ClaudeDeck show <番号>` | 番号を指定してターミナルを表示します |
 
 `where` を指定しない場合、新しいターミナルは次の場所に開きます。
 
@@ -97,7 +97,7 @@ fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`
 
 ![集中モード: ファイルツリー、エディタ、ターミナル](docs/images/ja/focus.webp)
 
-ターミナルの window を `:q` で閉じても、非表示になるだけです。Claude のセッションは動き続け、状態の更新や通知も続きます。`list()`（`:ClaudeTerminals list`）で呼び戻せます。終了するには Claude で `/exit` を実行してください。
+ターミナルの window を `:q` で閉じても、非表示になるだけです。Claude のセッションは動き続け、状態の更新や通知も続きます。`list()`（`:ClaudeDeck list`）で呼び戻せます。終了するには Claude で `/exit` を実行してください。
 
 ターミナルが最後の 1 枚の window でも同じです。`:q`（`ZZ`、`<C-w>q`、`:x` も同様）で Neovim は終了せず、空の window が残ります。裏で動いているターミナルの数はメッセージで表示されます。Neovim を終了するには `:qa` を使ってください。空の window でもう一度 `:q` すると Neovim が終了し、Claude のセッションもすべて終了します。この挙動は `keep_alive_on_quit` で切り替えられます。
 
@@ -107,9 +107,9 @@ fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`
 
 | キー | 動作 |
 | --- | --- |
-| `<C-q>` | ターミナルモードを抜ける（claude-terminals のターミナルだけ。`keymaps.normal_mode`） |
+| `<C-q>` | ターミナルモードを抜ける（claude-deck のターミナルだけ。`keymaps.normal_mode`） |
 | `<C-\><C-n>` | ターミナルモードを抜ける（Neovim 標準） |
-| `<C-]>` | Claude に `<Esc>` を送る（claude-terminals のターミナルだけ。`keymaps.send_esc`）。2 回押すと `Esc Esc` になる |
+| `<C-]>` | Claude に `<Esc>` を送る（claude-deck のターミナルだけ。`keymaps.send_esc`）。2 回押すと `Esc Esc` になる |
 | `<C-w>h` / `<C-w>j` / `<C-w>k` / `<C-w>l` | 別の window へ移動（ノーマルモード） |
 | `<C-w><` / `<C-w>>` / `<C-w>-` / `<C-w>+` | サイズを変更（ノーマルモード。`10<C-w>>` のように回数も指定可） |
 | `<C-w>=` | window の大きさをそろえる |
@@ -136,7 +136,7 @@ for _, key in ipairs({ "h", "j", "k", "l" }) do
 end
 ```
 
-この設定にすると、次のキーは Claude Code に届かなくなります: `Esc`（中断。`Esc Esc` で巻き戻し）、`Ctrl+K`（行末まで削除）、`Ctrl+L`（再描画）、`Ctrl+H`（多くのターミナルでは Backspace）。また、claude-terminals 以外のすべてのターミナルにも適用されます。
+この設定にすると、次のキーは Claude Code に届かなくなります: `Esc`（中断。`Esc Esc` で巻き戻し）、`Ctrl+K`（行末まで削除）、`Ctrl+L`（再描画）、`Ctrl+H`（多くのターミナルでは Backspace）。また、claude-deck 以外のすべてのターミナルにも適用されます。
 
 > [!NOTE]
 > Neovim のターミナルは `<Esc>` を Claude に送ります（中断）。ターミナルモードの `<Esc>` を自分でノーマルモードへの移行に割り当てている場合は、`<C-]>` で Claude に `<Esc>` を送れます（2 回押すと `Esc Esc`）。
@@ -195,7 +195,7 @@ ct read 2 [件数]   # ターミナル #2 の直近の会話（既定 20 件）
 既定値:
 
 ```lua
-require("claude-terminals").setup({
+require("claude-deck").setup({
     cmd = { "claude" },
     claude_settings = true, -- hook と `ct` の権限を `claude --settings` で渡す
     title_width = 60, -- タスク名として保持する文字数。winbar では幅に合わせてさらに切り詰める
@@ -256,23 +256,23 @@ opts = {
 
 | グループ | 既定 |
 | --- | --- |
-| `ClaudeTerminalsIdle` | グレー |
-| `ClaudeTerminalsRunning` | 空色 |
-| `ClaudeTerminalsWaiting` | 黄色 |
-| `ClaudeTerminalsAttention` | 朱色 |
-| `ClaudeTerminalsExited` | 暗いグレー |
-| `ClaudeTerminalsCwd` | `Directory` へのリンク |
+| `ClaudeDeckIdle` | グレー |
+| `ClaudeDeckRunning` | 空色 |
+| `ClaudeDeckWaiting` | 黄色 |
+| `ClaudeDeckAttention` | 朱色 |
+| `ClaudeDeckExited` | 暗いグレー |
+| `ClaudeDeckCwd` | `Directory` へのリンク |
 
 ## 仕組み
 
-- 各ターミナルは `claude --settings <json>` で起動します。この JSON で [hook](https://docs.claude.com/en/docs/claude-code/hooks) を登録し、hook が `bin/claude-terminals-hook` を呼びます。このスクリプトが `$NVIM` 経由（`nvim --server $NVIM --remote-expr`）でイベントを Neovim に伝えます。`~/.claude/settings.json` は変更しないので、他の場所で起動した `claude` には影響しません。
-- ターミナルは `$CLAUDE_TERMINALS_ID` で識別します。
+- 各ターミナルは `claude --settings <json>` で起動します。この JSON で [hook](https://docs.claude.com/en/docs/claude-code/hooks) を登録し、hook が `bin/claude-deck-hook` を呼びます。このスクリプトが `$NVIM` 経由（`nvim --server $NVIM --remote-expr`）でイベントを Neovim に伝えます。`~/.claude/settings.json` は変更しないので、他の場所で起動した `claude` には影響しません。
+- ターミナルは `$CLAUDE_DECK_ID` で識別します。
 
 ### `--settings` を使わない場合
 
 `claude_settings = false` にすると、`--settings` を付けずに `claude` を起動します。hook が届かないため、状態表示・通知・タスク名・`fork()` は動かず、`ct` も実行のたびに許可の確認が出ます。
 
-これらを使いたい場合は、自分の Claude Code の設定（`~/.claude/settings.json` など）に hook を登録してください。登録する JSON は `:ClaudeTerminals settings` で確認できます。hook のスクリプトは claude-terminals の外では何もしないので、全体の設定に登録しても安全です。
+これらを使いたい場合は、自分の Claude Code の設定（`~/.claude/settings.json` など）に hook を登録してください。登録する JSON は `:ClaudeDeck settings` で確認できます。hook のスクリプトは claude-deck の外では何もしないので、全体の設定に登録しても安全です。
 
 ## 制約
 
@@ -284,7 +284,7 @@ opts = {
 ## ヘルスチェック
 
 ```vim
-:checkhealth claude-terminals
+:checkhealth claude-deck
 ```
 
 ## 開発

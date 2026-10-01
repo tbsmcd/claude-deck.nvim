@@ -1,5 +1,5 @@
--- Receives Claude Code hook events from bin/claude-terminals-hook.
-local state = require("claude-terminals.state")
+-- Receives Claude Code hook events from bin/claude-deck-hook.
+local state = require("claude-deck.state")
 
 local M = {}
 
@@ -7,8 +7,8 @@ M.EVENTS = { "SessionStart", "UserPromptSubmit", "PostToolUse", "Stop", "Notific
 
 -- Claude Code settings passed with `claude --settings`, so hooks apply only to these terminals
 function M.settings_json()
-    local config = require("claude-terminals.config")
-    local script = vim.fn.shellescape(config.bin_dir .. "/claude-terminals-hook")
+    local config = require("claude-deck.config")
+    local script = vim.fn.shellescape(config.bin_dir .. "/claude-deck-hook")
     local hooks = {}
     for _, event in ipairs(M.EVENTS) do
         hooks[event] = {
