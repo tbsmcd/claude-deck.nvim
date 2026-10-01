@@ -12,11 +12,7 @@ Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions
 - **Focus mode**: a new tab with file tree | editor | terminal in the terminal's cwd; toggle back to your previous layout
 - **Cross-session awareness**: Claude inside a terminal can run `ct list` / `ct read <id>` to see what the other sessions are doing
 
-```
- #1 Running │ Refactor the parser modu…  ~/src/app
- #2 Waiting │ Fix flaky login test       ~/src/app
- #3 Needs you │ Upgrade to React 19      ~/src/web
-```
+![Four Claude Code sessions side by side, with status colors in the winbar](docs/images/terminals.webp)
 
 ## Requirements
 
@@ -80,6 +76,14 @@ Where a new terminal opens (without `where`):
 - otherwise: at the far right (`width_ratio` of the editor width)
 
 In the fzf-lua pickers, `enter` opens with the rule above, `ctrl-v` splits right and `ctrl-s` splits below.
+
+![Terminal list in fzf-lua](docs/images/list.webp)
+
+#### Focus mode
+
+`focus()` opens a new tab with file tree | editor | terminal in the terminal's cwd. Run it again in that tab to return to your previous layout.
+
+![Focus mode: file tree, editor and terminal](docs/images/focus.webp)
 
 Closing a terminal window (`:q`) only hides it. The Claude session keeps running and still updates its status and sends notifications. Exit Claude (`/exit`) to end it.
 
