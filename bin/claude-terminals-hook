@@ -1,0 +1,14 @@
+#!/bin/sh
+# Forwards a Claude Code hook event to claude-terminals.nvim.
+# Registered by the plugin via `claude --settings`. $1 is the event name, stdin is the hook JSON.
+# Does nothing outside a claude-terminals terminal.
+[ -n "$NVIM" ] && [ -n "$CLAUDE_TERMINALS_ID" ] || exit 0
+
+case "$CLAUDE_TERMINALS_ID" in '' | *[!0-9]*) exit 0 ;; esac
+case "$1" in '' | *[!A-Za-z]*) exit 0 ;; esac
+
+f=$(mktemp "${TMPDIR:-/tmp}/claude-terminals-hook.XXXXXX") || exit 0
+cat > "$f"
+nvim --server "$NVIM" --remote-expr \
+    "v:lua.require'claude-terminals.hooks'.on_hook('$CLAUDE_TERMINALS_ID','$1','$f')" >/dev/null 2>&1 || rm -f "$f"
+exit 0

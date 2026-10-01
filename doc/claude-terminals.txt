@@ -1,0 +1,152 @@
+*claude-terminals.txt*  Multiple Claude Code sessions in Neovim terminals
+
+==============================================================================
+CONTENTS                                             *claude-terminals-contents*
+
+  1. Introduction ............ |claude-terminals-intro|
+  2. Setup ................... |claude-terminals-setup|
+  3. Usage ................... |claude-terminals-usage|
+  4. Status and notifications  |claude-terminals-status|
+  5. The ct command .......... |claude-terminals-ct|
+  6. Configuration ........... |claude-terminals-config|
+  7. Highlights .............. |claude-terminals-highlights|
+  8. Limitations ............. |claude-terminals-limitations|
+
+==============================================================================
+1. INTRODUCTION                                         *claude-terminals-intro*
+
+claude-terminals.nvim runs Claude Code in Neovim terminals. Each terminal
+shows its id, status, task title and cwd in the winbar, sends a desktop
+notification when it waits for you, and lets Claude inspect the other
+terminals with the `ct` command.
+
+Requires Neovim 0.11 or later and `claude` on PATH. fzf-lua and nvim-tree.lua
+are optional.
+
+==============================================================================
+2. SETUP                                                *claude-terminals-setup*
+
+>lua
+    require("claude-terminals").setup({})
+<
+No keymaps are created. Map the functions below, for example:
+>lua
+    local ct = require("claude-terminals")
+    vim.keymap.set("n", "<leader>cc", ct.toggle)
+    vim.keymap.set("n", "<leader>cv", function() ct.new("right") end)
+    vim.keymap.set("n", "<leader>cs", function() ct.new("below") end)
+    vim.keymap.set("n", "<leader>cl", ct.list)
+    vim.keymap.set("n", "<leader>cd", ct.pick_dir)
+    vim.keymap.set("n", "<leader>cf", ct.fork)
+    vim.keymap.set("n", "<leader>cr", ct.rename)
+    vim.keymap.set("n", "<leader>co", ct.focus)
+<
+==============================================================================
+3. USAGE                                                *claude-terminals-usage*
+
+                                                             *:ClaudeTerminals*
+:ClaudeTerminals [{subcommand} [{args}]]
+    Without a subcommand, same as `toggle`.
+
+toggle()                                             *claude-terminals.toggle()*
+    Outside a terminal, focus a visible terminal or open a new one. Inside a
+    terminal, open a new one to the right.
+
+new({where})                                            *claude-terminals.new()*
+    Open a new terminal. {where} is "right" or "below" to split the current
+    window, or nil to use the default placement:
+    - inside a terminal: to the right
+    - in an empty unnamed buffer: in place
+    - otherwise: at the far right
+    The new terminal uses the current terminal's cwd, or |getcwd()|.
+
+list({opts})                                           *claude-terminals.list()*
+    Pick a terminal, including hidden ones, and show it. With fzf-lua,
+    <CR> opens with the default placement, <C-v> splits right and <C-s>
+    splits below. {opts}.where sets the placement for |vim.ui.select|.
+
+pick_dir({opts})                                   *claude-terminals.pick_dir()*
+    Pick a directory and open a new terminal there. Candidates: current
+    directory, cwds of terminals, children of `dir_roots`, and zoxide.
+
+fork({where})                                          *claude-terminals.fork()*
+    Open a new terminal that runs `claude --resume <session> --fork-session`
+    for the current terminal's session.
+
+rename()                                             *claude-terminals.rename()*
+    Rename the current terminal's task.
+
+focus()                                               *claude-terminals.focus()*
+    Inside a terminal, open a new tab with file tree | editor | terminal and
+    |:tcd| to the terminal's cwd. In that tab, close it and return to the
+    original window.
+
+show({id}, {where})                                    *claude-terminals.show()*
+    Show terminal {id}.
+
+Closing a terminal window with |:q| hides it; Claude keeps running.
+
+==============================================================================
+4. STATUS AND NOTIFICATIONS                            *claude-terminals-status*
+
+Status comes from Claude Code hooks registered with `claude --settings`, so
+your own settings are not modified.
+
+    New        started, `SessionStart`
+    Running    `UserPromptSubmit`, `PostToolUse`
+    Waiting    `Stop`                        (notifies)
+    Needs you  `Notification`                (notifies)
+    Exited     the process exited
+
+A notification is skipped when Neovim has focus, the current window shows
+that terminal and, on macOS, the terminal app is the frontmost app.
+
+==============================================================================
+5. THE CT COMMAND                                          *claude-terminals-ct*
+
+Inside a terminal, `ct` is on PATH and Claude is told about it:
+
+    ct list                 list terminals
+    ct read <id> [count]    recent messages of a terminal (default 20)
+
+Both are allowed without a permission prompt. `ct read` parses Claude Code's
+transcript files, whose format is internal and may change.
+
+==============================================================================
+6. CONFIGURATION                                      *claude-terminals-config*
+
+    cmd                   command to start Claude  (default: { "claude" })
+    title_width           max characters of the task title  (default: 24)
+    width_ratio           width of a terminal opened at the far right
+                          (default: 0.4)
+    dir_roots             directories whose children `pick_dir()` offers
+    zoxide                also offer zoxide directories  (default: true)
+    labels                text for each status and `untitled`
+    notify.enabled        (default: true)
+    notify.states         (default: { "waiting", "attention" })
+    notify.skip_when_watching  (default: true)
+    notify.notifier       function({ title, subtitle, body, state, terminal })
+    picker                "auto", "fzf-lua" or "select"
+    focus.tree            "auto", false or function(cwd)
+    cli.enabled           put `ct` on PATH and allow it  (default: true)
+    cli.system_prompt     tell Claude about `ct`  (default: true)
+
+==============================================================================
+7. HIGHLIGHTS                                     *claude-terminals-highlights*
+
+    ClaudeTerminalsIdle
+    ClaudeTerminalsRunning
+    ClaudeTerminalsWaiting
+    ClaudeTerminalsAttention
+    ClaudeTerminalsExited
+    ClaudeTerminalsCwd
+
+==============================================================================
+8. LIMITATIONS                                   *claude-terminals-limitations*
+
+- Interrupting Claude does not fire `Stop`; the status stays Running until
+  the next prompt.
+- On macOS, switching tabs or panes inside the terminal app is not detected
+  as losing focus.
+
+ vim:tw=78:ts=8:ft=help:norl:

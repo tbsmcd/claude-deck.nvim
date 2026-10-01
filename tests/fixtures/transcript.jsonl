@@ -1,0 +1,6 @@
+{"type":"user","message":{"role":"user","content":"Refactor the parser module and add tests for it"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":"..."}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","input":{}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"..."}]}}
+{"type":"user","isMeta":true,"message":{"role":"user","content":"meta message"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I split the parser into tokenizer and AST builder."}]}}
