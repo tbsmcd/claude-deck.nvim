@@ -34,6 +34,10 @@ function _G.T_winbar()
     return vim.api.nvim_eval_statusline(vim.wo.winbar, { winid = 0, use_winbar = true }).str
 end
 
+function _G.T_statusline()
+    return vim.api.nvim_eval_statusline(vim.wo.statusline, { winid = 0 }).str
+end
+
 function _G.T_pick(action, index)
     local p = _G.last_picker
     p.opts.actions[action]({ p.lines[index] })

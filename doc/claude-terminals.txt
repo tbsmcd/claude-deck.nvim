@@ -16,7 +16,8 @@ CONTENTS                                             *claude-terminals-contents*
 1. INTRODUCTION                                         *claude-terminals-intro*
 
 claude-terminals.nvim runs Claude Code in Neovim terminals. Each terminal
-shows its id, status, task title and cwd in the winbar, sends a desktop
+shows its id, status and task title in the winbar, its cwd and session id
+in the statusline, sends a desktop
 notification when it waits for you, and lets Claude inspect the other
 terminals with the `ct` command.
 
@@ -134,7 +135,10 @@ transcript files, whose format is internal and may change.
     cmd                   command to start Claude  (default: { "claude" })
     claude_settings       pass hooks and `ct` permissions with
                           `claude --settings`  (default: true)
-    title_width           max characters of the task title  (default: 24)
+    title_width           max characters kept for the task title; the
+                          winbar cuts it to fit  (default: 60)
+    statusline            cwd and session id in the window's statusline;
+                          false puts the cwd in the winbar  (default: true)
     width_ratio           width of a terminal opened at the far right
                           (default: 0.4)
     dir_roots             directories whose children `pick_dir()` offers

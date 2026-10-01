@@ -58,6 +58,24 @@ function M.make_title(text)
     return s
 end
 
+-- Sets the task title and renames the buffer to "claude:#<id> <title>", which reads well
+-- in tablines and statuslines (no "/" so that path shortening leaves it alone).
+function M.set_title(term, title)
+    term.title = title
+    if vim.api.nvim_buf_is_valid(term.buf) then
+        local old_name = vim.api.nvim_buf_get_name(term.buf)
+        local name = string.format("claude:#%d %s", term.id, (M.title(term):gsub("/", "-")))
+        if name ~= old_name and pcall(vim.api.nvim_buf_set_name, term.buf, name) then
+            -- Renaming leaves an unloaded buffer with the old name (the alternate file); remove it
+            local old = vim.fn.bufnr(old_name)
+            if old ~= -1 and old ~= term.buf and not vim.api.nvim_buf_is_loaded(old) then
+                pcall(vim.api.nvim_buf_delete, old, { force = true })
+            end
+        end
+    end
+    require("claude-terminals.ui").redraw()
+end
+
 function M.add(term)
     M.terminals[term.id] = term
 end

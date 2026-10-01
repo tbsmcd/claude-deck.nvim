@@ -68,6 +68,8 @@ function M.start(win, cwd, extra_args)
         end,
     })
 
+    -- jobstart() names the buffer "term://…"; use a readable name instead
+    state.set_title(term, "")
     ui.style_window(win)
     vim.cmd("startinsert")
     return term

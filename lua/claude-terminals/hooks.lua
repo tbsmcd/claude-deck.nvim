@@ -33,13 +33,13 @@ local function handle(term, event, data)
 
     if event == "SessionStart" then
         if data.source == "clear" then
-            term.title = ""
+            state.set_title(term, "")
         end
         state.set_state(term, "idle")
     elseif event == "UserPromptSubmit" then
         local prompt = type(data.prompt) == "string" and data.prompt or ""
         if term.title == "" and prompt ~= "" and not prompt:match("^%s*/") then
-            term.title = state.make_title(prompt)
+            state.set_title(term, state.make_title(prompt))
         end
         state.set_state(term, "running")
     elseif event == "PostToolUse" then

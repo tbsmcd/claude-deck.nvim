@@ -4,7 +4,7 @@ English | [日本語](README.ja.md)
 
 Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions side by side in Neovim terminals, and always know which one needs you.
 
-- **Status at a glance**: each terminal's winbar shows its id, status, task title and cwd, with a color per status
+- **Status at a glance**: each terminal shows its id, status and task title in the winbar (colored per status), and its cwd and session id in the statusline
 - **Desktop notifications** when a session finishes or asks for permission (skipped for the terminal you are looking at)
 - **Many sessions**: split right / below, hide with `:q` (the session keeps running), bring back from a picker
 - **Open in any directory** from a directory picker
@@ -138,6 +138,15 @@ These keys then no longer reach Claude Code: `Esc` (interrupt, `Esc Esc` to rewi
 
 The task title is the beginning of the first prompt (slash commands are ignored). `/clear` resets it.
 
+Each terminal has a two-line header:
+
+```
+ #4 Needs you │ Run the migration after confirming   ← winbar
+ ~/src/app                          session 317dbc5c   ← statusline
+```
+
+With `statusline = false`, or with `'laststatus'` set to 3 (one global statusline), the cwd goes to the right of the winbar instead, and is shortened or dropped when the window is narrow. The terminal buffer is named `claude:#<id> <title>`, so tablines and other statuslines show something readable.
+
 ### Notifications
 
 A notification is skipped only when all of these hold:
@@ -168,7 +177,8 @@ Defaults:
 require("claude-terminals").setup({
     cmd = { "claude" },
     claude_settings = true, -- pass hooks and `ct` permissions with `claude --settings`
-    title_width = 24,
+    title_width = 60, -- characters kept for the task title; the winbar cuts it to fit
+    statusline = true, -- cwd and session id in the window's statusline (false: cwd in the winbar)
     width_ratio = 0.4,
     dir_roots = {}, -- e.g. { "~/src" }: direct children are offered by pick_dir()
     zoxide = true, -- also offer `zoxide query --list` in pick_dir()

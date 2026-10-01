@@ -177,8 +177,7 @@ function M.fork(where)
     end
 
     local term = terminal.open_new(parent.cwd, where or "right", { "--resume", parent.session_id, "--fork-session" })
-    term.title = "↳" .. (parent.title ~= "" and parent.title or ("#" .. parent.id))
-    require("claude-terminals.ui").redraw()
+    state.set_title(term, "↳" .. (parent.title ~= "" and parent.title or ("#" .. parent.id)))
 end
 
 -- Show the Claude Code settings JSON (hooks and `ct` permissions) in a scratch buffer,
@@ -210,8 +209,7 @@ function M.rename()
 
     vim.ui.input({ prompt = "Task title: ", default = term.title }, function(input)
         if input then
-            term.title = state.make_title(input)
-            require("claude-terminals.ui").redraw()
+            state.set_title(term, state.make_title(input))
         end
     end)
 end

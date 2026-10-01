@@ -4,7 +4,7 @@
 
 Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claude-code) のセッションを複数並べて動かし、どのセッションが自分を待っているかをひと目で分かるようにするプラグインです。
 
-- **状態がひと目で分かる**: 各ターミナルの winbar に番号・状態・タスク名・cwd を表示し、状態ごとに色を変えます
+- **状態がひと目で分かる**: 各ターミナルの winbar に番号・状態・タスク名を（状態ごとの色で）表示し、ステータスラインに cwd と session id を表示します
 - **デスクトップ通知**: セッションが入力待ちになったときや、許可を求めているときに通知します（今見ているターミナルは除く）
 - **複数のセッション**: 右や下に分割して増やせます。`:q` で閉じても裏で動き続け、ピッカーから呼び戻せます
 - **好きなディレクトリで開く**: ディレクトリを選んで新しいターミナルを開けます
@@ -138,6 +138,15 @@ end
 
 タスク名は最初のプロンプトの先頭部分です（スラッシュコマンドは使いません）。`/clear` するとリセットされます。
 
+各ターミナルの表示は 2 行です。
+
+```
+ #4 Needs you │ 確認してからマイグレーションを実行   ← winbar
+ ~/src/app                      session 317dbc5c   ← ステータスライン
+```
+
+`statusline = false` にした場合や、`'laststatus'` が 3（全体で 1 本のステータスライン）の場合は、cwd を winbar の右側に表示します。window が狭いときは、cwd を短縮形にするか省きます。ターミナルのバッファ名は `claude:#<番号> <タスク名>` になるので、タブラインや他のステータスラインでも読みやすく表示されます。
+
 状態名は `labels` で変更できます（[設定](#設定)を参照）。
 
 ### 通知
@@ -170,7 +179,8 @@ ct read 2 [件数]   # ターミナル #2 の直近の会話（既定 20 件）
 require("claude-terminals").setup({
     cmd = { "claude" },
     claude_settings = true, -- hook と `ct` の権限を `claude --settings` で渡す
-    title_width = 24,
+    title_width = 60, -- タスク名として保持する文字数。winbar では幅に合わせてさらに切り詰める
+    statusline = true, -- window のステータスラインに cwd と session id を表示する（false なら cwd を winbar に表示）
     width_ratio = 0.4,
     dir_roots = {}, -- 例: { "~/src" }。直下のディレクトリを pick_dir() の候補にする
     zoxide = true, -- `zoxide query --list` の結果も pick_dir() の候補にする

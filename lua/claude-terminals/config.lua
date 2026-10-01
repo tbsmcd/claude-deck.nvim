@@ -12,8 +12,12 @@ M.defaults = {
     -- the hooks in your own Claude Code settings (`:ClaudeTerminals settings` shows them) or
     -- go without status tracking.
     claude_settings = true,
-    -- Max characters of the task title (taken from the first prompt).
-    title_width = 24,
+    -- Max characters kept for the task title (taken from the first prompt). The winbar
+    -- cuts it further to fit the window.
+    title_width = 60,
+    -- Two-line header: status and task title in the winbar, cwd and session id in the
+    -- window's statusline. When false (or with 'laststatus' = 3), the cwd goes into the winbar.
+    statusline = true,
     -- Width of a terminal opened at the far right, relative to the editor width.
     width_ratio = 0.4,
     -- Directories whose direct children are offered by `pick_dir()`.

@@ -49,7 +49,15 @@ check "claude gets the system prompt" "$(cat "$TEST_OUT/args.1")" "ct list"
 # Hook events update the winbar
 hook 1 SessionStart '{"cwd":"'"$ROOT"'","session_id":"sess-1","transcript_path":"'"$ROOT"'/tests/fixtures/transcript.jsonl"}'
 hook 1 UserPromptSubmit '{"prompt":"Refactor   the parser module and add tests for it"}'
-check "running state in winbar" "$(lua 'T_winbar()')" "#1 Running │ Refactor the parser modu…"
+check "running state in winbar" "$(lua 'T_winbar()')" "#1 Running │ Refactor the parser module and add tests for it"
+check "statusline shows cwd and session" "$(lua 'T_statusline()')" "claude-terminals.nvim"
+check "statusline shows session id" "$(lua 'T_statusline()')" "session sess-1"
+check "buffer is renamed" "$(lua 'vim.api.nvim_buf_get_name(0)')" "claude:#1 Refactor the parser"
+check "no leftover term:// buffers" "$(lua '#vim.tbl_filter(function(b) return vim.api.nvim_buf_get_name(b):match("^term://") ~= nil end, vim.api.nvim_list_bufs())')" "0"
+check "narrow window cuts the title" "$(lua '(function() vim.cmd("vsplit"); vim.api.nvim_win_set_width(0, 30); local s = T_winbar(); vim.cmd("close"); return s end)()')" "#1 Running │ Refactor the p…"
+check "one-line mode right-aligns the cwd" "$(lua '(function() vim.o.columns = 200; vim.o.laststatus = 3; local s = T_winbar(); vim.o.laststatus = 2; vim.o.columns = 80; return s end)()')" "tests for it   "
+check "one-line mode shows the full cwd" "$(lua '(function() vim.o.columns = 200; vim.o.laststatus = 3; local s = T_winbar(); vim.o.laststatus = 2; vim.o.columns = 80; return s end)()')" "~/repos/claude-terminals.nvim"
+check "one-line mode drops the cwd when narrow" "$(lua '(function() vim.o.laststatus = 3; local s = T_winbar(); vim.o.laststatus = 2; return s:find("repos", 1, true) and s or "no cwd" end)()')" "no cwd"
 hook 1 Notification '{"notification_type":"permission_prompt","message":"Claude needs your permission"}'
 check "attention state in winbar" "$(lua 'T_winbar()')" "Needs you"
 check "no notification for the watched terminal" "$(lua '#_G.notifications')" "0"
