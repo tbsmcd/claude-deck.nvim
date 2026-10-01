@@ -86,6 +86,16 @@ check "list shows hidden terminal below" "$(lua '(function() require("claude-ter
 check "dir picker candidates" "$(lua '(function() require("claude-terminals").pick_dir(); return table.concat(_G.last_picker.lines, ";") end)()')" "fixtures/roots/project-a"
 check "dir picker opens in the chosen dir" "$(lua '(function() for i, l in ipairs(_G.last_picker.lines) do if l:find("project%-a") then T_pick("ctrl-v", i) end end; vim.cmd("stopinsert"); return require("claude-terminals.state").current().cwd end)()')" "fixtures/roots/project-a"
 
+# Terminal-mode keymaps and auto insert
+check "normal_mode keymap in terminals" "$(lua '(function() local m = vim.fn.maparg("<C-q>", "t", false, true); return tostring(m.buffer) .. " " .. m.rhs end)()')" "1 <C-\\><C-n>"
+lua '(function() vim.cmd("stopinsert"); vim.cmd("wincmd w"); vim.cmd("wincmd w"); return "" end)()' >/dev/null
+sleep 0.2
+check "auto insert when entering a terminal" "$(lua 'vim.api.nvim_get_mode().mode .. " " .. tostring(vim.b.claude_terminal_id ~= nil)')" "t true"
+
+# Splitting a terminal keeps the editor width (even with 'equalalways')
+check "split keeps other windows" "$(lua '(function() vim.cmd("stopinsert | tabnew"); vim.o.columns = 200; vim.o.equalalways = true; vim.cmd("edit " .. vim.fn.tempname()); local editor = vim.api.nvim_get_current_win(); require("claude-terminals").new(); vim.cmd("stopinsert"); local before = vim.api.nvim_win_get_width(editor); require("claude-terminals").new("right"); vim.cmd("stopinsert"); return before .. " " .. vim.api.nvim_win_get_width(editor) .. " " .. tostring(vim.o.equalalways) end)()')" "119 119 true"
+lua '(function() vim.cmd("tabclose!"); return "" end)()' >/dev/null
+
 # Without --settings
 lua '(function() require("claude-terminals").setup(vim.tbl_extend("force", T_opts, { claude_settings = false })); require("claude-terminals").new("below"); vim.cmd("stopinsert"); return "" end)()' >/dev/null
 sleep 0.5

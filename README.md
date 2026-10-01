@@ -74,8 +74,27 @@ In the fzf-lua pickers, `enter` opens with the rule above, `ctrl-v` splits right
 
 Closing a terminal window (`:q`) only hides it. The Claude session keeps running and still updates its status and sends notifications. Exit Claude (`/exit`) to end it.
 
+### Windows
+
+Keys typed in a terminal go to Claude, so leave terminal mode first to use window commands:
+
+| Key | Action |
+| --- | --- |
+| `<C-q>` | Leave terminal mode (only in claude terminals; `keymaps.normal_mode`) |
+| `<C-\><C-n>` | Leave terminal mode (built in) |
+| `<C-w>h` / `<C-w>j` / `<C-w>k` / `<C-w>l` | Move to another window (normal mode) |
+| `<C-w><` / `<C-w>>` / `<C-w>-` / `<C-w>+` | Resize (normal mode; e.g. `10<C-w>>`) |
+| `<C-w>=` | Make windows equal size |
+| mouse drag on a separator | Resize |
+
+Moving back into a terminal window enters terminal mode automatically (`auto_insert`).
+
+To run window commands without leaving terminal mode, set `keymaps.window = "<C-w>"` (Claude Code's `Ctrl+W`, delete word, is then unavailable).
+
+Opening a terminal never resizes your other windows, even with `'equalalways'`: splits happen inside the terminal's area.
+
 > [!NOTE]
-> Neovim's terminal sends `<Esc>` to the running program. If you map `<Esc>` in terminal mode to leave terminal mode, use `<C-c>` to interrupt Claude.
+> Neovim's terminal sends `<Esc>` to Claude (interrupt). If you map `<Esc>` in terminal mode to leave terminal mode yourself, use `<C-c>` to interrupt Claude.
 
 ### Status
 
@@ -137,6 +156,11 @@ require("claude-terminals").setup({
         skip_when_watching = true,
         notifier = nil, -- function({ title, subtitle, body, state, terminal })
     },
+    keymaps = { -- terminal-mode keys in claude terminals; false to disable
+        normal_mode = "<C-q>",
+        window = false, -- e.g. "<C-w>"
+    },
+    auto_insert = true, -- enter terminal mode when moving into a terminal window
     picker = "auto", -- "auto" | "fzf-lua" | "select"
     focus = {
         tree = "auto", -- "auto" | false | function(cwd)

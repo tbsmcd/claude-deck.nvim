@@ -39,6 +39,17 @@ M.defaults = {
         -- notifier (osascript on macOS, notify-send elsewhere).
         notifier = nil,
     },
+    -- Terminal-mode keys mapped only in claude terminals. Set an entry to false to disable it.
+    keymaps = {
+        -- Leave terminal mode. Claude Code does not use <C-q>; <C-\><C-n> always works too.
+        normal_mode = "<C-q>",
+        -- Prefix for window commands straight from terminal mode, e.g. "<C-w>" makes
+        -- <C-w>h / <C-w>l / <C-w>> work without leaving terminal mode first.
+        -- Claude Code's <C-w> (delete word) is then unavailable.
+        window = false,
+    },
+    -- Enter terminal mode when you move into a claude terminal window.
+    auto_insert = true,
     -- "auto" (fzf-lua if installed), "fzf-lua" or "select" (vim.ui.select).
     picker = "auto",
     focus = {

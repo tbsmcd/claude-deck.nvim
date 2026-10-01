@@ -91,6 +91,15 @@ show({id}, {where})                                    *claude-terminals.show()*
 
 Closing a terminal window with |:q| hides it; Claude keeps running.
 
+                                                      *claude-terminals-windows*
+Keys typed in a terminal go to Claude. Leave terminal mode with <C-q>
+(`keymaps.normal_mode`) or <C-\><C-n>, then use |CTRL-W| commands. Moving
+back into a terminal window enters terminal mode (`auto_insert`). Set
+`keymaps.window = "<C-w>"` to run window commands from terminal mode (Claude
+Code's CTRL-W, delete word, is then unavailable).
+
+Opening a terminal does not resize other windows, even with 'equalalways'.
+
 ==============================================================================
 4. STATUS AND NOTIFICATIONS                            *claude-terminals-status*
 
@@ -135,6 +144,12 @@ transcript files, whose format is internal and may change.
     notify.states         (default: { "waiting", "attention" })
     notify.skip_when_watching  (default: true)
     notify.notifier       function({ title, subtitle, body, state, terminal })
+    keymaps.normal_mode   terminal-mode key to leave terminal mode
+                          (default: "<C-q>", false to disable)
+    keymaps.window        terminal-mode prefix for window commands
+                          (default: false, e.g. "<C-w>")
+    auto_insert           enter terminal mode when entering a terminal
+                          window  (default: true)
     picker                "auto", "fzf-lua" or "select"
     focus.tree            "auto", false or function(cwd)
     cli.enabled           put `ct` on PATH and allow it  (default: true)

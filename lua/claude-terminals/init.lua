@@ -29,6 +29,20 @@ function M.setup(opts)
             state.nvim_focused = false
         end,
     })
+    vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter" }, {
+        group = group,
+        callback = function(args)
+            if not config.options.auto_insert or not state.of_buf(args.buf) then
+                return
+            end
+            vim.schedule(function()
+                local term = state.current()
+                if term and term.state ~= "exited" and vim.api.nvim_get_mode().mode ~= "t" then
+                    vim.cmd("startinsert")
+                end
+            end)
+        end,
+    })
     vim.api.nvim_create_autocmd("BufWinEnter", {
         group = group,
         callback = function(args)

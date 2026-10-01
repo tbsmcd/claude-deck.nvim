@@ -74,8 +74,27 @@ fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`
 
 ターミナルの window を `:q` で閉じても、非表示になるだけです。Claude のセッションは動き続け、状態の更新や通知も続きます。終了するには Claude で `/exit` を実行してください。
 
+### ウィンドウの操作
+
+ターミナルの中で押したキーは Claude に送られます。ウィンドウを操作するときは、先にターミナルモードから抜けてください。
+
+| キー | 動作 |
+| --- | --- |
+| `<C-q>` | ターミナルモードを抜ける（claude-terminals のターミナルだけ。`keymaps.normal_mode`） |
+| `<C-\><C-n>` | ターミナルモードを抜ける（Neovim 標準） |
+| `<C-w>h` / `<C-w>j` / `<C-w>k` / `<C-w>l` | 別の window へ移動（ノーマルモード） |
+| `<C-w><` / `<C-w>>` / `<C-w>-` / `<C-w>+` | サイズを変更（ノーマルモード。`10<C-w>>` のように回数も指定可） |
+| `<C-w>=` | window の大きさをそろえる |
+| 境界線をマウスでドラッグ | サイズを変更 |
+
+ターミナルの window に戻ると、自動でターミナルモードになります（`auto_insert`）。
+
+ターミナルモードのまま window を操作したい場合は、`keymaps.window = "<C-w>"` を設定してください。その代わり、Claude Code の `Ctrl+W`（単語の削除）は使えなくなります。
+
+`'equalalways'` が有効でも、ターミナルを開いたときに他の window の大きさは変わりません。分割はターミナルの領域の中で行います。
+
 > [!NOTE]
-> Neovim のターミナルは `<Esc>` を実行中のプログラムに送ります。ターミナルモードの `<Esc>` をノーマルモードへの移行に割り当てている場合は、`<C-c>` で Claude を中断してください。
+> Neovim のターミナルは `<Esc>` を Claude に送ります（中断）。ターミナルモードの `<Esc>` を自分でノーマルモードへの移行に割り当てている場合は、`<C-c>` で Claude を中断してください。
 
 ### 状態
 
@@ -139,6 +158,11 @@ require("claude-terminals").setup({
         skip_when_watching = true,
         notifier = nil, -- function({ title, subtitle, body, state, terminal })
     },
+    keymaps = { -- ターミナルの中だけで有効なキー。false で無効
+        normal_mode = "<C-q>",
+        window = false, -- 例: "<C-w>"
+    },
+    auto_insert = true, -- ターミナルの window に入ったらターミナルモードにする
     picker = "auto", -- "auto" | "fzf-lua" | "select"
     focus = {
         tree = "auto", -- "auto" | false | function(cwd)

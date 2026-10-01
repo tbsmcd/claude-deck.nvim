@@ -15,6 +15,16 @@ local function system_prompt(id)
     }, "\n")
 end
 
+local function set_keymaps(buf)
+    local keymaps = config.options.keymaps
+    if keymaps.normal_mode then
+        vim.keymap.set("t", keymaps.normal_mode, [[<C-\><C-n>]], { buffer = buf, desc = "Leave terminal mode" })
+    end
+    if keymaps.window then
+        vim.keymap.set("t", keymaps.window, [[<C-\><C-n><C-w>]], { buffer = buf, desc = "Window command" })
+    end
+end
+
 -- Starts Claude Code in `win`. `extra_args` are appended to the command.
 function M.start(win, cwd, extra_args)
     local opts = config.options
@@ -25,6 +35,7 @@ function M.start(win, cwd, extra_args)
     vim.api.nvim_win_set_buf(win, buf)
     vim.bo[buf].bufhidden = "hide"
     vim.b[buf].claude_terminal_id = id
+    set_keymaps(buf)
 
     local term = { id = id, buf = buf, cwd = cwd, title = "", state = "idle" }
     state.add(term)
@@ -62,16 +73,46 @@ function M.start(win, cwd, extra_args)
     return term
 end
 
--- where: "right" / "below" split the current window, "far_right" opens at the far right
-function M.open_window(where)
-    if where == "right" then
-        vim.cmd("rightbelow vsplit")
-    elseif where == "below" then
-        vim.cmd("rightbelow split")
-    else
-        vim.cmd("botright vsplit")
-        vim.api.nvim_win_set_width(0, math.floor(vim.o.columns * config.options.width_ratio))
+-- Runs `fn` with the size of every window in the tab except the current one fixed, so that
+-- splitting with 'equalalways' does not resize the other windows. (Toggling 'equalalways'
+-- itself does not work: turning it back on equalizes all windows.)
+local function with_other_windows_fixed(fn)
+    local current = vim.api.nvim_get_current_win()
+    local saved = {}
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        if win ~= current then
+            saved[win] = { vim.wo[win].winfixwidth, vim.wo[win].winfixheight }
+            vim.wo[win].winfixwidth = true
+            vim.wo[win].winfixheight = true
+        end
     end
+
+    local ok, err = pcall(fn)
+
+    for win, fixed in pairs(saved) do
+        if vim.api.nvim_win_is_valid(win) then
+            vim.wo[win].winfixwidth = fixed[1]
+            vim.wo[win].winfixheight = fixed[2]
+        end
+    end
+    if not ok then
+        error(err)
+    end
+end
+
+-- where: "right" / "below" split the current window, "far_right" opens at the far right.
+-- Other windows keep their size.
+function M.open_window(where)
+    with_other_windows_fixed(function()
+        if where == "right" then
+            vim.cmd("rightbelow vsplit")
+        elseif where == "below" then
+            vim.cmd("rightbelow split")
+        else
+            vim.cmd("botright vsplit")
+            vim.api.nvim_win_set_width(0, math.floor(vim.o.columns * config.options.width_ratio))
+        end
+    end)
     return vim.api.nvim_get_current_win()
 end
 
