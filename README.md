@@ -141,13 +141,15 @@ These keys then no longer reach Claude Code: `Esc` (interrupt, `Esc Esc` to rewi
 
 ### Status
 
-| Status | Trigger | Notification |
-| --- | --- | --- |
-| New | started / `SessionStart` | |
-| Running | `UserPromptSubmit`, `PostToolUse` | |
-| Waiting | `Stop` | yes |
-| Needs you | `Notification` (permission prompt etc.) | yes |
-| Exited | process exited | |
+| Status | Meaning | Trigger | Notification |
+| --- | --- | --- | --- |
+| New | Started; no prompt sent yet | started / `SessionStart` | |
+| Running | Claude is working | `UserPromptSubmit`, `PostToolUse` | |
+| Waiting | Claude finished its turn and is waiting for your next prompt | `Stop` | yes |
+| Needs you | Claude is blocked in the middle of a task until you answer (permission prompt, question) | `Notification` | yes |
+| Exited | The Claude process has exited | process exited | |
+
+"Waiting" does not mean that Claude is queued or about to run: nothing happens until you send a prompt.
 
 The task title is the beginning of the first prompt (slash commands are ignored). `/clear` resets it.
 

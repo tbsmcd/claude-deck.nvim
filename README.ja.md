@@ -141,13 +141,15 @@ end
 
 ### 状態
 
-| 状態 | きっかけ | 通知 |
-| --- | --- | --- |
-| New | 起動 / `SessionStart` | |
-| Running | `UserPromptSubmit`, `PostToolUse` | |
-| Waiting | `Stop` | あり |
-| Needs you | `Notification`（許可の確認など） | あり |
-| Exited | プロセスの終了 | |
+| 状態 | 意味 | きっかけ | 通知 |
+| --- | --- | --- | --- |
+| New | 起動した直後で、まだプロンプトを送っていない | 起動 / `SessionStart` | |
+| Running | Claude が作業している | `UserPromptSubmit`, `PostToolUse` | |
+| Waiting | Claude が応答を終え、次のプロンプトを待っている | `Stop` | あり |
+| Needs you | 作業の途中で、あなたの回答（許可の確認や質問への返答）を待って止まっている | `Notification` | あり |
+| Exited | Claude のプロセスが終了した | プロセスの終了 | |
+
+「Waiting」は、Claude が実行の順番を待っているという意味ではありません。あなたがプロンプトを送るまで、何も進みません。
 
 タスク名は最初のプロンプトの先頭部分です（スラッシュコマンドは使いません）。`/clear` するとリセットされます。
 
