@@ -23,6 +23,9 @@ local function set_keymaps(buf)
     if keymaps.window then
         vim.keymap.set("t", keymaps.window, [[<C-\><C-n><C-w>]], { buffer = buf, desc = "Window command" })
     end
+    if keymaps.send_esc then
+        vim.keymap.set("t", keymaps.send_esc, "<Esc>", { buffer = buf, desc = "Send <Esc> to Claude" })
+    end
 end
 
 -- Starts Claude Code in `win`. `extra_args` are appended to the command.

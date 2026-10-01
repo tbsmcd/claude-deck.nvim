@@ -51,6 +51,9 @@ M.defaults = {
         -- <C-w>h / <C-w>l / <C-w>> work without leaving terminal mode first.
         -- Claude Code's <C-w> (delete word) is then unavailable.
         window = false,
+        -- Send <Esc> to Claude (interrupt, close dialogs; twice = <Esc><Esc> for the rewind menu).
+        -- For users who map <Esc> themselves to leave terminal mode.
+        send_esc = "<C-]>",
     },
     -- Enter terminal mode when you move into a claude terminal window.
     auto_insert = true,

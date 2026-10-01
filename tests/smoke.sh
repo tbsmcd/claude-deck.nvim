@@ -96,6 +96,7 @@ check "dir picker opens in the chosen dir" "$(lua '(function() for i, l in ipair
 
 # Terminal-mode keymaps and auto insert
 check "normal_mode keymap in terminals" "$(lua '(function() local m = vim.fn.maparg("<C-q>", "t", false, true); return tostring(m.buffer) .. " " .. m.rhs end)()')" "1 <C-\\><C-n>"
+check "send_esc keymap in terminals" "$(lua '(function() local m = vim.fn.maparg("<C-]>", "t", false, true); return tostring(m.buffer) .. " " .. m.rhs end)()')" "1 <Esc>"
 lua '(function() vim.cmd("stopinsert"); vim.cmd("wincmd w"); vim.cmd("wincmd w"); return "" end)()' >/dev/null
 sleep 0.2
 check "auto insert when entering a terminal" "$(lua 'vim.api.nvim_get_mode().mode .. " " .. tostring(vim.b.claude_terminal_id ~= nil)')" "t true"

@@ -107,6 +107,7 @@ Keys typed in a terminal go to Claude, so leave terminal mode first to use windo
 | --- | --- |
 | `<C-q>` | Leave terminal mode (only in claude terminals; `keymaps.normal_mode`) |
 | `<C-\><C-n>` | Leave terminal mode (built in) |
+| `<C-]>` | Send `<Esc>` to Claude (only in claude terminals; `keymaps.send_esc`). Press twice for `Esc Esc` |
 | `<C-w>h` / `<C-w>j` / `<C-w>k` / `<C-w>l` | Move to another window (normal mode) |
 | `<C-w><` / `<C-w>>` / `<C-w>-` / `<C-w>+` | Resize (normal mode; e.g. `10<C-w>>`) |
 | `<C-w>=` | Make windows equal size |
@@ -123,7 +124,7 @@ Opening a terminal never resizes your other windows, even with `'equalalways'`: 
 For reference, the author uses global mappings like these, so that `<Esc>` leaves terminal mode and `<C-h/j/k/l>` moves between windows from any mode:
 
 ```lua
--- Leave terminal mode with <Esc> (interrupt Claude with <C-c> instead)
+-- Leave terminal mode with <Esc> (send <Esc> to Claude with <C-]> instead)
 vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]])
 
 -- Move between windows with <C-h/j/k/l> in normal and terminal mode
@@ -136,7 +137,7 @@ end
 These keys then no longer reach Claude Code: `Esc` (interrupt, `Esc Esc` to rewind), `Ctrl+K` (delete to end of line), `Ctrl+L` (redraw) and `Ctrl+H` (backspace in most terminals). They also apply to every terminal, not only claude terminals.
 
 > [!NOTE]
-> Neovim's terminal sends `<Esc>` to Claude (interrupt). If you map `<Esc>` in terminal mode to leave terminal mode yourself, use `<C-c>` to interrupt Claude.
+> Neovim's terminal sends `<Esc>` to Claude (interrupt). If you map `<Esc>` in terminal mode to leave terminal mode yourself, press `<C-]>` to send `<Esc>` to Claude (twice for `Esc Esc`).
 
 ### Status
 
@@ -211,6 +212,7 @@ require("claude-terminals").setup({
     keymaps = { -- terminal-mode keys in claude terminals; false to disable
         normal_mode = "<C-q>",
         window = false, -- e.g. "<C-w>"
+        send_esc = "<C-]>", -- send <Esc> to Claude
     },
     auto_insert = true, -- enter terminal mode when moving into a terminal window
     picker = "auto", -- "auto" | "fzf-lua" | "select"

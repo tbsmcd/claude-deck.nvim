@@ -107,6 +107,7 @@ fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`
 | --- | --- |
 | `<C-q>` | ターミナルモードを抜ける（claude-terminals のターミナルだけ。`keymaps.normal_mode`） |
 | `<C-\><C-n>` | ターミナルモードを抜ける（Neovim 標準） |
+| `<C-]>` | Claude に `<Esc>` を送る（claude-terminals のターミナルだけ。`keymaps.send_esc`）。2 回押すと `Esc Esc` になる |
 | `<C-w>h` / `<C-w>j` / `<C-w>k` / `<C-w>l` | 別の window へ移動（ノーマルモード） |
 | `<C-w><` / `<C-w>>` / `<C-w>-` / `<C-w>+` | サイズを変更（ノーマルモード。`10<C-w>>` のように回数も指定可） |
 | `<C-w>=` | window の大きさをそろえる |
@@ -123,7 +124,7 @@ fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`
 作者は次のようなグローバルなキーマップを使い、`<Esc>` でターミナルモードを抜け、`<C-h/j/k/l>` でどのモードからでも window を移動しています。参考までに載せます。
 
 ```lua
--- <Esc> でターミナルモードを抜ける（Claude の中断は <C-c> で行う）
+-- <Esc> でターミナルモードを抜ける（Claude への <Esc> は <C-]> で送る）
 vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]])
 
 -- ノーマルモードとターミナルモードで <C-h/j/k/l> で window を移動する
@@ -136,7 +137,7 @@ end
 この設定にすると、次のキーは Claude Code に届かなくなります: `Esc`（中断。`Esc Esc` で巻き戻し）、`Ctrl+K`（行末まで削除）、`Ctrl+L`（再描画）、`Ctrl+H`（多くのターミナルでは Backspace）。また、claude-terminals 以外のすべてのターミナルにも適用されます。
 
 > [!NOTE]
-> Neovim のターミナルは `<Esc>` を Claude に送ります（中断）。ターミナルモードの `<Esc>` を自分でノーマルモードへの移行に割り当てている場合は、`<C-c>` で Claude を中断してください。
+> Neovim のターミナルは `<Esc>` を Claude に送ります（中断）。ターミナルモードの `<Esc>` を自分でノーマルモードへの移行に割り当てている場合は、`<C-]>` で Claude に `<Esc>` を送れます（2 回押すと `Esc Esc`）。
 
 ### 状態
 
@@ -213,6 +214,7 @@ require("claude-terminals").setup({
     keymaps = { -- ターミナルの中だけで有効なキー。false で無効
         normal_mode = "<C-q>",
         window = false, -- 例: "<C-w>"
+        send_esc = "<C-]>", -- Claude に <Esc> を送る
     },
     auto_insert = true, -- ターミナルの window に入ったらターミナルモードにする
     picker = "auto", -- "auto" | "fzf-lua" | "select"

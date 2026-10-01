@@ -109,6 +109,9 @@ back into a terminal window enters terminal mode (`auto_insert`). Set
 `keymaps.window = "<C-w>"` to run window commands from terminal mode (Claude
 Code's CTRL-W, delete word, is then unavailable).
 
+<C-]> sends <Esc> to Claude (`keymaps.send_esc`): interrupt, close dialogs;
+twice for <Esc><Esc>. Useful if you map <Esc> to leave terminal mode.
+
 Opening a terminal does not resize other windows, even with 'equalalways'.
 
 ==============================================================================
@@ -162,6 +165,8 @@ transcript files, whose format is internal and may change.
                           (default: "<C-q>", false to disable)
     keymaps.window        terminal-mode prefix for window commands
                           (default: false, e.g. "<C-w>")
+    keymaps.send_esc      terminal-mode key that sends <Esc> to Claude
+                          (default: "<C-]>", false to disable)
     auto_insert           enter terminal mode when entering a terminal
                           window  (default: true)
     picker                "auto", "fzf-lua" or "select"
