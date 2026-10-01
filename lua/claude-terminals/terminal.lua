@@ -30,7 +30,9 @@ function M.start(win, cwd, extra_args)
     state.add(term)
 
     local cmd = vim.deepcopy(opts.cmd)
-    vim.list_extend(cmd, { "--settings", require("claude-terminals.hooks").settings_json() })
+    if opts.claude_settings then
+        vim.list_extend(cmd, { "--settings", require("claude-terminals.hooks").settings_json() })
+    end
     if opts.cli.enabled and opts.cli.system_prompt then
         vim.list_extend(cmd, { "--append-system-prompt", system_prompt(id) })
     end

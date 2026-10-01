@@ -81,6 +81,11 @@ focus()                                               *claude-terminals.focus()*
     |:tcd| to the terminal's cwd. In that tab, close it and return to the
     original window.
 
+show_settings()                               *claude-terminals.show_settings()*
+    Show the Claude Code settings JSON (hooks and `ct` permissions) in a
+    scratch buffer. Use it to add the hooks to your own settings when
+    `claude_settings` is false.
+
 show({id}, {where})                                    *claude-terminals.show()*
     Show terminal {id}.
 
@@ -90,7 +95,9 @@ Closing a terminal window with |:q| hides it; Claude keeps running.
 4. STATUS AND NOTIFICATIONS                            *claude-terminals-status*
 
 Status comes from Claude Code hooks registered with `claude --settings`, so
-your own settings are not modified.
+your own settings are not modified. With `claude_settings = false`, add the
+hooks to your own settings (|claude-terminals.show_settings()|); otherwise
+status, notifications, task titles and fork do not work.
 
     New        started, `SessionStart`
     Running    `UserPromptSubmit`, `PostToolUse`
@@ -116,6 +123,8 @@ transcript files, whose format is internal and may change.
 6. CONFIGURATION                                      *claude-terminals-config*
 
     cmd                   command to start Claude  (default: { "claude" })
+    claude_settings       pass hooks and `ct` permissions with
+                          `claude --settings`  (default: true)
     title_width           max characters of the task title  (default: 24)
     width_ratio           width of a terminal opened at the far right
                           (default: 0.4)

@@ -155,13 +155,34 @@ function M.fork(where)
     ensure_setup()
     local parent = state.current()
     if not parent or not parent.session_id then
-        vim.notify("claude-terminals: run this inside a terminal with a started session", vim.log.levels.WARN)
+        vim.notify(
+            "claude-terminals: run this inside a terminal whose session id is known (needs the hooks)",
+            vim.log.levels.WARN
+        )
         return
     end
 
     local term = terminal.open_new(parent.cwd, where or "right", { "--resume", parent.session_id, "--fork-session" })
     term.title = "↳" .. (parent.title ~= "" and parent.title or ("#" .. parent.id))
     require("claude-terminals.ui").redraw()
+end
+
+-- Show the Claude Code settings JSON (hooks and `ct` permissions) in a scratch buffer,
+-- for adding to your own settings when `claude_settings` is false.
+function M.show_settings()
+    ensure_setup()
+    local json = require("claude-terminals.hooks").settings_json()
+    local lines = vim.fn.systemlist({ "jq", "." }, json)
+    if vim.v.shell_error ~= 0 then
+        lines = { json }
+    end
+
+    vim.cmd("new")
+    local buf = vim.api.nvim_get_current_buf()
+    vim.bo[buf].buftype = "nofile"
+    vim.bo[buf].bufhidden = "wipe"
+    vim.bo[buf].filetype = "json"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 end
 
 -- Rename the current terminal's task.
@@ -208,6 +229,9 @@ local SUBCOMMANDS = {
     end,
     focus = function()
         M.focus()
+    end,
+    settings = function()
+        M.show_settings()
     end,
     show = function(args)
         M.show(tonumber(args[1]), args[2])

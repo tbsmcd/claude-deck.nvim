@@ -7,6 +7,11 @@ M.bin_dir = M.root .. "/bin"
 M.defaults = {
     -- Command used to start Claude Code. Extra arguments are appended by the plugin.
     cmd = { "claude" },
+    -- Pass the hooks (status, notifications, task titles, session ids) and the `ct` permissions
+    -- with `claude --settings`. Set to false to start claude without --settings; then register
+    -- the hooks in your own Claude Code settings (`:ClaudeTerminals settings` shows them) or
+    -- go without status tracking.
+    claude_settings = true,
     -- Max characters of the task title (taken from the first prompt).
     title_width = 24,
     -- Width of a terminal opened at the far right, relative to the editor width.

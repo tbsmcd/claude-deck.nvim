@@ -19,6 +19,15 @@ function M.check()
         health.error("`" .. cmd .. "` was not found", "Install Claude Code or set `cmd`")
     end
 
+    if config.options.claude_settings then
+        health.ok("Hooks are passed with `claude --settings`")
+    else
+        health.info(
+            "`claude_settings` is false: status, notifications, task titles and fork need the hooks "
+                .. "in your own Claude Code settings (`:ClaudeTerminals settings`)"
+        )
+    end
+
     for _, script in ipairs({ "claude-terminals-hook", "ct" }) do
         if vim.fn.executable(config.bin_dir .. "/" .. script) == 1 then
             health.ok("bin/" .. script .. " is executable")

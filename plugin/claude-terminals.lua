@@ -7,7 +7,7 @@ vim.api.nvim_create_user_command("ClaudeTerminals", function(opts)
     require("claude-terminals").command(opts.fargs)
 end, {
     nargs = "*",
-    desc = "claude-terminals: toggle / new / list / dir / fork / rename / focus / show",
+    desc = "claude-terminals: toggle / new / list / dir / fork / rename / focus / settings / show",
     complete = function(arg_lead, cmdline)
         local args = vim.split(cmdline, "%s+", { trimempty = true })
         local completing_sub = #args == 1 or (#args == 2 and arg_lead ~= "")

@@ -86,6 +86,17 @@ check "list shows hidden terminal below" "$(lua '(function() require("claude-ter
 check "dir picker candidates" "$(lua '(function() require("claude-terminals").pick_dir(); return table.concat(_G.last_picker.lines, ";") end)()')" "fixtures/roots/project-a"
 check "dir picker opens in the chosen dir" "$(lua '(function() for i, l in ipairs(_G.last_picker.lines) do if l:find("project%-a") then T_pick("ctrl-v", i) end end; vim.cmd("stopinsert"); return require("claude-terminals.state").current().cwd end)()')" "fixtures/roots/project-a"
 
+# Without --settings
+lua '(function() require("claude-terminals").setup(vim.tbl_extend("force", T_opts, { claude_settings = false })); require("claude-terminals").new("below"); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+sleep 0.5
+args=$(cat "$TEST_OUT/args.$(lua 'vim.b.claude_terminal_id')")
+case "$args" in
+*--settings*) echo "FAIL - claude_settings = false omits --settings"; failures=$((failures + 1)) ;;
+*) echo "ok   - claude_settings = false omits --settings" ;;
+esac
+check "claude_settings = false keeps the system prompt" "$args" "ct list"
+check "settings command shows the hooks" "$(lua '(function() require("claude-terminals").show_settings(); return table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n") end)()')" "claude-terminals-hook"
+
 # User command
 check "user command completion" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeTerminals f", "cmdline"), ",")')" "focus,fork"
 

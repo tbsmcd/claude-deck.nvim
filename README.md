@@ -58,6 +58,7 @@ No keymaps are created by default.
 | `pick_dir(opts?)` | `:ClaudeTerminals dir` | Pick a directory and open a new terminal there |
 | `fork(where?)` | `:ClaudeTerminals fork` | Fork the current session into a new terminal |
 | `rename()` | `:ClaudeTerminals rename` | Rename the current task |
+| `show_settings()` | `:ClaudeTerminals settings` | Show the Claude Code settings JSON (hooks, permissions) |
 | `focus()` | `:ClaudeTerminals focus` | Toggle focus mode |
 | `show(id, where?)` | `:ClaudeTerminals show <id>` | Show a terminal by id |
 
@@ -115,6 +116,7 @@ Defaults:
 ```lua
 require("claude-terminals").setup({
     cmd = { "claude" },
+    claude_settings = true, -- pass hooks and `ct` permissions with `claude --settings`
     title_width = 24,
     width_ratio = 0.4,
     dir_roots = {}, -- e.g. { "~/src" }: direct children are offered by pick_dir()
@@ -159,6 +161,12 @@ require("claude-terminals").setup({
 
 - Each terminal runs `claude --settings <json>`. The JSON registers [hooks](https://docs.claude.com/en/docs/claude-code/hooks) that call `bin/claude-terminals-hook`, which forwards the event to Neovim over `$NVIM` (`nvim --server $NVIM --remote-expr`). Your `~/.claude/settings.json` is not modified, and `claude` started elsewhere is unaffected.
 - Terminals are identified by `$CLAUDE_TERMINALS_ID`.
+
+### Without `--settings`
+
+Set `claude_settings = false` to start `claude` without `--settings`. Without the hooks, status, notifications, task titles and `fork()` do not work, and `ct` asks for permission.
+
+To keep them, add the hooks to your own Claude Code settings (e.g. `~/.claude/settings.json`). `:ClaudeTerminals settings` shows the JSON. The hook script does nothing outside claude-terminals, so registering it globally is safe.
 
 ## Limitations
 
