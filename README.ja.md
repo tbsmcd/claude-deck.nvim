@@ -12,7 +12,7 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
 - **集中モード**: ターミナルの cwd で「ファイルツリー ｜ エディタ ｜ ターミナル」を並べた新しいタブを開き、閉じると元の画面構成に戻ります
 - **セッション間の連携**: ターミナル内の Claude が `ct list` / `ct read <番号>` で他のセッションの様子を確認できます
 
-![4 つの Claude Code セッションを並べ、winbar の色で状態を表示している画面](docs/images/terminals.webp)
+![4 つの Claude Code セッションを並べ、winbar の色で状態を表示している画面](docs/images/ja/terminals.webp)
 
 ## 必要なもの
 
@@ -95,7 +95,7 @@ fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`
 
 `focus()` を実行すると、ターミナルの cwd で「ファイルツリー ｜ エディタ ｜ ターミナル」を並べた新しいタブを開きます。そのタブでもう一度実行すると、元の画面構成に戻ります。
 
-![集中モード: ファイルツリー、エディタ、ターミナル](docs/images/focus.webp)
+![集中モード: ファイルツリー、エディタ、ターミナル](docs/images/ja/focus.webp)
 
 ターミナルの window を `:q` で閉じても、非表示になるだけです。Claude のセッションは動き続け、状態の更新や通知も続きます。終了するには Claude で `/exit` を実行してください。
 
