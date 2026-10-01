@@ -50,6 +50,15 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
 
 キーマップはプラグイン側では設定しません。
 
+オプションは `opts` に書きます（[設定](#設定)を参照）。例:
+
+```lua
+opts = {
+    dir_roots = { "~/src" },
+    labels = { waiting = "入力待ち", attention = "確認待ち" },
+},
+```
+
 ## 使い方
 
 | Lua API | コマンド | 説明 |
@@ -92,6 +101,23 @@ fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`
 ターミナルモードのまま window を操作したい場合は、`keymaps.window = "<C-w>"` を設定してください。その代わり、Claude Code の `Ctrl+W`（単語の削除）は使えなくなります。
 
 `'equalalways'` が有効でも、ターミナルを開いたときに他の window の大きさは変わりません。分割はターミナルの領域の中で行います。
+
+#### 参考: ターミナルモードから `<Esc>` と `<C-h/j/k/l>` を使う設定
+
+作者は次のようなグローバルなキーマップを使い、`<Esc>` でターミナルモードを抜け、`<C-h/j/k/l>` でどのモードからでも window を移動しています。参考までに載せます。
+
+```lua
+-- <Esc> でターミナルモードを抜ける（Claude の中断は <C-c> で行う）
+vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]])
+
+-- ノーマルモードとターミナルモードで <C-h/j/k/l> で window を移動する
+for _, key in ipairs({ "h", "j", "k", "l" }) do
+    vim.keymap.set("n", "<C-" .. key .. ">", "<C-w>" .. key)
+    vim.keymap.set("t", "<C-" .. key .. ">", [[<C-\><C-n><C-w>]] .. key)
+end
+```
+
+この設定にすると、次のキーは Claude Code に届かなくなります: `Esc`（中断。`Esc Esc` で巻き戻し）、`Ctrl+K`（行末まで削除）、`Ctrl+L`（再描画）、`Ctrl+H`（多くのターミナルでは Backspace）。また、claude-terminals 以外のすべてのターミナルにも適用されます。
 
 > [!NOTE]
 > Neovim のターミナルは `<Esc>` を Claude に送ります（中断）。ターミナルモードの `<Esc>` を自分でノーマルモードへの移行に割り当てている場合は、`<C-c>` で Claude を中断してください。

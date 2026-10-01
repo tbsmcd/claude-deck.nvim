@@ -50,6 +50,15 @@ Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions
 
 No keymaps are created by default.
 
+Options go in `opts` (see [Configuration](#configuration)), for example:
+
+```lua
+opts = {
+    dir_roots = { "~/src" },
+    labels = { waiting = "Your turn", attention = "Approve?" },
+},
+```
+
 ## Usage
 
 | Lua API | Command | Description |
@@ -92,6 +101,23 @@ Moving back into a terminal window enters terminal mode automatically (`auto_ins
 To run window commands without leaving terminal mode, set `keymaps.window = "<C-w>"` (Claude Code's `Ctrl+W`, delete word, is then unavailable).
 
 Opening a terminal never resizes your other windows, even with `'equalalways'`: splits happen inside the terminal's area.
+
+#### Example: `<Esc>` and `<C-h/j/k/l>` from terminal mode
+
+For reference, the author uses global mappings like these, so that `<Esc>` leaves terminal mode and `<C-h/j/k/l>` moves between windows from any mode:
+
+```lua
+-- Leave terminal mode with <Esc> (interrupt Claude with <C-c> instead)
+vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]])
+
+-- Move between windows with <C-h/j/k/l> in normal and terminal mode
+for _, key in ipairs({ "h", "j", "k", "l" }) do
+    vim.keymap.set("n", "<C-" .. key .. ">", "<C-w>" .. key)
+    vim.keymap.set("t", "<C-" .. key .. ">", [[<C-\><C-n><C-w>]] .. key)
+end
+```
+
+These keys then no longer reach Claude Code: `Esc` (interrupt, `Esc Esc` to rewind), `Ctrl+K` (delete to end of line), `Ctrl+L` (redraw) and `Ctrl+H` (backspace in most terminals). They also apply to every terminal, not only claude terminals.
 
 > [!NOTE]
 > Neovim's terminal sends `<Esc>` to Claude (interrupt). If you map `<Esc>` in terminal mode to leave terminal mode yourself, use `<C-c>` to interrupt Claude.
