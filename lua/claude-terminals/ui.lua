@@ -15,13 +15,15 @@ M.highlights = {
 }
 
 -- Defined with `default = true` so colorschemes and user config can override them.
+-- Okabe-Ito based colors that stay distinguishable with color vision deficiencies
+-- (they differ in lightness as well as hue); text contrast is at least 4.5:1.
 function M.set_highlights()
     local hl = vim.api.nvim_set_hl
-    hl(0, "ClaudeTerminalsIdle", { default = true, fg = "#192330", bg = "#8b98a8", bold = true })
-    hl(0, "ClaudeTerminalsRunning", { default = true, fg = "#192330", bg = "#719cd6", bold = true })
-    hl(0, "ClaudeTerminalsWaiting", { default = true, fg = "#192330", bg = "#81b29a", bold = true })
-    hl(0, "ClaudeTerminalsAttention", { default = true, fg = "#192330", bg = "#f4a261", bold = true })
-    hl(0, "ClaudeTerminalsExited", { default = true, fg = "#aeafb0", bg = "#39506d" })
+    hl(0, "ClaudeTerminalsIdle", { default = true, fg = "#000000", bg = "#999999", bold = true })
+    hl(0, "ClaudeTerminalsRunning", { default = true, fg = "#000000", bg = "#56b4e9", bold = true })
+    hl(0, "ClaudeTerminalsWaiting", { default = true, fg = "#000000", bg = "#f0e442", bold = true })
+    hl(0, "ClaudeTerminalsAttention", { default = true, fg = "#000000", bg = "#d55e00", bold = true })
+    hl(0, "ClaudeTerminalsExited", { default = true, fg = "#c8c8c8", bg = "#3b3b3b" })
     hl(0, "ClaudeTerminalsCwd", { default = true, link = "Directory" })
 end
 

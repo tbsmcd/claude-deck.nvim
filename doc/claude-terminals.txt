@@ -21,8 +21,18 @@ in the statusline, sends a desktop
 notification when it waits for you, and lets Claude inspect the other
 terminals with the `ct` command.
 
-Requires Neovim 0.11 or later and `claude` on PATH. fzf-lua and nvim-tree.lua
-are optional.
+Requires Neovim 0.11 or later and `claude` on PATH. The hook script and
+`ct` call `nvim --server`, so `nvim` must also be on the PATH seen by Claude
+Code.
+
+Optional (everything works without them):
+- fzf-lua: pickers with split keys; falls back to |vim.ui.select()|
+- nvim-tree.lua: file tree in focus mode; falls back to netrw
+- zoxide: extra directories in |claude-terminals.pick_dir()|
+- jq: pretty-prints the JSON of |claude-terminals.show_settings()|
+- osascript (macOS, with lsappinfo for the frontmost app check) or
+  notify-send (Linux) for desktop notifications, or your own
+  `notify.notifier`
 
 ==============================================================================
 2. SETUP                                                *claude-terminals-setup*
@@ -162,12 +172,16 @@ transcript files, whose format is internal and may change.
 ==============================================================================
 7. HIGHLIGHTS                                     *claude-terminals-highlights*
 
-    ClaudeTerminalsIdle
-    ClaudeTerminalsRunning
-    ClaudeTerminalsWaiting
-    ClaudeTerminalsAttention
-    ClaudeTerminalsExited
-    ClaudeTerminalsCwd
+The default status colors are based on the Okabe-Ito palette and differ in
+lightness as well as hue, so they stay distinguishable with color vision
+deficiencies. All are defined with `default = true` and can be overridden.
+
+    ClaudeTerminalsIdle         gray
+    ClaudeTerminalsRunning      sky blue
+    ClaudeTerminalsWaiting      yellow
+    ClaudeTerminalsAttention    vermillion
+    ClaudeTerminalsExited       dark gray
+    ClaudeTerminalsCwd          links to |hl-Directory|
 
 ==============================================================================
 8. LIMITATIONS                                   *claude-terminals-limitations*

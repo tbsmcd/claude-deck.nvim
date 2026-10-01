@@ -16,11 +16,20 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
 
 ## 必要なもの
 
+必須:
+
 - Neovim 0.11 以降
 - [Claude Code](https://docs.claude.com/en/docs/claude-code)（`claude` が `PATH` にあること）
-- 任意: [fzf-lua](https://github.com/ibhagwan/fzf-lua)（分割キー付きのピッカー。ない場合は `vim.ui.select` を使います）
-- 任意: [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua)（集中モードのツリー。ない場合は netrw を使います）
-- 通知: macOS では `osascript`、Linux では `notify-send`
+
+任意（なくても動きます）:
+
+- [fzf-lua](https://github.com/ibhagwan/fzf-lua): 分割キー付きのピッカー。ない場合は `vim.ui.select` を使います
+- [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua): 集中モードのファイルツリー。ない場合は netrw を使います
+- [zoxide](https://github.com/ajeetdsouza/zoxide): `pick_dir()` の候補にディレクトリを追加します
+- [jq](https://jqlang.org/): `:ClaudeTerminals settings` の JSON を整形して表示します
+- デスクトップ通知: macOS では `osascript`（標準搭載。最前面のアプリの判定に `lsappinfo` も使います）、Linux では `notify-send`。`notify.notifier` で独自の通知方法も指定できます
+
+フックスクリプトと `ct` は `nvim --server` を呼ぶ POSIX `sh` スクリプトです。Claude Code から見える `PATH` に `nvim` が必要です。
 
 ## インストール
 
@@ -30,6 +39,9 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
 {
     "tbsmcd/claude-terminals.nvim",
     cmd = "ClaudeTerminals",
+    -- 任意: ピッカー用の fzf-lua、集中モードのツリー用の nvim-tree.lua
+    -- 一緒にインストールする場合はコメントを外す:
+    -- dependencies = { "ibhagwan/fzf-lua", "nvim-tree/nvim-tree.lua" },
     opts = {},
     keys = {
         { "<leader>cc", function() require("claude-terminals").toggle() end, desc = "Claude: 開く / 移動 / 追加" },
@@ -231,13 +243,15 @@ opts = {
 
 ### ハイライト
 
+状態の既定の色は [Okabe-Ito](https://jfly.uni-koeln.de/color/) のパレットをもとに、色相だけでなく明るさでも区別できるようにしており、色覚の違いがあっても見分けられます。
+
 | グループ | 既定 |
 | --- | --- |
 | `ClaudeTerminalsIdle` | グレー |
-| `ClaudeTerminalsRunning` | 青 |
-| `ClaudeTerminalsWaiting` | 緑 |
-| `ClaudeTerminalsAttention` | オレンジ |
-| `ClaudeTerminalsExited` | 暗い色 |
+| `ClaudeTerminalsRunning` | 空色 |
+| `ClaudeTerminalsWaiting` | 黄色 |
+| `ClaudeTerminalsAttention` | 朱色 |
+| `ClaudeTerminalsExited` | 暗いグレー |
 | `ClaudeTerminalsCwd` | `Directory` へのリンク |
 
 ## 仕組み

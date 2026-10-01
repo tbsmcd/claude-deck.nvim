@@ -16,11 +16,20 @@ Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions
 
 ## Requirements
 
+Required:
+
 - Neovim >= 0.11
 - [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude` on `PATH`)
-- Optional: [fzf-lua](https://github.com/ibhagwan/fzf-lua) (pickers with split keys; falls back to `vim.ui.select`)
-- Optional: [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua) (focus mode tree; falls back to netrw)
-- Notifications: `osascript` on macOS, `notify-send` on Linux
+
+Optional (everything works without them):
+
+- [fzf-lua](https://github.com/ibhagwan/fzf-lua): pickers with split keys; falls back to `vim.ui.select`
+- [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua): file tree in focus mode; falls back to netrw
+- [zoxide](https://github.com/ajeetdsouza/zoxide): extra directories in `pick_dir()`
+- [jq](https://jqlang.org/): pretty-prints the JSON of `:ClaudeTerminals settings`
+- Desktop notifications: `osascript` on macOS (built in; `lsappinfo` is also used to check the frontmost app), `notify-send` on Linux, or your own `notify.notifier`
+
+The hook script and `ct` are POSIX `sh` scripts that call `nvim --server`, so `nvim` must be on the `PATH` seen by Claude Code.
 
 ## Installation
 
@@ -30,6 +39,9 @@ Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions
 {
     "tbsmcd/claude-terminals.nvim",
     cmd = "ClaudeTerminals",
+    -- Optional: fzf-lua for the pickers, nvim-tree.lua for the focus mode tree
+    -- Uncomment to install them together:
+    -- dependencies = { "ibhagwan/fzf-lua", "nvim-tree/nvim-tree.lua" },
     opts = {},
     keys = {
         { "<leader>cc", function() require("claude-terminals").toggle() end, desc = "Claude: open / focus / add" },
@@ -214,13 +226,15 @@ require("claude-terminals").setup({
 
 ### Highlights
 
+The default status colors are based on the [Okabe-Ito](https://jfly.uni-koeln.de/color/) palette and differ in lightness as well as hue, so they stay distinguishable with color vision deficiencies.
+
 | Group | Default |
 | --- | --- |
 | `ClaudeTerminalsIdle` | gray |
-| `ClaudeTerminalsRunning` | blue |
-| `ClaudeTerminalsWaiting` | green |
-| `ClaudeTerminalsAttention` | orange |
-| `ClaudeTerminalsExited` | dark |
+| `ClaudeTerminalsRunning` | sky blue |
+| `ClaudeTerminalsWaiting` | yellow |
+| `ClaudeTerminalsAttention` | vermillion |
+| `ClaudeTerminalsExited` | dark gray |
 | `ClaudeTerminalsCwd` | links to `Directory` |
 
 ## How it works
