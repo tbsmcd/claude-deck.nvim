@@ -89,7 +89,7 @@ opts = {
 
 fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`ctrl-v` で右に、`ctrl-s` で下に分割して開きます。
 
-![fzf-lua でのターミナル一覧](docs/images/list.webp)
+![fzf-lua でのターミナル一覧](docs/images/ja/list.webp)
 
 #### 集中モード
 
