@@ -121,7 +121,7 @@ function M.open_window(where)
     return vim.api.nvim_get_current_win()
 end
 
-local function is_empty_buffer(buf)
+function M.is_empty_buffer(buf)
     return vim.api.nvim_buf_get_name(buf) == ""
         and vim.bo[buf].buftype == ""
         and not vim.bo[buf].modified
@@ -137,7 +137,7 @@ function M.open_new(cwd, where, extra_args)
     end
 
     local buf = vim.api.nvim_get_current_buf()
-    if is_empty_buffer(buf) then
+    if M.is_empty_buffer(buf) then
         local term = M.start(vim.api.nvim_get_current_win(), cwd, extra_args)
         if vim.api.nvim_buf_is_valid(buf) and #vim.fn.win_findbuf(buf) == 0 then
             vim.api.nvim_buf_delete(buf, {})

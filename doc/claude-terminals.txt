@@ -100,7 +100,14 @@ show_settings()                               *claude-terminals.show_settings()*
 show({id}, {where})                                    *claude-terminals.show()*
     Show terminal {id}.
 
-Closing a terminal window with |:q| hides it; Claude keeps running.
+Closing a terminal window with |:q| hides it; Claude keeps running. Bring it
+back with |claude-terminals.list()| (`:ClaudeTerminals list`).
+
+This also holds for the last window: |:q| (and |ZZ|, |CTRL-W_q|, |:x|) leaves
+Neovim open with an empty window, and a message tells how many terminals are
+still running. Use |:qa| to quit Neovim. |:q| again in the empty window quits
+Neovim too, ending every Claude session. Turn this off with
+`keep_alive_on_quit = false`.
 
                                                       *claude-terminals-windows*
 Keys typed in a terminal go to Claude. Leave terminal mode with <C-q>
@@ -173,6 +180,8 @@ transcript files, whose format is internal and may change.
                           (default: "<C-]>", false to disable)
     auto_insert           enter terminal mode when entering a terminal
                           window  (default: true)
+    keep_alive_on_quit    |:q| on the last window hides a running terminal
+                          instead of quitting Neovim  (default: true)
     picker                "auto", "fzf-lua" or "select"
     focus.tree            "auto", false or function(cwd)
     cli.enabled           put `ct` on PATH and allow it  (default: true)
@@ -199,5 +208,9 @@ deficiencies. All are defined with `default = true` and can be overridden.
   the next prompt.
 - On macOS, switching tabs or panes inside the terminal app is not detected
   as losing focus.
+- Terminals are lost when Neovim exits: |:qa| (or |:q| on a window that is
+  not a running terminal) ends every Claude session without asking.
+- |:q!| and |ZQ| discard the terminal buffer, which ends that Claude session
+  even when Neovim stays open.
 
  vim:tw=78:ts=8:ft=help:norl:

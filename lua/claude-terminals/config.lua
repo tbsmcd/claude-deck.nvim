@@ -57,6 +57,10 @@ M.defaults = {
     },
     -- Enter terminal mode when you move into a claude terminal window.
     auto_insert = true,
+    -- Keep Neovim (and Claude) running when `:q` closes the last window and it shows a running
+    -- terminal: an empty window is opened first, so `:q` only hides the terminal.
+    -- `:qa` still quits Neovim.
+    keep_alive_on_quit = true,
     -- "auto" (fzf-lua if installed), "fzf-lua" or "select" (vim.ui.select).
     picker = "auto",
     focus = {

@@ -8,6 +8,82 @@ local M = {}
 
 local did_setup = false
 
+local function is_float(win)
+    return vim.api.nvim_win_get_config(win).relative ~= ""
+end
+
+-- Same as Neovim's only_one_window(): another tab page always counts; help windows (unless
+-- the current window shows help), floating windows and the preview window do not.
+local function is_last_window(win)
+    if #vim.api.nvim_list_tabpages() > 1 then
+        return false
+    end
+    local in_help = vim.bo[vim.api.nvim_win_get_buf(win)].buftype == "help"
+    local count = 0
+    for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        local skip = (vim.bo[vim.api.nvim_win_get_buf(w)].buftype == "help" and not in_help)
+            or is_float(w)
+            or vim.wo[w].previewwindow
+        if w == win or not skip then
+            count = count + 1
+        end
+    end
+    return count <= 1
+end
+
+-- An existing empty, unmodified, unnamed buffer (e.g. left by an earlier quit), or a new one
+local function empty_buffer()
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.bo[buf].buflisted and vim.api.nvim_buf_is_loaded(buf) and terminal.is_empty_buffer(buf) then
+            return buf
+        end
+    end
+    return vim.api.nvim_create_buf(true, false)
+end
+
+-- QuitPre: when `:q` is about to close the last window and it shows a running terminal,
+-- open an empty window first so that `:q` only hides the terminal and Neovim keeps running.
+-- (`:q` cannot be cancelled from QuitPre.)
+local function keep_alive_on_quit()
+    local win = vim.api.nvim_get_current_win()
+    local term = state.of_buf(vim.api.nvim_win_get_buf(win))
+    if not term or term.state == "exited" or is_float(win) or not is_last_window(win) then
+        return
+    end
+
+    local empty = vim.api.nvim_open_win(empty_buffer(), false, { split = "left" })
+    -- Do not carry over the terminal's header and window style
+    require("claude-terminals.ui").unstyle_window(empty, true)
+
+    vim.schedule(function()
+        -- The quit failed (e.g. `:xa` with E948): remove the empty window again
+        if vim.api.nvim_win_is_valid(win) then
+            if vim.api.nvim_win_is_valid(empty) then
+                local buf = vim.api.nvim_win_get_buf(empty)
+                vim.api.nvim_win_close(empty, false)
+                if vim.api.nvim_buf_is_valid(buf) and #vim.fn.win_findbuf(buf) == 0 then
+                    pcall(vim.api.nvim_buf_delete, buf, {})
+                end
+            end
+            return
+        end
+
+        local running = #vim.tbl_filter(function(t)
+            return t.state ~= "exited"
+        end, state.sorted())
+        if running > 0 then
+            vim.notify(
+                string.format(
+                    "claude-terminals: %d terminal%s still running (:qa to quit Neovim)",
+                    running,
+                    running == 1 and "" or "s"
+                ),
+                vim.log.levels.INFO
+            )
+        end
+    end)
+end
+
 function M.setup(opts)
     config.setup(opts)
     did_setup = true
@@ -47,6 +123,14 @@ function M.setup(opts)
         group = group,
         callback = function(args)
             ui.on_buf_win_enter(args.buf)
+        end,
+    })
+    vim.api.nvim_create_autocmd("QuitPre", {
+        group = group,
+        callback = function()
+            if config.options.keep_alive_on_quit then
+                keep_alive_on_quit()
+            end
         end,
     })
     vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {

@@ -116,18 +116,39 @@ local function get_local(win, name)
     return vim.api.nvim_get_option_value(name, { scope = "local", win = win })
 end
 
+-- Window options set for terminals (window-local only, so other windows keep the user's values)
+local STYLE = { number = false, relativenumber = false, signcolumn = "no", foldcolumn = "0" }
+
 function M.style_window(win)
-    vim.wo[win].number = false
-    vim.wo[win].relativenumber = false
-    vim.wo[win].signcolumn = "no"
-    vim.wo[win].foldcolumn = "0"
+    for name, value in pairs(STYLE) do
+        set_local(win, name, value)
+    end
     set_local(win, "winbar", M.WINBAR)
     if require("claude-terminals.config").options.statusline then
         set_local(win, "statusline", M.STATUSLINE)
     end
 end
 
--- Splitting a terminal window copies its winbar and statusline; drop them when another
+-- Drops the terminal header and style copied from a terminal window. Without `force`, only
+-- when the window still has the terminal's winbar or statusline.
+function M.unstyle_window(win, force)
+    local copied = false
+    if get_local(win, "winbar") == M.WINBAR then
+        set_local(win, "winbar", "")
+        copied = true
+    end
+    if get_local(win, "statusline") == M.STATUSLINE then
+        set_local(win, "statusline", "")
+        copied = true
+    end
+    if copied or force then
+        for name in pairs(STYLE) do
+            set_local(win, name, vim.go[name])
+        end
+    end
+end
+
+-- Splitting a terminal window copies its winbar, statusline and style; drop them when another
 -- buffer is shown.
 function M.on_buf_win_enter(buf)
     local win = vim.api.nvim_get_current_win()
@@ -135,12 +156,7 @@ function M.on_buf_win_enter(buf)
         M.style_window(win)
         return
     end
-    if get_local(win, "winbar") == M.WINBAR then
-        set_local(win, "winbar", "")
-    end
-    if get_local(win, "statusline") == M.STATUSLINE then
-        set_local(win, "statusline", "")
-    end
+    M.unstyle_window(win)
 end
 
 function M.redraw()

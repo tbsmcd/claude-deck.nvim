@@ -116,6 +116,21 @@ esac
 check "claude_settings = false keeps the system prompt" "$args" "ct list"
 check "settings command shows the hooks" "$(lua '(function() require("claude-terminals").show_settings(); return table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n") end)()')" "claude-terminals-hook"
 
+# Terminal window style is window-local; windows split from a terminal get the user's values back
+check "terminal style keeps the global options" "$(lua '(function() local origin = vim.api.nvim_get_current_win(); vim.go.number = true; require("claude-terminals").new("below"); vim.cmd("stopinsert"); local term, global = vim.wo.number, vim.go.number; vim.cmd("new"); local split = vim.wo.number; vim.cmd("close | close"); vim.api.nvim_set_current_win(origin); vim.go.number = false; return tostring(term) .. " " .. tostring(global) .. " " .. tostring(split) end)()')" "false true true"
+
+# :q on the last window hides a running terminal instead of quitting Neovim
+check ":q with other windows only closes the terminal window" "$(lua '(function() vim.cmd("only"); require("claude-terminals").show(1); vim.cmd("stopinsert"); local before = #vim.api.nvim_list_wins(); vim.cmd("q"); return before .. " " .. #vim.api.nvim_list_wins() .. " " .. tostring(vim.b.claude_terminal_id) end)()')" "2 1 nil"
+check ":q on the last window keeps Neovim running" "$(lua '(function() require("claude-terminals").show(1); vim.cmd("stopinsert | only"); vim.cmd("q"); local t = require("claude-terminals.state").get(1); return #vim.api.nvim_list_wins() .. " [" .. vim.api.nvim_buf_get_name(0) .. "] [" .. vim.wo.winbar .. "] " .. vim.fn.jobwait({ t.job }, 0)[1] end)()')" "1 [] [] -1"
+sleep 0.2
+check ":q on the last window tells how many are running" "$(lua 'vim.api.nvim_exec2("messages", { output = true }).output')" "terminals still running (:qa to quit Neovim)"
+
+check ":q next to a help window keeps Neovim running" "$(lua '(function() require("claude-terminals").show(1); vim.cmd("stopinsert | only | help | wincmd p"); vim.cmd("q"); local s = #vim.api.nvim_list_wins() .. " [" .. vim.api.nvim_buf_get_name(0) .. "]"; vim.cmd("helpclose"); return s end)()')" "2 []"
+check "empty buffers are reused" "$(lua '(function() local before = #vim.api.nvim_list_bufs(); require("claude-terminals").show(1); vim.cmd("stopinsert | only"); vim.cmd("q"); return tostring(before == #vim.api.nvim_list_bufs()) end)()')" "true"
+check "keep_alive_on_quit = false opens no window" "$(lua '(function() local o = require("claude-terminals.config").options; require("claude-terminals").show(1); vim.cmd("stopinsert | only"); o.keep_alive_on_quit = false; vim.api.nvim_exec_autocmds("QuitPre", {}); local off = #vim.api.nvim_list_wins(); o.keep_alive_on_quit = true; vim.api.nvim_exec_autocmds("QuitPre", {}); return off .. " " .. #vim.api.nvim_list_wins() end)()')" "1 2"
+sleep 0.2
+check "a failed quit removes the empty window" "$(lua '#vim.api.nvim_list_wins() .. " " .. tostring(vim.b.claude_terminal_id)')" "1 1"
+
 # User command
 check "user command completion" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeTerminals f", "cmdline"), ",")')" "focus,fork"
 
@@ -124,6 +139,17 @@ case "$messages" in
 *rror* | *E[0-9]*) echo "FAIL - no errors in :messages"; echo "$messages"; failures=$((failures + 1)) ;;
 *) echo "ok   - no errors in :messages" ;;
 esac
+
+# :qa still quits Neovim (last: the test Neovim exits here)
+nvim --server "$SOCK" --remote-send '<C-\><C-n>:qa<CR>' >/dev/null 2>&1
+i=0
+while kill -0 $NVIM_PID 2>/dev/null && [ $i -lt 30 ]; do sleep 0.1; i=$((i + 1)); done
+if kill -0 $NVIM_PID 2>/dev/null; then
+    echo "FAIL - :qa quits Neovim"
+    failures=$((failures + 1))
+else
+    echo "ok   - :qa quits Neovim"
+fi
 
 if [ "$failures" -gt 0 ]; then
     echo "$failures test(s) failed"

@@ -97,7 +97,9 @@ fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`
 
 ![集中モード: ファイルツリー、エディタ、ターミナル](docs/images/ja/focus.webp)
 
-ターミナルの window を `:q` で閉じても、非表示になるだけです。Claude のセッションは動き続け、状態の更新や通知も続きます。終了するには Claude で `/exit` を実行してください。
+ターミナルの window を `:q` で閉じても、非表示になるだけです。Claude のセッションは動き続け、状態の更新や通知も続きます。`list()`（`:ClaudeTerminals list`）で呼び戻せます。終了するには Claude で `/exit` を実行してください。
+
+ターミナルが最後の 1 枚の window でも同じです。`:q`（`ZZ`、`<C-w>q`、`:x` も同様）で Neovim は終了せず、空の window が残ります。裏で動いているターミナルの数はメッセージで表示されます。Neovim を終了するには `:qa` を使ってください。空の window でもう一度 `:q` すると Neovim が終了し、Claude のセッションもすべて終了します。この挙動は `keep_alive_on_quit` で切り替えられます。
 
 ### ウィンドウの操作
 
@@ -221,6 +223,7 @@ require("claude-terminals").setup({
         send_esc = "<C-]>", -- Claude に <Esc> を送る
     },
     auto_insert = true, -- ターミナルの window に入ったらターミナルモードにする
+    keep_alive_on_quit = true, -- 最後の window で :q しても Neovim を終了せず、動いているターミナルを非表示にする
     picker = "auto", -- "auto" | "fzf-lua" | "select"
     focus = {
         tree = "auto", -- "auto" | false | function(cwd)
@@ -275,7 +278,8 @@ opts = {
 
 - Claude を中断しても `Stop` hook が発火しないため、次のプロンプトを送るまで状態が「Running」のままになります。
 - macOS で、ターミナルアプリの中でタブやペインを切り替えても、フォーカスが外れたとは判定されません。
-- ターミナルは 1 つの Neovim の中だけで管理しているため、Neovim を終了すると消えます（セッションは `claude --resume` で再開できます）。
+- ターミナルは 1 つの Neovim の中だけで管理しているため、Neovim を終了すると消えます（セッションは `claude --resume` で再開できます）。`:qa`（または動いているターミナル以外の window での `:q`）で Neovim を終了すると、確認なしで Claude のセッションもすべて終了します。
+- `:q!` と `ZQ` はターミナルのバッファを破棄するため、Neovim が終了しない場合でもその Claude のセッションは終了します。
 
 ## ヘルスチェック
 

@@ -97,7 +97,9 @@ In the fzf-lua pickers, `enter` opens with the rule above, `ctrl-v` splits right
 
 ![Focus mode: file tree, editor and terminal](docs/images/focus.webp)
 
-Closing a terminal window (`:q`) only hides it. The Claude session keeps running and still updates its status and sends notifications. Exit Claude (`/exit`) to end it.
+Closing a terminal window (`:q`) only hides it. The Claude session keeps running and still updates its status and sends notifications. Bring it back with `list()` (`:ClaudeTerminals list`). Exit Claude (`/exit`) to end it.
+
+This also holds when the terminal is the last window: `:q` (and `ZZ`, `<C-w>q`, `:x`) leaves Neovim open with an empty window, and a message tells how many terminals are still running in the background. Use `:qa` to quit Neovim. Running `:q` again in the empty window quits Neovim too, and with it every Claude session. This behavior can be turned off with `keep_alive_on_quit`.
 
 ### Windows
 
@@ -219,6 +221,7 @@ require("claude-terminals").setup({
         send_esc = "<C-]>", -- send <Esc> to Claude
     },
     auto_insert = true, -- enter terminal mode when moving into a terminal window
+    keep_alive_on_quit = true, -- `:q` on the last window hides a running terminal instead of quitting Neovim
     picker = "auto", -- "auto" | "fzf-lua" | "select"
     focus = {
         tree = "auto", -- "auto" | false | function(cwd)
@@ -258,7 +261,8 @@ To keep them, add the hooks to your own Claude Code settings (e.g. `~/.claude/se
 
 - Interrupting Claude does not fire the `Stop` hook, so the status stays "Running" until the next prompt.
 - On macOS, switching tabs or panes inside the terminal app is not detected as losing focus.
-- Terminals live in one Neovim instance and are lost when Neovim exits (sessions can be resumed with `claude --resume`).
+- Terminals live in one Neovim instance and are lost when Neovim exits (sessions can be resumed with `claude --resume`). Quitting Neovim with `:qa` (or `:q` on a window that is not a running terminal) ends every Claude session without asking.
+- `:q!` and `ZQ` discard the terminal buffer, which ends that Claude session even when Neovim stays open.
 
 ## Health check
 
