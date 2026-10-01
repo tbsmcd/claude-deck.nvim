@@ -1,0 +1,210 @@
+# claude-terminals.nvim
+
+[English](README.md) | 日本語
+
+Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claude-code) のセッションを複数並べて動かし、どのセッションが自分を待っているかをひと目で分かるようにするプラグインです。
+
+- **状態がひと目で分かる**: 各ターミナルの winbar に番号・状態・タスク名・cwd を表示し、状態ごとに色を変えます
+- **デスクトップ通知**: セッションが入力待ちになったときや、許可を求めているときに通知します（今見ているターミナルは除く）
+- **複数のセッション**: 右や下に分割して増やせます。`:q` で閉じても裏で動き続け、ピッカーから呼び戻せます
+- **好きなディレクトリで開く**: ディレクトリを選んで新しいターミナルを開けます
+- **セッションの分岐**: 今のセッションを分岐させた新しいターミナルを開けます（`--resume <id> --fork-session`）
+- **集中モード**: ターミナルの cwd で「ファイルツリー ｜ エディタ ｜ ターミナル」を並べた新しいタブを開き、閉じると元の画面構成に戻ります
+- **セッション間の連携**: ターミナル内の Claude が `ct list` / `ct read <番号>` で他のセッションの様子を確認できます
+
+```
+ #1 Running │ Refactor the parser modu…  ~/src/app
+ #2 Waiting │ Fix flaky login test       ~/src/app
+ #3 Needs you │ Upgrade to React 19      ~/src/web
+```
+
+## 必要なもの
+
+- Neovim 0.11 以降
+- [Claude Code](https://docs.claude.com/en/docs/claude-code)（`claude` が `PATH` にあること）
+- 任意: [fzf-lua](https://github.com/ibhagwan/fzf-lua)（分割キー付きのピッカー。ない場合は `vim.ui.select` を使います）
+- 任意: [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua)（集中モードのツリー。ない場合は netrw を使います）
+- 通知: macOS では `osascript`、Linux では `notify-send`
+
+## インストール
+
+[lazy.nvim](https://github.com/folke/lazy.nvim) の場合:
+
+```lua
+{
+    "tbsmcd/claude-terminals.nvim",
+    cmd = "ClaudeTerminals",
+    opts = {},
+    keys = {
+        { "<leader>cc", function() require("claude-terminals").toggle() end, desc = "Claude: 開く / 移動 / 追加" },
+        { "<leader>cv", function() require("claude-terminals").new("right") end, desc = "Claude: 右に新規" },
+        { "<leader>cs", function() require("claude-terminals").new("below") end, desc = "Claude: 下に新規" },
+        { "<leader>cl", function() require("claude-terminals").list() end, desc = "Claude: 一覧" },
+        { "<leader>cd", function() require("claude-terminals").pick_dir() end, desc = "Claude: ディレクトリを選んで新規" },
+        { "<leader>cf", function() require("claude-terminals").fork() end, desc = "Claude: セッションを分岐" },
+        { "<leader>cr", function() require("claude-terminals").rename() end, desc = "Claude: タスク名を変更" },
+        { "<leader>co", function() require("claude-terminals").focus() end, desc = "Claude: 集中モード" },
+    },
+}
+```
+
+キーマップはプラグイン側では設定しません。
+
+## 使い方
+
+| Lua API | コマンド | 説明 |
+| --- | --- | --- |
+| `toggle()` | `:ClaudeTerminals` | ターミナルの外では、表示中のターミナルへ移動するか、新しく開きます。ターミナルの中では右に追加します |
+| `new(where?)` | `:ClaudeTerminals new [right\|below]` | 今の window を分割して新しいターミナルを開きます |
+| `list(opts?)` | `:ClaudeTerminals list` | ターミナルを選んで表示します（非表示のものも含む） |
+| `pick_dir(opts?)` | `:ClaudeTerminals dir` | ディレクトリを選んで新しいターミナルを開きます |
+| `fork(where?)` | `:ClaudeTerminals fork` | 今のセッションを分岐させた新しいターミナルを開きます |
+| `rename()` | `:ClaudeTerminals rename` | 今のタスク名を変更します |
+| `show_settings()` | `:ClaudeTerminals settings` | Claude Code に渡す設定の JSON（hook と権限）を表示します |
+| `focus()` | `:ClaudeTerminals focus` | 集中モードを切り替えます |
+| `show(id, where?)` | `:ClaudeTerminals show <番号>` | 番号を指定してターミナルを表示します |
+
+`where` を指定しない場合、新しいターミナルは次の場所に開きます。
+
+- ターミナルの中にいるとき: 右に分割
+- 空の無名バッファにいるとき（Neovim の起動直後など）: その場で開く（window が 1 つなら全画面）
+- それ以外: 右端（エディタの幅の `width_ratio` の割合）
+
+fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`ctrl-v` で右に、`ctrl-s` で下に分割して開きます。
+
+ターミナルの window を `:q` で閉じても、非表示になるだけです。Claude のセッションは動き続け、状態の更新や通知も続きます。終了するには Claude で `/exit` を実行してください。
+
+> [!NOTE]
+> Neovim のターミナルは `<Esc>` を実行中のプログラムに送ります。ターミナルモードの `<Esc>` をノーマルモードへの移行に割り当てている場合は、`<C-c>` で Claude を中断してください。
+
+### 状態
+
+| 状態 | きっかけ | 通知 |
+| --- | --- | --- |
+| New | 起動 / `SessionStart` | |
+| Running | `UserPromptSubmit`, `PostToolUse` | |
+| Waiting | `Stop` | あり |
+| Needs you | `Notification`（許可の確認など） | あり |
+| Exited | プロセスの終了 | |
+
+タスク名は最初のプロンプトの先頭部分です（スラッシュコマンドは使いません）。`/clear` するとリセットされます。
+
+状態名は `labels` で変更できます（[設定](#設定)を参照）。
+
+### 通知
+
+次の条件をすべて満たすときだけ、通知を出しません。
+
+1. Neovim にフォーカスがある（`FocusGained` / `FocusLost`）
+2. 今の window にそのターミナルが表示されている
+3. macOS の場合、Neovim を動かしているターミナルアプリが最前面にある（フォーカスの変化を伝えないターミナルへの対策として `lsappinfo` で確認します）
+
+### Claude 用の `ct` コマンド
+
+ターミナルの中では `ct` が `PATH` に入っており、`--append-system-prompt` でそのことを Claude に伝えています。
+
+```sh
+ct list            # 全ターミナルの番号・状態・タスク名・cwd・session_id・transcript のパス
+ct read 2 [件数]   # ターミナル #2 の直近の会話（既定 20 件）
+```
+
+どちらも許可の確認なしで実行できます。たとえば「#1 でやっている作業と矛盾しないか確認して」のように頼めます。
+
+> [!WARNING]
+> `ct read` は Claude Code の transcript ファイルを読み取ります。このファイルの形式は公開された仕様ではないため、変わる可能性があります。
+
+## 設定
+
+既定値:
+
+```lua
+require("claude-terminals").setup({
+    cmd = { "claude" },
+    claude_settings = true, -- hook と `ct` の権限を `claude --settings` で渡す
+    title_width = 24,
+    width_ratio = 0.4,
+    dir_roots = {}, -- 例: { "~/src" }。直下のディレクトリを pick_dir() の候補にする
+    zoxide = true, -- `zoxide query --list` の結果も pick_dir() の候補にする
+    labels = {
+        idle = "New",
+        running = "Running",
+        waiting = "Waiting",
+        attention = "Needs you",
+        exited = "Exited",
+        untitled = "(new task)",
+    },
+    notify = {
+        enabled = true,
+        states = { "waiting", "attention" },
+        skip_when_watching = true,
+        notifier = nil, -- function({ title, subtitle, body, state, terminal })
+    },
+    picker = "auto", -- "auto" | "fzf-lua" | "select"
+    focus = {
+        tree = "auto", -- "auto" | false | function(cwd)
+    },
+    cli = {
+        enabled = true, -- `ct` を PATH に入れ、許可の確認なしで実行できるようにする
+        system_prompt = true, -- `ct` のことを Claude に伝える
+    },
+})
+```
+
+状態名を日本語にする例:
+
+```lua
+opts = {
+    labels = {
+        idle = "新規",
+        running = "実行中",
+        waiting = "入力待ち",
+        attention = "確認待ち",
+        exited = "終了",
+        untitled = "(新しいタスク)",
+    },
+}
+```
+
+### ハイライト
+
+| グループ | 既定 |
+| --- | --- |
+| `ClaudeTerminalsIdle` | グレー |
+| `ClaudeTerminalsRunning` | 青 |
+| `ClaudeTerminalsWaiting` | 緑 |
+| `ClaudeTerminalsAttention` | オレンジ |
+| `ClaudeTerminalsExited` | 暗い色 |
+| `ClaudeTerminalsCwd` | `Directory` へのリンク |
+
+## 仕組み
+
+- 各ターミナルは `claude --settings <json>` で起動します。この JSON で [hook](https://docs.claude.com/en/docs/claude-code/hooks) を登録し、hook が `bin/claude-terminals-hook` を呼びます。このスクリプトが `$NVIM` 経由（`nvim --server $NVIM --remote-expr`）でイベントを Neovim に伝えます。`~/.claude/settings.json` は変更しないので、他の場所で起動した `claude` には影響しません。
+- ターミナルは `$CLAUDE_TERMINALS_ID` で識別します。
+
+### `--settings` を使わない場合
+
+`claude_settings = false` にすると、`--settings` を付けずに `claude` を起動します。hook が届かないため、状態表示・通知・タスク名・`fork()` は動かず、`ct` も実行のたびに許可の確認が出ます。
+
+これらを使いたい場合は、自分の Claude Code の設定（`~/.claude/settings.json` など）に hook を登録してください。登録する JSON は `:ClaudeTerminals settings` で確認できます。hook のスクリプトは claude-terminals の外では何もしないので、全体の設定に登録しても安全です。
+
+## 制約
+
+- Claude を中断しても `Stop` hook が発火しないため、次のプロンプトを送るまで状態が「Running」のままになります。
+- macOS で、ターミナルアプリの中でタブやペインを切り替えても、フォーカスが外れたとは判定されません。
+- ターミナルは 1 つの Neovim の中だけで管理しているため、Neovim を終了すると消えます（セッションは `claude --resume` で再開できます）。
+
+## ヘルスチェック
+
+```vim
+:checkhealth claude-terminals
+```
+
+## 開発
+
+```sh
+sh tests/smoke.sh
+```
+
+## ライセンス
+
+MIT

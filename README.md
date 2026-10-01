@@ -1,5 +1,7 @@
 # claude-terminals.nvim
 
+English | [日本語](README.ja.md)
+
 Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions side by side in Neovim terminals, and always know which one needs you.
 
 - **Status at a glance**: each terminal's winbar shows its id, status, task title and cwd, with a color per status
