@@ -19,6 +19,9 @@ end
 
 -- items: { { value = any, text = string } }
 -- on_select(value, where) where `where` is nil, "right" or "below"
+-- opts.extra_actions: { [fzf key] = function(value) } (fzf-lua only; the picker closes first;
+-- value is nil when no item is selected)
+-- opts.header: text added to the key help (fzf-lua only)
 function M.pick(items, opts, on_select)
     if not use_fzf() then
         vim.ui.select(items, {
@@ -39,19 +42,36 @@ function M.pick(items, opts, on_select)
         table.insert(lines, i .. "\t" .. item.text)
     end
 
+    -- The value of the selected line, or nil
+    local function value_of(selected)
+        local index = selected[1] and tonumber(selected[1]:match("^(%d+)\t"))
+        return index and items[index] and items[index].value
+    end
+
     local function action(where)
         return function(selected)
-            local index = selected[1] and tonumber(selected[1]:match("^(%d+)\t"))
-            if index and items[index] then
-                on_select(items[index].value, where or opts.where)
+            local value = value_of(selected)
+            if value ~= nil then
+                on_select(value, where or opts.where)
             end
+        end
+    end
+
+    local actions = { ["default"] = action(nil), ["ctrl-v"] = action("right"), ["ctrl-s"] = action("below") }
+    for key, fn in pairs(opts.extra_actions or {}) do
+        actions[key] = function(selected)
+            fn(value_of(selected))
         end
     end
 
     require("fzf-lua").fzf_exec(lines, {
         prompt = opts.prompt .. " ",
-        fzf_opts = { ["--delimiter"] = "\t", ["--with-nth"] = "2..", ["--header"] = HEADER },
-        actions = { ["default"] = action(nil), ["ctrl-v"] = action("right"), ["ctrl-s"] = action("below") },
+        fzf_opts = {
+            ["--delimiter"] = "\t",
+            ["--with-nth"] = "2..",
+            ["--header"] = opts.header and (HEADER .. "\n" .. opts.header) or HEADER,
+        },
+        actions = actions,
     })
 end
 

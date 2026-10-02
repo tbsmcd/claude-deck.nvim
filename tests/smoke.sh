@@ -103,6 +103,40 @@ check "list shows hidden terminal below" "$(lua '(function() require("claude-dec
 # Directory picker
 check "dir picker candidates" "$(lua '(function() require("claude-deck").pick_dir(); return table.concat(_G.last_picker.lines, ";") end)()')" "fixtures/roots/project-a"
 check "dir picker opens in the chosen dir" "$(lua '(function() for i, l in ipairs(_G.last_picker.lines) do if l:find("project%-a") then T_pick("ctrl-v", i) end end; vim.cmd("stopinsert"); return require("claude-deck.state").current().cwd end)()')" "fixtures/roots/project-a"
+check "dir picker lists the cwd and then its subdirectories" "$(lua '(function() require("claude-deck").pick_dir(); local l = _G.last_picker.lines; return l[1] .. ";" .. l[2] end)()')" "$(printf '1\t%s;2\t%s/bin' "$ROOT_DISPLAY" "$ROOT_DISPLAY")"
+check "dir picker header has the browse keys" "$(lua '_G.last_picker.opts.fzf_opts["--header"]')" "tab: go into / shift-tab: go up"
+# T_pick a line by pattern; browsing opens the next picker on vim.schedule
+pick_line() { # action, Lua pattern
+    lua '(function() for i, l in ipairs(_G.last_picker.lines) do if l:find("'"$2"'") then T_pick("'"$1"'", i); return "" end end; return "" end)()' >/dev/null
+}
+picker_state() {
+    lua '_G.last_picker.opts.prompt .. "|" .. table.concat(_G.last_picker.lines, ";")'
+}
+FIXTURES="$ROOT_DISPLAY/tests/fixtures/roots"
+pick_line tab "project%-a$"
+check "tab browses into a directory" "$(picker_state)" "$(printf '%s/project-a> |1\t%s/project-a;2\t%s/project-a/sub-a' "$FIXTURES" "$FIXTURES" "$FIXTURES")"
+pick_line btab "project%-a$"
+check "shift-tab goes up" "$(picker_state)" "$(printf '%s> |1\t%s;2\t%s/project-a;3\t%s/project-b' "$FIXTURES" "$FIXTURES" "$FIXTURES" "$FIXTURES")"
+pick_line tab "project%-a$"
+pick_line tab "sub%-a$"
+check "tab into an empty directory lists it alone" "$(picker_state)" "$(printf '%s/project-a/sub-a> |1\t%s/project-a/sub-a' "$FIXTURES" "$FIXTURES")"
+check "enter after browsing opens there" "$(lua '(function() T_pick("default", 1); vim.cmd("stopinsert"); return require("claude-deck.state").current().cwd end)()')" "fixtures/roots/project-a/sub-a"
+lua '(function() vim.cmd("close"); require("claude-deck").pick_dir(); T_pick("btab", 1); return "" end)()' >/dev/null
+check "shift-tab from the first list shows the cwd parent" "$(picker_state)" "$(dirname "$ROOT_DISPLAY")> |"
+lua '(function() require("claude-deck").pick_dir(); return "" end)()' >/dev/null
+pick_line tab "project%-a$"
+lua '(function() T_pick("tab"); return "" end)()' >/dev/null
+check "tab without a selection reopens the browsed list" "$(picker_state)" "$(printf '%s/project-a> |1\t%s/project-a;2\t%s/project-a/sub-a' "$FIXTURES" "$FIXTURES" "$FIXTURES")"
+lua '(function() require("claude-deck").pick_dir(); _G.T_first = table.concat(_G.last_picker.lines, ";"); T_pick("tab"); return "" end)()' >/dev/null
+check "tab without a selection reopens the first list" "$(lua '_G.last_picker.opts.prompt .. "|" .. tostring(table.concat(_G.last_picker.lines, ";") == _G.T_first)')" "Directory> |true"
+check "dir_roots skip hidden directories" "$(lua 'table.concat(_G.last_picker.lines, ";")')" "fixtures/roots/project-b"
+case "$(lua 'table.concat(_G.last_picker.lines, ";")')" in
+*roots/.hidden*) echo "FAIL - dir_roots skip hidden directories (listed)"; failures=$((failures + 1)) ;;
+esac
+mkdir -p "$TEST_OUT/browse/gone"
+lua '(function() vim.cmd.cd(vim.fn.fnameescape(vim.env.TEST_OUT .. "/browse")); require("claude-deck").pick_dir(); vim.fn.delete(vim.env.TEST_OUT .. "/browse/gone", "d"); for i, l in ipairs(_G.last_picker.lines) do if l:find("/gone$") then T_pick("tab", i) end end; return "" end)()' >/dev/null
+check "browsing into a removed directory is no error" "$(lua '(function() local p = _G.last_picker; vim.cmd.cd(vim.fn.fnameescape("'"$ROOT"'")); return p.opts.prompt .. "|" .. #p.lines end)()')" "/gone> |0"
+check "terminal list has no browse keys" "$(lua '(function() require("claude-deck").list(); local o = _G.last_picker.opts; return tostring(o.actions.tab) .. " " .. tostring(o.actions.btab) .. " " .. tostring(o.fzf_opts["--header"]:find("tab:", 1, true)) end)()')" "nil nil nil"
 
 # Terminal-mode keymaps and auto insert
 check "normal_mode keymap in terminals" "$(lua '(function() local m = vim.fn.maparg("<C-q>", "t", false, true); return tostring(m.buffer) .. " " .. m.rhs end)()')" "1 <C-\\><C-n>"

@@ -209,22 +209,65 @@ function M.list(opts)
     require("claude-deck.picker").pick(items, { prompt = "Terminals>", where = (opts or {}).where }, M.show)
 end
 
-local function dir_candidates()
+-- Absolute path without a trailing slash ("/" stays "/")
+local function normalize_dir(dir)
+    dir = vim.fn.fnamemodify(dir, ":p")
+    return dir == "/" and dir or (dir:gsub("/$", ""))
+end
+
+-- Directories directly under `dir` (including symlinks to directories), by name, without
+-- hidden ones. Empty when `dir` cannot be read.
+local function subdirs(dir)
+    local dirs = {}
+    local handle = vim.uv.fs_scandir(dir)
+    if not handle then
+        return dirs
+    end
+    while true do
+        local name, type = vim.uv.fs_scandir_next(handle)
+        if not name then
+            break
+        end
+        local path = (dir == "/" and "" or dir) .. "/" .. name
+        if not name:match("^%.") then
+            -- stat only when the entry type does not tell (symlinks, some file systems)
+            if type == nil or type == "link" or type == "unknown" then
+                local stat = vim.uv.fs_stat(path)
+                type = stat and stat.type
+            end
+            if type == "directory" then
+                table.insert(dirs, path)
+            end
+        end
+    end
+    table.sort(dirs)
+    return dirs
+end
+
+local function dir_list()
     local dirs, seen = {}, {}
     local function add(dir)
-        dir = vim.fn.fnamemodify(dir, ":p"):gsub("/$", "")
+        dir = normalize_dir(dir)
         if not seen[dir] and vim.fn.isdirectory(dir) == 1 then
             seen[dir] = true
             table.insert(dirs, { value = dir, text = vim.fn.fnamemodify(dir, ":~") })
         end
     end
+    return dirs, add
+end
 
-    add(vim.fn.getcwd())
+local function dir_candidates()
+    local dirs, add = dir_list()
+    local cwd = vim.fn.getcwd()
+    add(cwd)
+    for _, dir in ipairs(subdirs(normalize_dir(cwd))) do
+        add(dir)
+    end
     for _, term in ipairs(state.sorted()) do
         add(term.cwd)
     end
     for _, root in ipairs(config.options.dir_roots) do
-        for _, dir in ipairs(vim.fn.glob(vim.fn.expand(root) .. "/*/", false, true)) do
+        for _, dir in ipairs(subdirs(normalize_dir(vim.fn.expand(root)))) do
             add(dir)
         end
     end
@@ -236,16 +279,48 @@ local function dir_candidates()
     return dirs
 end
 
--- Pick a directory and open a new terminal there.
+-- `dir` itself (to open there) and the directories directly under it
+local function dir_browse_candidates(dir)
+    local dirs, add = dir_list()
+    add(dir)
+    for _, sub in ipairs(subdirs(dir)) do
+        add(sub)
+    end
+    return dirs
+end
+
+-- dir: the directory being browsed, or nil for the first list
+local function open_dir_picker(dir, where)
+    -- Open the next picker (target nil: the first list) after the current one has closed
+    local function browse(target)
+        vim.schedule(function()
+            open_dir_picker(target and normalize_dir(target), where)
+        end)
+    end
+
+    require("claude-deck.picker").pick(dir and dir_browse_candidates(dir) or dir_candidates(), {
+        prompt = dir and (vim.fn.fnamemodify(dir, ":~") .. ">") or "Directory>",
+        where = where,
+        header = "tab: go into / shift-tab: go up",
+        extra_actions = {
+            -- Without a selection (nothing matches), open the same list again
+            ["tab"] = function(target)
+                browse(target or dir)
+            end,
+            ["btab"] = function()
+                browse(vim.fn.fnamemodify(dir or normalize_dir(vim.fn.getcwd()), ":h"))
+            end,
+        },
+    }, function(target, w)
+        terminal.open_new(target, w)
+    end)
+end
+
+-- Pick a directory and open a new terminal there. With fzf-lua, tab / shift-tab browse into a
+-- directory / up to the parent.
 function M.pick_dir(opts)
     ensure_setup()
-    require("claude-deck.picker").pick(
-        dir_candidates(),
-        { prompt = "Directory>", where = (opts or {}).where },
-        function(dir, where)
-            terminal.open_new(dir, where)
-        end
-    )
+    open_dir_picker(nil, (opts or {}).where)
 end
 
 -- Open a terminal that forks the current terminal's session.

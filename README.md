@@ -92,7 +92,9 @@ Where a new terminal opens (without `where`):
 - in an empty, unnamed buffer (e.g. right after starting Neovim): in place
 - otherwise: at the far right (`width_ratio` of the editor width)
 
-In the fzf-lua pickers, `enter` opens with the rule above, `ctrl-v` splits right and `ctrl-s` splits below.
+In the fzf-lua pickers, `enter` opens with the rule above, `ctrl-v` splits right and `ctrl-s` splits below. The directory picker also has `tab` (go into the selected directory) and `shift-tab` (go up to the parent).
+
+`pick_dir()` offers, in this order: the current directory, the directories directly under it, cwds of terminals, the directories directly under `dir_roots`, and zoxide directories. Hidden directories (names starting with `.`) are skipped when listing the directories directly under a directory, but not in terminal cwds or zoxide. With fzf-lua you can browse from there: `tab` lists the selected directory itself (to open there) and the directories directly under it, and `shift-tab` does the same for the parent (from the first list, the parent of the current directory). Pressing `tab` when nothing matches shows the same list again. With `vim.ui.select` only the first list is shown.
 
 ![Terminal list in fzf-lua](docs/images/list.webp)
 

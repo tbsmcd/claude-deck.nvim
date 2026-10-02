@@ -79,8 +79,18 @@ list({opts})                                                *claude-deck.list()*
     splits below. {opts}.where sets the placement for |vim.ui.select|.
 
 pick_dir({opts})                                        *claude-deck.pick_dir()*
-    Pick a directory and open a new terminal there. Candidates: current
-    directory, cwds of terminals, children of `dir_roots`, and zoxide.
+    Pick a directory and open a new terminal there. Candidates, in order:
+    the current directory, its children, cwds of terminals, children of
+    `dir_roots`, and zoxide. Hidden directories (names starting with ".")
+    are skipped among children, but not in terminal cwds or zoxide.
+    With fzf-lua, the keys to open are the same as in |claude-deck.list()|,
+    and this picker also lets you browse directories:
+      <Tab>     go into the selected directory: list it (to open there)
+                and its children
+      <S-Tab>   go up: list the parent and its children (from the first
+                list, the parent of the current directory)
+    When nothing matches, <Tab> shows the same list again.
+    With |vim.ui.select| only the first list is shown.
 
 fork({where})                                               *claude-deck.fork()*
     Open a new terminal that runs `claude --resume <session> --fork-session`

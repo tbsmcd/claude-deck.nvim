@@ -46,7 +46,8 @@ function _G.T_statusline()
     return vim.api.nvim_eval_statusline(vim.wo.statusline, { winid = 0 }).str
 end
 
+-- index nil: no selection (nothing matches the query)
 function _G.T_pick(action, index)
     local p = _G.last_picker
-    p.opts.actions[action]({ p.lines[index] })
+    p.opts.actions[action](index and { p.lines[index] } or {})
 end
