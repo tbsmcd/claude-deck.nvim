@@ -152,6 +152,7 @@ Claude Code には 2 つの表示方式があり、claude-deck は既定で従�
 | | classic | fullscreen |
 | --- | --- | --- |
 | ちらつき | 出力中にちらつくことがある | ちらつかない |
+| 入力欄の位置 | 会話の末尾に続く。会話が window に収まる間は上のほうにあり、あふれてからは下に落ち着く | 常に画面の下 |
 | 履歴の場所 | ターミナルのバッファ（最大 `scrollback` 行） | Claude Code が持つ。バッファには 1 画面分だけ |
 | スクロール・検索・コピー | Neovim のノーマルモード（`j` / `k`、`/`、`y`） | `PageUp` / `PageDown`、`Ctrl+O` の transcript、マウスホイール |
 | マウスのクリック | Neovim が受け取る | Claude Code が受け取る |

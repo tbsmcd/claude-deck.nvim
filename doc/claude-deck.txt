@@ -139,6 +139,9 @@ Fn+Down on a Mac), Ctrl+End for the latest, Ctrl+O for the transcript view
 
                   classic                       fullscreen
     Flicker       may flicker while writing     none
+    Prompt input  follows the conversation      always at the bottom
+                  (near the top until it
+                  fills the window)
     History       terminal buffer (up to        kept by Claude Code; the
                   `scrollback` lines)           buffer holds one screen
     Scroll,       Neovim normal mode            PageUp / PageDown, Ctrl+O

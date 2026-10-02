@@ -152,6 +152,7 @@ Claude Code has two renderers, and claude-deck starts it with the classic one by
 | | classic | fullscreen |
 | --- | --- | --- |
 | Flicker | May flicker while Claude is writing | No flicker |
+| Prompt input | Follows the conversation: near the top until the conversation fills the window, then at the bottom | Always at the bottom |
 | History | Terminal buffer (up to `scrollback` lines) | Kept by Claude Code; the buffer holds one screen |
 | Scroll, search, copy | Neovim normal mode (`j` / `k`, `/`, `y`) | `PageUp` / `PageDown`, `Ctrl+O` transcript, mouse wheel |
 | Mouse clicks | Handled by Neovim | Handled by Claude Code |
