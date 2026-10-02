@@ -12,7 +12,7 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
 - **集中モード**: ターミナルの cwd で「ファイルツリー ｜ エディタ ｜ ターミナル」を並べた新しいタブを開き、閉じると元の画面構成に戻ります
 - **セッション間の連携**: ターミナル内の Claude が `ct list` / `ct read <番号>` で他のセッションの様子を確認できます
 
-![4 つの Claude Code セッションを並べ、winbar の色で状態を表示している画面](docs/images/ja/terminals.webp)
+![4 つの Claude Code セッションを並べ、winbar の色で状態を表示している画面](docs/images/terminals.webp)
 
 ## 必要なもの
 
