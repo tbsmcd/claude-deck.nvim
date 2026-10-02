@@ -2,6 +2,8 @@
 
 [English](README.md) | 日本語
 
+![claude-deck.nvim: 4 つのターミナルが並び、それぞれの winbar に色付きの状態が表示されている](docs/images/cover.png)
+
 Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claude-code) のセッションを複数並べて動かし、どのセッションが自分を待っているかをひと目で分かるようにするプラグインです。名前の deck は、複数のセッションを並べて見渡す場所という意味です。
 
 - **状態がひと目で分かる**: 各ターミナルの winbar に番号・状態・タスク名を（状態ごとの色で）表示し、ステータスラインに cwd と session id を表示します

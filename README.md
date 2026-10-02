@@ -2,6 +2,8 @@
 
 English | [日本語](README.ja.md)
 
+![claude-deck.nvim: four terminals side by side, each with a colored status in its winbar](docs/images/cover.png)
+
 Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions side by side in Neovim terminals, and always know which one needs you. Think of it as a deck: one place where all your sessions are laid out in view.
 
 - **Status at a glance**: each terminal shows its id, status and task title in the winbar (colored per status), and its cwd and session id in the statusline

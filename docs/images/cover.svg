@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" font-family="Menlo, 'SF Mono', ui-monospace, monospace">
+<title>claude-deck.nvim</title>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2636"/><stop offset="1" stop-color="#0f151e"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0.6" stop-color="#0f151e" stop-opacity="0"/><stop offset="1" stop-color="#0f151e" stop-opacity="0.92"/></linearGradient>
+</defs>
+<rect width="1280" height="640" fill="url(#bg)"/>
+<text x="64" y="150" font-size="76" font-weight="bold" fill="#e6edf5" letter-spacing="-1">claude-deck<tspan fill="#6f819a">.nvim</tspan></text>
+<text x="66" y="206" font-size="24" fill="#9fb0c6">Run Claude Code sessions side by side in Neovim,</text>
+<text x="66" y="240" font-size="24" fill="#9fb0c6">and always know which one needs you.</text>
+<rect x="64.0" y="306" width="277.5" height="420" rx="8" fill="#192330" stroke="#2b3b51" stroke-width="1.5"/>
+<path d="M72.0 306 h179.6 v30 h-187.6 v-22 a8 8 0 0 1 8 -8 z" fill="#999999"/>
+<text x="74.0" y="326.5" font-size="15" font-weight="bold" fill="#000000">#1 New</text>
+<rect x="137.7" y="311" width="1.5" height="20" fill="#000000" opacity="0.75"/>
+<text x="149.2" y="326.5" font-size="15" font-weight="bold" fill="#000000">(new task)</text>
+<rect x="76.0" y="366" width="253.5" height="1.5" fill="#2b3b51"/>
+<path d="M83.0 381 l6 6 l-6 6" fill="none" stroke="#719cd6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="102.0" y="378" width="9" height="18" fill="#cdd6e4" opacity="0.7"/>
+<rect x="76.0" y="406" width="253.5" height="1.5" fill="#2b3b51"/>
+<rect x="355.5" y="306" width="277.5" height="420" rx="8" fill="#192330" stroke="#2b3b51" stroke-width="1.5"/>
+<path d="M363.5 306 h261.0 v30 h-269.0 v-22 a8 8 0 0 1 8 -8 z" fill="#56b4e9"/>
+<text x="365.5" y="326.5" font-size="15" font-weight="bold" fill="#000000">#2 Running</text>
+<rect x="465.4" y="311" width="1.5" height="20" fill="#000000" opacity="0.75"/>
+<text x="476.9" y="326.5" font-size="15" font-weight="bold" fill="#000000">Refactor parser</text>
+<rect x="373.5" y="364.0" width="150" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="373.5" y="412.0" width="232" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="373.5" y="436.0" width="210" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="373.5" y="460.0" width="240" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="373.5" y="484.0" width="96" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="373.5" y="532.0" width="226" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="373.5" y="556.0" width="188" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<path d="M379.5 600 v12 M373.5 606 h12 M375.3 601.8 l8.4 8.4 M383.7 601.8 l-8.4 8.4" stroke="#56b4e9" stroke-width="1.8" stroke-linecap="round"/>
+<text x="395.5" y="611.5" font-size="15" fill="#56b4e9">Working...</text>
+<rect x="647.0" y="306" width="277.5" height="420" rx="8" fill="#192330" stroke="#2b3b51" stroke-width="1.5"/>
+<path d="M655.0 306 h252.0 v30 h-260.0 v-22 a8 8 0 0 1 8 -8 z" fill="#f0e442"/>
+<text x="657.0" y="326.5" font-size="15" font-weight="bold" fill="#000000">#3 Waiting</text>
+<rect x="756.9" y="311" width="1.5" height="20" fill="#000000" opacity="0.75"/>
+<text x="768.4" y="326.5" font-size="15" font-weight="bold" fill="#000000">Fix login test</text>
+<rect x="665.0" y="364.0" width="132" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="665.0" y="412.0" width="236" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="665.0" y="436.0" width="220" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="665.0" y="460.0" width="168" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="665.0" y="508.0" width="214" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="665.0" y="532.0" width="90" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="659.0" y="562" width="253.5" height="1.5" fill="#2b3b51"/>
+<path d="M666.0 577 l6 6 l-6 6" fill="none" stroke="#719cd6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="685.0" y="574" width="9" height="18" fill="#cdd6e4" opacity="0.7"/>
+<rect x="659.0" y="602" width="253.5" height="1.5" fill="#2b3b51"/>
+<rect x="938.5" y="306" width="277.5" height="420" rx="8" fill="#192330" stroke="#2b3b51" stroke-width="1.5"/>
+<path d="M946.5 306 h261.0 v30 h-269.0 v-22 a8 8 0 0 1 8 -8 z" fill="#d55e00"/>
+<text x="948.5" y="326.5" font-size="15" font-weight="bold" fill="#000000">#4 Needs you</text>
+<rect x="1066.5" y="311" width="1.5" height="20" fill="#000000" opacity="0.75"/>
+<text x="1078.0" y="326.5" font-size="15" font-weight="bold" fill="#000000">Run migration</text>
+<rect x="956.5" y="364.0" width="170" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="956.5" y="412.0" width="230" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="956.5" y="436.0" width="196" height="9" rx="4.5" fill="#cdd6e4" opacity="0.16"/>
+<rect x="956.5" y="478" width="78" height="22" rx="3" fill="#b8c0ff" opacity="0.9"/>
+<text x="964.5" y="494" font-size="13" font-weight="bold" fill="#131a24">Confirm</text>
+<rect x="956.5" y="518.0" width="224" height="9" rx="4.5" fill="#cdd6e4" opacity="0.34"/>
+<rect x="956.5" y="542.0" width="150" height="9" rx="4.5" fill="#cdd6e4" opacity="0.34"/>
+<path d="M957.5 578.5 l6 6 l-6 6" fill="none" stroke="#719cd6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="978.5" y="580.0" width="118" height="9" rx="4.5" fill="#719cd6" opacity="0.85"/>
+<rect x="978.5" y="604.0" width="152" height="9" rx="4.5" fill="#cdd6e4" opacity="0.2"/>
+<rect x="978.5" y="628.0" width="96" height="9" rx="4.5" fill="#cdd6e4" opacity="0.2"/>
+<rect y="306" width="1280" height="334" fill="url(#fade)"/>
+</svg>
