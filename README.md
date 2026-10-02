@@ -301,6 +301,8 @@ The same documentation is available inside Neovim:
 :help claude-deck
 ```
 
+A Japanese version is also available with `:help claude-deck@ja`.
+
 ## Health check
 
 ```vim

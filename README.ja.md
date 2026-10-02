@@ -312,11 +312,13 @@ opts = {
 
 ## ヘルプ
 
-Neovim の中でも、同じ内容のドキュメント（英語）を読めます。
+Neovim の中でも、同じ内容のドキュメントを読めます。英語版と日本語版があり、日本語版は次のコマンドで開けます。
 
 ```vim
-:help claude-deck
+:help claude-deck@ja
 ```
+
+`set helplang=ja,en` にしておくと、`:help claude-deck` で日本語版が開きます。
 
 ## ヘルスチェック
 

@@ -1,0 +1,275 @@
+*claude-deck.txt*  Neovim のターミナルで複数の Claude Code セッションを動かす
+
+                                              *claude-deck* *claude-deck.nvim*
+
+==============================================================================
+目次                                                    *claude-deck-contents*
+
+  1. はじめに ................ |claude-deck-intro|
+  2. セットアップ ............ |claude-deck-setup|
+  3. 使い方 .................. |claude-deck-usage|
+  4. 状態と通知 .............. |claude-deck-status|
+  5. ct コマンド ............. |claude-deck-ct|
+  6. 設定 .................... |claude-deck-config|
+  7. ハイライト .............. |claude-deck-highlights|
+  8. 制約 .................... |claude-deck-limitations|
+
+==============================================================================
+1. はじめに                                                *claude-deck-intro*
+
+claude-deck.nvim は、Neovim のターミナルで Claude Code を動かすプラグイン
+です。各ターミナルは winbar に番号・状態・タスク名を、ステータスラインに
+cwd と session id を表示します。入力を待っているときはデスクトップ通知を
+送り、`ct` コマンドで Claude が他のターミナルの様子を確認できます。
+
+Neovim 0.11 以降と、PATH にある `claude` が必要です。フックスクリプトと
+`ct` は `nvim --server` を呼ぶので、Claude Code から見える PATH に `nvim`
+も必要です。
+
+任意（なくても動きます）:
+- fzf-lua: 分割キー付きのピッカー。ない場合は |vim.ui.select()| を使います
+- nvim-tree.lua: 集中モードのファイルツリー。ない場合は netrw を使います
+- zoxide: |claude-deck.pick_dir()| の候補にディレクトリを追加します
+- jq: |claude-deck.show_settings()| の JSON を整形して表示します
+- デスクトップ通知: osascript（macOS。最前面のアプリの判定に lsappinfo も
+  使います）または notify-send（Linux）。独自の `notify.notifier` も
+  指定できます
+
+==============================================================================
+2. セットアップ                                            *claude-deck-setup*
+
+>lua
+    require("claude-deck").setup({})
+<
+キーマップはプラグイン側では設定しません。次の関数を割り当ててください。例:
+>lua
+    local ct = require("claude-deck")
+    vim.keymap.set("n", "<leader>cc", ct.toggle)
+    vim.keymap.set("n", "<leader>cv", function() ct.new("right") end)
+    vim.keymap.set("n", "<leader>cs", function() ct.new("below") end)
+    vim.keymap.set("n", "<leader>cl", ct.list)
+    vim.keymap.set("n", "<leader>cd", ct.pick_dir)
+    vim.keymap.set("n", "<leader>cf", ct.fork)
+    vim.keymap.set("n", "<leader>cr", ct.rename)
+    vim.keymap.set("n", "<leader>co", ct.focus)
+<
+==============================================================================
+3. 使い方                                                  *claude-deck-usage*
+
+                                                                 *:ClaudeDeck*
+:ClaudeDeck [{subcommand} [{args}]]
+    サブコマンドを省略すると `toggle` と同じです。
+
+toggle()                                                *claude-deck.toggle()*
+    ターミナルの外では、表示中のターミナルへ移動するか、新しく開きます。
+    ターミナルの中では、右に新しく開きます。
+
+new({where})                                               *claude-deck.new()*
+    新しいターミナルを開きます。{where} には、今の window を分割する
+    "right" か "below"、または既定の場所に開く nil を指定します。既定の場所:
+    - ターミナルの中: 右
+    - 空の無名バッファ: その場
+    - それ以外: 右端
+    新しいターミナルの cwd は、今のターミナルの cwd か |getcwd()| です。
+
+list({opts})                                              *claude-deck.list()*
+    ターミナルを選んで表示します（非表示のものも含む）。fzf-lua では、<CR>
+    で既定の場所に開き、<C-v> で右に、<C-s> で下に分割して開きます。
+    {opts}.where で |vim.ui.select| のときの開く場所を指定します。
+
+pick_dir({opts})                                      *claude-deck.pick_dir()*
+    ディレクトリを選んで、そこで新しいターミナルを開きます。候補は、今の
+    ディレクトリ、各ターミナルの cwd、`dir_roots` の直下のディレクトリ、
+    zoxide のディレクトリです。
+
+fork({where})                                             *claude-deck.fork()*
+    今のターミナルのセッションを分岐させた新しいターミナルを開きます。
+    `claude --resume <session> --fork-session` を実行します。
+
+rename()                                                *claude-deck.rename()*
+    今のターミナルのタスク名を変更します。
+
+focus()                                                  *claude-deck.focus()*
+    ターミナルの中では、「ファイルツリー ｜ エディタ ｜ ターミナル」を並べた
+    新しいタブを開き、ターミナルの cwd に |:tcd| します。そのタブの中では、
+    タブを閉じて元の window に戻ります。
+
+show_settings()                                  *claude-deck.show_settings()*
+    Claude Code に渡す設定の JSON（hook と `ct` の権限）をスクラッチバッファ
+    に表示します。`claude_settings` が false のときに、自分の設定へ hook を
+    追加するために使います。
+
+show({id}, {where})                                       *claude-deck.show()*
+    ターミナル {id} を表示します。
+
+ターミナルの window を |:q| で閉じても、非表示になるだけです。Claude は動き
+続けます。|claude-deck.list()|（`:ClaudeDeck list`）で呼び戻せます。
+
+ターミナルが最後の window でも同じです。|:q|（|ZZ|、|CTRL-W_q|、|:x| も
+同様）で Neovim は終了せず、空の window が残ります。裏で動いているターミナル
+の数はメッセージで表示されます。Neovim を終了するには |:qa| を使ってください。
+空の window でもう一度 |:q| すると Neovim が終了し、Claude のセッションも
+すべて終了します。この挙動は `keep_alive_on_quit = false` で無効にできます。
+
+                                                         *claude-deck-windows*
+ターミナルの中で押したキーは Claude に送られます。<C-q>
+（`keymaps.normal_mode`）か <C-\><C-n> でターミナルモードを抜けてから、
+|CTRL-W| のコマンドを使ってください。ターミナルの window に戻ると、自動で
+ターミナルモードになります（`auto_insert`）。ターミナルモードのまま window
+を操作したい場合は、`keymaps.window = "<C-w>"` を設定してください（その
+代わり、Claude Code の CTRL-W（単語の削除）は使えなくなります）。
+
+<C-]> で Claude に <Esc> を送ります（`keymaps.send_esc`）。中断やダイアログ
+を閉じるのに使い、2 回押すと <Esc><Esc> になります。<Esc> をターミナル
+モードを抜けるキーに割り当てている場合に便利です。
+
+'equalalways' が有効でも、ターミナルを開いたときに他の window の大きさは
+変わりません。
+
+                                                       *claude-deck-scrolling*
+会話をさかのぼる ~
+
+Claude Code には 2 つの表示方式があり、claude-deck は既定で従来の表示
+（classic）を使います（`renderer`）。
+
+classic（既定）: 会話はすべてターミナルのバッファに残ります。ターミナル
+モードを抜けて（<C-q>）、いつもの Neovim の操作を使います。|j| / |k|、
+|CTRL-U| / |CTRL-D|、|gg| / |G| で移動、|/| で検索、|v| と |y| でコピー。
+|i| で入力欄に戻ります。
+
+fullscreen: 会話の履歴は Claude Code が持ち、バッファには今の画面の分しか
+残りません。Claude Code の中でスクロールします。PageUp / PageDown（Mac
+では Fn+Up / Fn+Down）、Ctrl+End で最新へ、Ctrl+O の transcript 表示
+（j / k で移動、/ で検索）、またはマウスホイール。
+
+                      classic                     fullscreen
+    ちらつき          出力中にちらつくことがある  ちらつかない
+    入力欄の位置      会話の末尾に続く            常に画面の下
+                      （window に収まる間は
+                      上のほうにある）
+    履歴の場所        ターミナルのバッファ        Claude Code が持つ。
+                      （最大 `scrollback` 行）    バッファには 1 画面分だけ
+    スクロール、      Neovim のノーマルモード     PageUp / PageDown、
+    検索、コピー      （j / k、/、y）             Ctrl+O の transcript、
+                                                  マウスホイール
+    マウスのクリック  Neovim が受け取る           Claude Code が受け取る
+    長い会話          描き直しの跡が、重複した    見えている部分だけを
+                      行としてスクロールバックに  描くので重くならない
+                      残ることがある
+
+フルスクリーン表示にするには `renderer = "fullscreen"` を、Claude Code 側の
+設定（`tui`）に任せるには `renderer = false` を設定します。表示方式は
+CLAUDE_CODE_NO_FLICKER（classic は 0、fullscreen は 1）で渡し、これは
+`tui` の設定より優先されます。変更は、そのあとに開いたターミナルから反映
+されます。
+
+`renderer = false` のときは、環境変数を変更しません。Neovim の環境に
+CLAUDE_CODE_NO_FLICKER があれば Claude はそれを使い、なければ Claude Code
+の `tui` の設定に従います。
+
+==============================================================================
+4. 状態と通知                                             *claude-deck-status*
+
+状態は `claude --settings` で登録した Claude Code の hook から受け取るので、
+自分の設定は変更しません。`claude_settings = false` の場合は、自分の設定に
+hook を追加してください（|claude-deck.show_settings()|）。追加しないと、
+状態、通知、タスク名、fork が動きません。
+
+    New        起動、`SessionStart`
+    Running    `UserPromptSubmit`、`PostToolUse`
+    Waiting    `Stop`                        （通知あり）
+    Needs you  `Notification`                （通知あり）
+    Exited     プロセスが終了した
+
+Waiting は、Claude が応答を終えて次のプロンプトを待っている状態です（実行の
+順番待ちや、これから動き出す状態ではありません）。Needs you は、作業の途中
+で、許可の確認や質問へのあなたの回答を待って Claude が止まっている状態です。
+
+Neovim にフォーカスがあり、今の window にそのターミナルが表示されていて、
+macOS ではさらにターミナルアプリが最前面にあるときは、通知を出しません。
+
+==============================================================================
+5. ct コマンド                                                *claude-deck-ct*
+
+ターミナルの中では `ct` が PATH に入っており、そのことを Claude に伝えて
+います。
+
+    ct list                 ターミナルの一覧
+    ct read <id> [count]    ターミナルの直近の会話（既定 20 件）
+
+どちらも許可の確認なしで実行できます。`ct read` は Claude Code の transcript
+ファイルを読み取ります。このファイルの形式は内部仕様のため、変わる可能性が
+あります。
+
+==============================================================================
+6. 設定                                                   *claude-deck-config*
+
+    cmd                   Claude を起動するコマンド（既定: { "claude" }）
+    claude_settings       hook と `ct` の権限を `claude --settings` で
+                          渡す（既定: true）
+    title_width           タスク名として保持する最大文字数。winbar
+                          では幅に合わせてさらに切り詰める（既定: 60）
+    statusline            window のステータスラインに cwd と session id
+                          を表示する。false なら cwd を winbar に表示
+                          （既定: true）
+    width_ratio           右端に開くターミナルの幅（既定: 0.4）
+    dir_roots             直下のディレクトリを `pick_dir()` の候補にする
+                          ディレクトリ
+    zoxide                zoxide のディレクトリも候補にする（既定: true）
+    labels                各状態と `untitled` の表示名
+    notify.enabled        （既定: true）
+    notify.states         （既定: { "waiting", "attention" }）
+    notify.skip_when_watching  （既定: true）
+    notify.notifier       function({ title, subtitle, body, state, terminal })
+    keymaps.normal_mode   ターミナルモードを抜けるためのキー
+                          （既定: "<C-q>"、false で無効）
+    keymaps.window        ターミナルモードでウィンドウコマンドを使う
+                          ためのプレフィックス（既定: false。例: "<C-w>"）
+    keymaps.send_esc      ターミナルモードで Claude に <Esc> を送るキー
+                          （既定: "<C-]>"、false で無効）
+    renderer              "classic"、"fullscreen"、または false。false
+                          のときは Neovim の環境の CLAUDE_CODE_NO_FLICKER
+                          をそのまま使う（未設定なら Claude Code の
+                          `tui`）。|claude-deck-scrolling| を参照
+                          （既定: "classic"）
+    scrollback            ターミナルのバッファの 'scrollback'（上限
+                          100000）。false なら変更しない（既定: 100000）
+    auto_insert           ターミナルの window に入ったらターミナルモード
+                          にする（既定: true）
+    keep_alive_on_quit    最後の window で |:q| したとき、Neovim を終了
+                          せずに、動いているターミナルを非表示にする
+                          （既定: true）
+    picker                "auto"、"fzf-lua"、"select" のいずれか
+    focus.tree            "auto"、false、function(cwd) のいずれか
+    cli.enabled           `ct` を PATH に入れ、許可の確認なしで実行できる
+                          ようにする（既定: true）
+    cli.system_prompt     `ct` のことを Claude に伝える（既定: true）
+
+==============================================================================
+7. ハイライト                                         *claude-deck-highlights*
+
+状態の既定の色は Okabe-Ito のパレットをもとに、色相だけでなく明るさでも
+区別できるようにしており、色覚の違いがあっても見分けられます。どれも
+`default = true` で定義しているので、上書きできます。
+
+    ClaudeDeckIdle         グレー
+    ClaudeDeckRunning      空色
+    ClaudeDeckWaiting      黄色
+    ClaudeDeckAttention    朱色
+    ClaudeDeckExited       暗いグレー
+    ClaudeDeckCwd          |hl-Directory| へのリンク
+
+==============================================================================
+8. 制約                                              *claude-deck-limitations*
+
+- Claude を中断しても `Stop` が発火しないため、次のプロンプトを送るまで状態
+  が Running のままになります。
+- macOS で、ターミナルアプリの中でタブやペインを切り替えても、フォーカスが
+  外れたとは判定されません。
+- Neovim を終了するとターミナルは消えます。|:qa|（または動いているターミナル
+  以外の window での |:q|）で Neovim を終了すると、確認なしで Claude の
+  セッションもすべて終了します。
+- |:q!| と |ZQ| はターミナルのバッファを破棄するため、Neovim が終了しない
+  場合でもその Claude のセッションは終了します。
+
+ vim:tw=78:ts=8:ft=help:norl:
