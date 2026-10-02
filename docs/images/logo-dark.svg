@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 836 132" width="836" height="132" font-family="Menlo, 'SF Mono', ui-monospace, monospace">
+<title>claude-deck.nvim</title>
+<rect x="10" y="20" width="31" height="92" rx="6" fill="#192330" stroke="#3a4d68" stroke-width="1.5"/>
+<path d="M10 26 a6 6 0 0 1 6 -6 h19 a6 6 0 0 1 6 6 v12 h-31 z" fill="#999999"/>
+<rect x="17" y="50" width="17" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="17" y="63" width="13" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="17" y="76" width="17" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="17" y="89" width="9" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="49" y="20" width="31" height="92" rx="6" fill="#192330" stroke="#3a4d68" stroke-width="1.5"/>
+<path d="M49 26 a6 6 0 0 1 6 -6 h19 a6 6 0 0 1 6 6 v12 h-31 z" fill="#56b4e9"/>
+<rect x="56" y="50" width="13" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="56" y="63" width="17" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="56" y="76" width="9" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="56" y="89" width="17" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="88" y="20" width="31" height="92" rx="6" fill="#192330" stroke="#3a4d68" stroke-width="1.5"/>
+<path d="M88 26 a6 6 0 0 1 6 -6 h19 a6 6 0 0 1 6 6 v12 h-31 z" fill="#f0e442"/>
+<rect x="95" y="50" width="17" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="95" y="63" width="9" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="95" y="76" width="17" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="95" y="89" width="13" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="127" y="20" width="31" height="92" rx="6" fill="#192330" stroke="#3a4d68" stroke-width="1.5"/>
+<path d="M127 26 a6 6 0 0 1 6 -6 h19 a6 6 0 0 1 6 6 v12 h-31 z" fill="#d55e00"/>
+<rect x="134" y="50" width="9" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="134" y="63" width="17" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="134" y="76" width="13" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<rect x="134" y="89" width="17" height="5" rx="2.5" fill="#cdd6e4" opacity="0.28"/>
+<text x="188" y="89" font-size="64" font-weight="bold" fill="#e6edf5" letter-spacing="-1">claude-deck<tspan fill="#7d8ea6">.nvim</tspan></text>
+</svg>

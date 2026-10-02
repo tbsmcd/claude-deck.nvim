@@ -1,8 +1,11 @@
-# claude-deck.nvim
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.png">
+    <img src="docs/images/logo-light.png" alt="claude-deck.nvim" width="418">
+  </picture>
+</p>
 
-English | [日本語](README.ja.md)
-
-![claude-deck.nvim: four terminals side by side, each with a colored status in its winbar](docs/images/cover.png)
+<p align="center">English | <a href="README.ja.md">日本語</a></p>
 
 Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions side by side in Neovim terminals, and always know which one needs you. Think of it as a deck: one place where all your sessions are laid out in view.
 

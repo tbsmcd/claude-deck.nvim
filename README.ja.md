@@ -1,8 +1,11 @@
-# claude-deck.nvim
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.png">
+    <img src="docs/images/logo-light.png" alt="claude-deck.nvim" width="418">
+  </picture>
+</p>
 
-[English](README.md) | 日本語
-
-![claude-deck.nvim: 4 つのターミナルが並び、それぞれの winbar に色付きの状態が表示されている](docs/images/cover.png)
+<p align="center"><a href="README.md">English</a> | 日本語</p>
 
 Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claude-code) のセッションを複数並べて動かし、どのセッションが自分を待っているかをひと目で分かるようにするプラグインです。名前の deck は、複数のセッションを並べて見渡す場所という意味です。
 
