@@ -293,6 +293,14 @@ To keep them, add the hooks to your own Claude Code settings (e.g. `~/.claude/se
 - Terminals live in one Neovim instance and are lost when Neovim exits (sessions can be resumed with `claude --resume`). Quitting Neovim with `:qa` (or `:q` on a window that is not a running terminal) ends every Claude session without asking.
 - `:q!` and `ZQ` discard the terminal buffer, which ends that Claude session even when Neovim stays open.
 
+## Help
+
+The same documentation is available inside Neovim:
+
+```vim
+:help claude-deck
+```
+
 ## Health check
 
 ```vim

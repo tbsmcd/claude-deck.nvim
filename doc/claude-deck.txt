@@ -1,5 +1,7 @@
 *claude-deck.txt*  Multiple Claude Code sessions in Neovim terminals
 
+                                              *claude-deck* *claude-deck.nvim*
+
 ==============================================================================
 CONTENTS                                                  *claude-deck-contents*
 
