@@ -28,6 +28,22 @@ function M.check()
         )
     end
 
+    for _, name in ipairs({ "renderer", "scrollback" }) do
+        if config.invalid[name] ~= nil then
+            health.warn("`" .. name .. "`: invalid value " .. vim.inspect(config.invalid[name]) .. ", using false")
+        end
+    end
+    local renderer = config.options.renderer
+    if renderer then
+        health.info("renderer: " .. renderer .. " (CLAUDE_CODE_NO_FLICKER is set for terminals)")
+    elseif vim.env.CLAUDE_CODE_NO_FLICKER then
+        health.info(
+            "renderer: false (CLAUDE_CODE_NO_FLICKER=" .. vim.env.CLAUDE_CODE_NO_FLICKER .. " is inherited from Neovim)"
+        )
+    else
+        health.info("renderer: false (CLAUDE_CODE_NO_FLICKER is unset in Neovim; Claude Code's `tui` setting decides)")
+    end
+
     for _, script in ipairs({ "claude-deck-hook", "ct" }) do
         if vim.fn.executable(config.bin_dir .. "/" .. script) == 1 then
             health.ok("bin/" .. script .. " is executable")

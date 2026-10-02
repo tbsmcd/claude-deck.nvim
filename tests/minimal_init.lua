@@ -1,4 +1,5 @@
--- Minimal config for tests/smoke.sh. Replaces `claude` with a dummy process that records its arguments.
+-- Minimal config for tests/smoke.sh. Replaces `claude` with a dummy process that records its
+-- arguments (args.<id>) and CLAUDE_CODE_NO_FLICKER (env.<id>, "unset" when not set).
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 vim.opt.runtimepath:prepend(root)
 
@@ -6,7 +7,14 @@ local out = assert(vim.env.TEST_OUT, "TEST_OUT is not set")
 _G.notifications = {}
 
 _G.T_opts = {
-    cmd = { "sh", "-c", 'printf "%s\\n" "$@" > "' .. out .. '/args.$CLAUDE_DECK_ID"; sleep 300', "dummy" },
+    cmd = {
+        "sh",
+        "-c",
+        'printf "%s\\n" "$@" > "' .. out .. '/args.$CLAUDE_DECK_ID"; '
+            .. 'echo "CLAUDE_CODE_NO_FLICKER=${CLAUDE_CODE_NO_FLICKER-unset}" > "' .. out .. '/env.$CLAUDE_DECK_ID"; '
+            .. "sleep 300",
+        "dummy",
+    },
     dir_roots = { root .. "/tests/fixtures/roots" },
     zoxide = false,
     picker = "fzf-lua",

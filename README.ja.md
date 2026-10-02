@@ -141,6 +141,32 @@ end
 > [!NOTE]
 > Neovim のターミナルは `<Esc>` を Claude に送ります（中断）。ターミナルモードの `<Esc>` を自分でノーマルモードへの移行に割り当てている場合は、`<C-]>` で Claude に `<Esc>` を送れます（2 回押すと `Esc Esc`）。
 
+### 会話をさかのぼる
+
+Claude Code には 2 つの表示方式があり、claude-deck は既定で従来の表示（classic）で起動します（`renderer`）。
+
+**classic（既定）**: 会話はすべてターミナルのバッファに残ります。ターミナルモードを抜けて（`<C-q>`）、いつもの Neovim の操作が使えます。`j` / `k`、`<C-u>` / `<C-d>`、`gg` / `G` で移動、`/` で検索、`v` と `y` でコピー。`i` で入力に戻ります。
+
+**fullscreen**: 会話の履歴は Claude Code が持ち、バッファには今の画面の分しか残りません。Claude Code の中でスクロールします。`PageUp` / `PageDown`（Mac では `Fn+↑` / `Fn+↓`）、`Ctrl+End` で最新へ、`Ctrl+O` の transcript 表示（`j` / `k` で移動、`/` で検索）、またはマウスホイール。
+
+| | classic | fullscreen |
+| --- | --- | --- |
+| ちらつき | 出力中にちらつくことがある | ちらつかない |
+| 履歴の場所 | ターミナルのバッファ（最大 `scrollback` 行） | Claude Code が持つ。バッファには 1 画面分だけ |
+| スクロール・検索・コピー | Neovim のノーマルモード（`j` / `k`、`/`、`y`） | `PageUp` / `PageDown`、`Ctrl+O` の transcript、マウスホイール |
+| マウスのクリック | Neovim が受け取る | Claude Code が受け取る |
+| 長い会話 | 描き直しの跡が、重複した行としてスクロールバックに残ることがある | 見えている部分だけを描くので重くならない |
+
+フルスクリーン表示にする場合や、Claude Code 側の設定（`tui`）に任せる場合は、次のように設定します。
+
+```lua
+require("claude-deck").setup({ renderer = "fullscreen" }) -- または renderer = false
+```
+
+`renderer = false` のときは、環境変数を変更しません。Neovim の環境に `CLAUDE_CODE_NO_FLICKER` があればそれが使われ、なければ Claude Code の `tui` の設定に従います。
+
+表示方式は環境変数 `CLAUDE_CODE_NO_FLICKER`（classic は `0`、fullscreen は `1`）で Claude に渡します。この環境変数は `tui` の設定より優先されます。変更は、そのあとに開いたターミナルから反映されます。
+
 ### 状態
 
 | 状態 | 意味 | きっかけ | 通知 |
@@ -222,6 +248,8 @@ require("claude-deck").setup({
         window = false, -- 例: "<C-w>"
         send_esc = "<C-]>", -- Claude に <Esc> を送る
     },
+    renderer = "classic", -- "classic" | "fullscreen" | false（Neovim の環境の CLAUDE_CODE_NO_FLICKER、なければ Claude Code の `tui` に従う）
+    scrollback = 100000, -- ターミナルのバッファの 'scrollback'（上限 100000）。false なら変更しない
     auto_insert = true, -- ターミナルの window に入ったらターミナルモードにする
     keep_alive_on_quit = true, -- 最後の window で :q しても Neovim を終了せず、動いているターミナルを非表示にする
     picker = "auto", -- "auto" | "fzf-lua" | "select"

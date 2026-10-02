@@ -55,6 +55,17 @@ M.defaults = {
         -- For users who map <Esc> themselves to leave terminal mode.
         send_esc = "<C-]>",
     },
+    -- How Claude Code draws its screen, set with CLAUDE_CODE_NO_FLICKER.
+    -- "classic": normal screen; the whole conversation stays in the terminal buffer's
+    --   scrollback, so Neovim's j/k, / and y work on it in normal mode.
+    -- "fullscreen": alternate screen; Claude Code keeps the history itself and the buffer
+    --   only holds the current screen (scroll with PageUp/PageDown or Ctrl+O).
+    -- false: do not set it; CLAUDE_CODE_NO_FLICKER from Neovim's environment is used if set,
+    --   otherwise Claude Code's `tui` setting decides.
+    renderer = "classic",
+    -- 'scrollback' of claude-deck terminal buffers (lines kept by Neovim; Neovim's default
+    -- is 10000, the maximum 100000). false leaves it unchanged.
+    scrollback = 100000,
     -- Enter terminal mode when you move into a claude-deck terminal window.
     auto_insert = true,
     -- Keep Neovim (and Claude) running when `:q` closes the last window and it shows a running
@@ -79,8 +90,38 @@ M.defaults = {
 
 M.options = vim.deepcopy(M.defaults)
 
+-- Options that were invalid in the last setup(), as given (for :checkhealth).
+M.invalid = {}
+
+local function warn_invalid(name, value, hint)
+    M.invalid[name] = value
+    vim.notify(
+        string.format("claude-deck: invalid %s %s (%s); using false", name, vim.inspect(value), hint),
+        vim.log.levels.WARN
+    )
+end
+
+-- Replaces invalid values with false, warning once per setup().
+local function validate(options)
+    local renderer = options.renderer
+    if renderer ~= false and renderer ~= "classic" and renderer ~= "fullscreen" then
+        warn_invalid("renderer", renderer, 'use "classic", "fullscreen" or false')
+        options.renderer = false
+    end
+    local scrollback = options.scrollback
+    if
+        scrollback ~= false
+        and not (type(scrollback) == "number" and scrollback % 1 == 0 and scrollback >= 1 and scrollback <= 100000)
+    then
+        warn_invalid("scrollback", scrollback, "use an integer from 1 to 100000 or false")
+        options.scrollback = false
+    end
+end
+
 function M.setup(opts)
     M.options = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts or {})
+    M.invalid = {}
+    validate(M.options)
 end
 
 return M

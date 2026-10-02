@@ -16,6 +16,8 @@ export TEST_OUT
 SOCK="$TEST_OUT/nvim.sock"
 # Make notification behaviour deterministic (no frontmost-app check)
 unset __CFBundleIdentifier
+# The renderer tests check what the plugin passes, not what was inherited
+unset CLAUDE_CODE_NO_FLICKER
 
 nvim --headless --clean -u tests/minimal_init.lua --listen "$SOCK" >/dev/null 2>&1 &
 NVIM_PID=$!
@@ -51,6 +53,8 @@ check "toggle opens in place" "$(lua '(function() require("claude-deck").toggle(
 sleep 0.5
 check "claude gets --settings with hooks" "$(cat "$TEST_OUT/args.1")" "claude-deck-hook"
 check "claude gets the system prompt" "$(cat "$TEST_OUT/args.1")" "ct list"
+check "classic renderer by default" "$(cat "$TEST_OUT/env.1")" "CLAUDE_CODE_NO_FLICKER=0"
+check "terminal scrollback is set" "$(lua '"[" .. vim.bo.buftype .. " " .. vim.bo.scrollback .. "]"')" "[terminal 100000]"
 
 # Hook events update the winbar
 hook 1 SessionStart '{"cwd":"'"$ROOT"'","session_id":"sess-1","transcript_path":"'"$ROOT"'/tests/fixtures/transcript.jsonl"}'
@@ -110,6 +114,22 @@ check "auto insert when entering a terminal" "$(lua 'vim.api.nvim_get_mode().mod
 # Splitting a terminal keeps the editor width (even with 'equalalways')
 check "split keeps other windows" "$(lua '(function() vim.cmd("stopinsert | tabnew"); vim.o.columns = 200; vim.o.equalalways = true; vim.cmd("edit " .. vim.fn.tempname()); local editor = vim.api.nvim_get_current_win(); require("claude-deck").new(); vim.cmd("stopinsert"); local before = vim.api.nvim_win_get_width(editor); require("claude-deck").new("right"); vim.cmd("stopinsert"); return before .. " " .. vim.api.nvim_win_get_width(editor) .. " " .. tostring(vim.o.equalalways) end)()')" "119 119 true"
 lua '(function() vim.cmd("tabclose!"); return "" end)()' >/dev/null
+
+# Renderer and scrollback options (each case opens a terminal below and reads what it got)
+renderer_env() { # setup options as a Lua table
+    id=$(lua '(function() require("claude-deck").setup(vim.tbl_extend("force", T_opts, '"$1"')); require("claude-deck").new("below"); vim.cmd("stopinsert"); local id = vim.b.claude_deck_id; vim.cmd("close"); return id end)()')
+    sleep 0.5
+    cat "$TEST_OUT/env.$id"
+}
+check "renderer = fullscreen" "$(renderer_env '{ renderer = "fullscreen" }')" "CLAUDE_CODE_NO_FLICKER=1"
+check "renderer = false sets nothing" "$(renderer_env '{ renderer = false }')" "CLAUDE_CODE_NO_FLICKER=unset"
+check "invalid renderer sets nothing" "$(renderer_env '{ renderer = "nope" }')" "CLAUDE_CODE_NO_FLICKER=unset"
+check "invalid renderer warns once" "$(lua '(function() require("claude-deck").new("below"); vim.cmd("stopinsert | close"); local _, n = vim.api.nvim_exec2("messages", { output = true }).output:gsub("claude%-deck: invalid renderer", ""); return "[" .. n .. "]" end)()')" "[1]"
+check "invalid renderer is replaced with false" "$(lua 'tostring(require("claude-deck.config").options.renderer)')" "false"
+check "scrollback = false keeps the default" "$(lua '(function() require("claude-deck").setup(vim.tbl_extend("force", T_opts, { scrollback = false })); require("claude-deck").new("below"); vim.cmd("stopinsert"); local s = "[" .. vim.bo.scrollback .. "]"; vim.cmd("close"); return s end)()')" "[10000]"
+check "invalid scrollback values are replaced with false" "$(lua '(function() local c = require("claude-deck.config"); local r = {}; for _, v in ipairs({ "big", -5, 1.5, 0, 100001 }) do require("claude-deck").setup(vim.tbl_extend("force", T_opts, { scrollback = v })); table.insert(r, tostring(c.options.scrollback)) end; return "[" .. table.concat(r, " ") .. "]" end)()')" "[false false false false false]"
+check "invalid scrollback still opens a terminal" "$(lua '(function() require("claude-deck").setup(vim.tbl_extend("force", T_opts, { scrollback = -5 })); require("claude-deck").new("below"); vim.cmd("stopinsert"); local s = "[" .. tostring(require("claude-deck.state").get(vim.b.claude_deck_id) ~= nil) .. " " .. vim.bo.scrollback .. "] " .. vim.trim(T_winbar()); vim.cmd("close"); return s end)()')" "[true 10000] #"
+lua '(function() require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
 
 # Without --settings
 lua '(function() require("claude-deck").setup(vim.tbl_extend("force", T_opts, { claude_settings = false })); require("claude-deck").new("below"); vim.cmd("stopinsert"); return "" end)()' >/dev/null

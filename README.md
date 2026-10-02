@@ -141,6 +141,32 @@ These keys then no longer reach Claude Code: `Esc` (interrupt, `Esc Esc` to rewi
 > [!NOTE]
 > Neovim's terminal sends `<Esc>` to Claude (interrupt). If you map `<Esc>` in terminal mode to leave terminal mode yourself, press `<C-]>` to send `<Esc>` to Claude (twice for `Esc Esc`).
 
+### Scrolling back
+
+Claude Code has two renderers, and claude-deck starts it with the classic one by default (`renderer`).
+
+**classic (default)**: the whole conversation stays in the terminal buffer. Leave terminal mode (`<C-q>`) and use Neovim as usual: `j` / `k`, `<C-u>` / `<C-d>`, `gg` / `G`, `/` to search, `v` and `y` to copy. Press `i` to go back to the prompt.
+
+**fullscreen**: Claude Code keeps the history itself and the buffer only holds the current screen. Scroll inside Claude Code: `PageUp` / `PageDown` (`Fn+↑` / `Fn+↓` on a Mac), `Ctrl+End` to jump to the latest, `Ctrl+O` for the transcript view (`j` / `k`, `/` to search), or the mouse wheel.
+
+| | classic | fullscreen |
+| --- | --- | --- |
+| Flicker | May flicker while Claude is writing | No flicker |
+| History | Terminal buffer (up to `scrollback` lines) | Kept by Claude Code; the buffer holds one screen |
+| Scroll, search, copy | Neovim normal mode (`j` / `k`, `/`, `y`) | `PageUp` / `PageDown`, `Ctrl+O` transcript, mouse wheel |
+| Mouse clicks | Handled by Neovim | Handled by Claude Code |
+| Long conversations | Redraw leftovers may pile up as duplicate lines in the scrollback | Stays fast; only the visible part is drawn |
+
+To use the fullscreen renderer, or to leave the choice to your Claude Code settings (`tui`):
+
+```lua
+require("claude-deck").setup({ renderer = "fullscreen" }) -- or renderer = false
+```
+
+With `renderer = false`, claude-deck does not touch the environment variable: if `CLAUDE_CODE_NO_FLICKER` is set in Neovim's environment, Claude uses it; otherwise Claude Code's `tui` setting decides.
+
+The renderer is passed to Claude with the `CLAUDE_CODE_NO_FLICKER` environment variable (`0` for classic, `1` for fullscreen), which takes precedence over the `tui` setting. It applies to terminals opened after the change.
+
 ### Status
 
 | Status | Meaning | Trigger | Notification |
@@ -220,6 +246,8 @@ require("claude-deck").setup({
         window = false, -- e.g. "<C-w>"
         send_esc = "<C-]>", -- send <Esc> to Claude
     },
+    renderer = "classic", -- "classic" | "fullscreen" | false (keep CLAUDE_CODE_NO_FLICKER from Neovim's environment, else Claude Code's `tui`)
+    scrollback = 100000, -- 'scrollback' of terminal buffers (max 100000); false to leave it
     auto_insert = true, -- enter terminal mode when moving into a terminal window
     keep_alive_on_quit = true, -- `:q` on the last window hides a running terminal instead of quitting Neovim
     picker = "auto", -- "auto" | "fzf-lua" | "select"

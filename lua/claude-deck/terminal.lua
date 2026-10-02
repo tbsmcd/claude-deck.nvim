@@ -28,6 +28,11 @@ local function set_keymaps(buf)
     end
 end
 
+-- CLAUDE_CODE_NO_FLICKER for each `renderer` (validated in config.setup()). The environment
+-- variable takes precedence over the `tui` setting of Claude Code. With false it is not set,
+-- so a value in Neovim's environment is inherited.
+local renderer_env = { classic = "0", fullscreen = "1" }
+
 -- Starts Claude Code in `win`. `extra_args` are appended to the command.
 function M.start(win, cwd, extra_args)
     local opts = config.options
@@ -56,6 +61,9 @@ function M.start(win, cwd, extra_args)
     if opts.cli.enabled then
         env.PATH = config.bin_dir .. ":" .. vim.env.PATH
     end
+    if opts.renderer then
+        env.CLAUDE_CODE_NO_FLICKER = renderer_env[opts.renderer]
+    end
 
     term.job = vim.fn.jobstart(cmd, {
         term = true,
@@ -70,6 +78,14 @@ function M.start(win, cwd, extra_args)
             end)
         end,
     })
+
+    -- 'scrollback' can only be set once the buffer is a terminal. Validated in config.setup();
+    -- pcall so that a bad value never leaves a half-set-up terminal.
+    if opts.scrollback then
+        pcall(function()
+            vim.bo[buf].scrollback = opts.scrollback
+        end)
+    end
 
     -- jobstart() names the buffer "term://…"; use a readable name instead
     state.set_title(term, "")
