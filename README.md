@@ -109,7 +109,7 @@ In the fzf-lua pickers, `enter` opens with the rule above, `ctrl-v` splits right
 
 #### Send the file and line to Claude
 
-To point Claude at code you are reading, run `send_location()` (`:ClaudeDeck location`) in the editor. It inserts the file path and line into Claude's prompt and moves to the terminal, so you can go on typing your instructions:
+This is made for [focus mode](#focus-mode): with the editor and the terminal side by side, run `send_location()` (`:ClaudeDeck location`) in the editor to point Claude at the code you are reading. (It also works outside focus mode when exactly one terminal is visible in the current tab.) It inserts the file path and line into Claude's prompt and moves to the terminal, so you can go on typing your instructions:
 
 - normal mode: the cursor line, e.g. `app/services/example.rb:24`
 - Visual mode (`v`, `V` or `CTRL-V`): the selected lines, e.g. `app/services/example.rb:24-58`

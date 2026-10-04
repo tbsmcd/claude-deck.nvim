@@ -108,9 +108,12 @@ focus()                                                    *claude-deck.focus()*
     original window.
 
 send_location()                                    *claude-deck.send_location()*
-    Insert the current file path and line into Claude's prompt and move to
-    the terminal, to go on typing your instructions. `:ClaudeDeck location`
-    does the same (with a range, e.g. `:'<,'>`, it sends those lines).
+    Made for focus mode (|claude-deck.focus()|): in the editor, insert the
+    current file path and line into Claude's prompt and move to the
+    terminal, to go on typing your instructions. It also works outside
+    focus mode when exactly one terminal is shown in the current tab.
+    `:ClaudeDeck location` does the same (with a range, e.g. `:'<,'>`, it
+    sends those lines).
     - normal mode: the cursor line, e.g. `app/services/example.rb:24`
     - Visual mode (|v|, |V| or |CTRL-V|): the selected lines, e.g.
       `app/services/example.rb:24-58`
