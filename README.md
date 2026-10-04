@@ -15,6 +15,7 @@ Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions
 - **Open in any directory** from a directory picker
 - **Fork** a session into a new terminal (`--resume <id> --fork-session`)
 - **Focus mode**: a new tab with file tree | editor | terminal in the terminal's cwd; toggle back to your previous layout
+- **Point Claude at your code**: one key inserts the current file and line (or selected lines) into Claude's prompt, e.g. `app/models/user.rb:24-58`
 - **Cross-session awareness**: Claude inside a terminal can run `ct list` / `ct read <id>` to see what the other sessions are doing
 
 ![Four Claude Code sessions side by side, with status colors in the winbar](docs/images/terminals.webp)
@@ -105,6 +106,8 @@ In the fzf-lua pickers, `enter` opens with the rule above, `ctrl-v` splits right
 `focus()` opens a new tab with file tree | editor | terminal in the terminal's cwd. Run it again in that tab to return to your previous layout.
 
 ![Focus mode: file tree, editor and terminal](docs/images/focus.webp)
+
+#### Send the file and line to Claude
 
 To point Claude at code you are reading, run `send_location()` (`:ClaudeDeck location`) in the editor. It inserts the file path and line into Claude's prompt and moves to the terminal, so you can go on typing your instructions:
 
