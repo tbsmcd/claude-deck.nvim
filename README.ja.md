@@ -57,11 +57,12 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
         { "<leader>cf", function() require("claude-deck").fork() end, desc = "Claude: セッションを分岐" },
         { "<leader>cr", function() require("claude-deck").rename() end, desc = "Claude: タスク名を変更" },
         { "<leader>co", function() require("claude-deck").focus() end, desc = "Claude: 集中モード" },
+        { "<leader>cp", function() require("claude-deck").send_location() end, mode = { "n", "x" }, desc = "Claude: ファイルの場所を渡す" },
     },
 }
 ```
 
-キーマップはプラグイン側では設定しません。
+キーマップはプラグイン側では設定しません（`send_location()` は、`keys` の代わりに `keymaps.send_location` オプションで割り当てることもできます）。
 
 オプションは `opts` に書きます（[設定](#設定)を参照）。例:
 
@@ -84,6 +85,7 @@ opts = {
 | `rename()` | `:ClaudeDeck rename` | 今のタスク名を変更します |
 | `show_settings()` | `:ClaudeDeck settings` | Claude Code に渡す設定の JSON（hook と権限）を表示します |
 | `focus()` | `:ClaudeDeck focus` | 集中モードを切り替えます |
+| `send_location()` | `:ClaudeDeck location` | 今のファイルのパスと行（または選択した行の範囲）を Claude の入力欄に挿入します |
 | `show(id, where?)` | `:ClaudeDeck show <番号>` | 番号を指定してターミナルを表示します |
 
 `where` を指定しない場合、新しいターミナルは次の場所に開きます。
@@ -103,6 +105,15 @@ fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`
 `focus()` を実行すると、ターミナルの cwd で「ファイルツリー ｜ エディタ ｜ ターミナル」を並べた新しいタブを開きます。そのタブでもう一度実行すると、元の画面構成に戻ります。
 
 ![集中モード: ファイルツリー、エディタ、ターミナル](docs/images/ja/focus.webp)
+
+読んでいるコードの場所を Claude に伝えるには、エディタで `send_location()`（`:ClaudeDeck location`）を実行します。ファイルのパスと行を Claude の入力欄に挿入してターミナルへ移動するので、そのまま続けて指示を入力できます。
+
+- ノーマルモード: カーソルのある行。例: `app/services/example.rb:24`
+- ビジュアルモード（`v`、`V`、`CTRL-V`）: 選択した行の範囲。例: `app/services/example.rb:24-58`
+
+パスはターミナルの cwd からの相対パスです（cwd の外にあるファイルは絶対パスで、ホームディレクトリの下なら `~` で始まります）。末尾には空白を 1 つ付けます。パスに空白が含まれていても、エスケープせずにそのまま挿入します。送信はしません（Enter は送りません）。保存していない変更があっても、渡すのはパスと行番号だけです。挿入先は、集中モードのタブではその集中モードのターミナルです。集中モード以外のタブでは、そのタブに表示しているターミナルがちょうど 1 つのときに、そのターミナルへ挿入します。それ以外の場合や、ファイル以外のバッファ（名前のないバッファやターミナルの中）で実行した場合、挿入先のターミナルが終了していたりタブに表示されていなかったりする場合は、何も挿入せず、理由をメッセージで表示します。
+
+キーは、[インストール](#インストール)の例のように、ノーマルモードとビジュアルモードの両方（`mode = { "n", "x" }`）に割り当ててください。`keymaps.send_location = "<leader>cp"` を設定すると、`setup()` がこのキーマップを作ります。
 
 ターミナルの window を `:q` で閉じても、非表示になるだけです。Claude のセッションは動き続け、状態の更新や通知も続きます。`list()`（`:ClaudeDeck list`）で呼び戻せます。終了するには Claude で `/exit` を実行してください。
 
@@ -251,10 +262,13 @@ require("claude-deck").setup({
         skip_when_watching = true,
         notifier = nil, -- function({ title, subtitle, body, state, terminal })
     },
-    keymaps = { -- ターミナルの中だけで有効なキー。false で無効
+    keymaps = { -- false で無効
+        -- ターミナルの中だけで有効なキー
         normal_mode = "<C-q>",
         window = false, -- 例: "<C-w>"
         send_esc = "<C-]>", -- Claude に <Esc> を送る
+        -- send_location() を呼ぶ、ノーマルモードとビジュアルモードのグローバルなキー
+        send_location = false, -- 例: "<leader>cp"
     },
     renderer = "classic", -- "classic" | "fullscreen" | false（Neovim の環境の CLAUDE_CODE_NO_FLICKER、なければ Claude Code の `tui` に従う）
     scrollback = 100000, -- ターミナルのバッファの 'scrollback'（上限 100000）。false なら変更しない

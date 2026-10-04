@@ -43,8 +43,9 @@ M.defaults = {
         -- notifier (osascript on macOS, notify-send elsewhere).
         notifier = nil,
     },
-    -- Terminal-mode keys mapped only in claude-deck terminals. Set an entry to false to disable it.
+    -- Keys mapped by the plugin. Set an entry to false to disable it.
     keymaps = {
+        -- The entries below are terminal-mode keys mapped only in claude-deck terminals.
         -- Leave terminal mode. Claude Code does not use <C-q>; <C-\><C-n> always works too.
         normal_mode = "<C-q>",
         -- Prefix for window commands straight from terminal mode, e.g. "<C-w>" makes
@@ -54,6 +55,9 @@ M.defaults = {
         -- Send <Esc> to Claude (interrupt, close dialogs; twice = <Esc><Esc> for the rewind menu).
         -- For users who map <Esc> themselves to leave terminal mode.
         send_esc = "<C-]>",
+        -- Global normal / Visual mode key for send_location() (insert "path:line" of the current
+        -- file into the Claude prompt). Off by default, e.g. "<leader>cp".
+        send_location = false,
     },
     -- How Claude Code draws its screen, set with CLAUDE_CODE_NO_FLICKER.
     -- "classic": normal screen; the whole conversation stays in the terminal buffer's
@@ -115,6 +119,11 @@ local function validate(options)
     then
         warn_invalid("scrollback", scrollback, "use an integer from 1 to 100000 or false")
         options.scrollback = false
+    end
+    local send_location = options.keymaps.send_location
+    if send_location ~= false and type(send_location) ~= "string" then
+        warn_invalid("keymaps.send_location", send_location, "use a key such as \"<leader>cp\" or false")
+        options.keymaps.send_location = false
     end
 end
 

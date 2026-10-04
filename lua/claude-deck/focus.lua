@@ -4,7 +4,7 @@ local state = require("claude-deck.state")
 
 local M = {}
 
--- tabpage -> { origin_tab, origin_win }
+-- tabpage -> { origin_tab, origin_win, term_id }
 local focus_tabs = {}
 
 local function open_tree(cwd)
@@ -41,6 +41,15 @@ local function close(tab, focus)
     end
 end
 
+-- Id of the terminal that focus mode was opened for in `tab` (0: current), or nil
+function M.term_id(tab)
+    if not tab or tab == 0 then
+        tab = vim.api.nvim_get_current_tabpage()
+    end
+    local focus = focus_tabs[tab]
+    return focus and focus.term_id
+end
+
 function M.toggle()
     local tab = vim.api.nvim_get_current_tabpage()
     if focus_tabs[tab] then
@@ -56,7 +65,7 @@ function M.toggle()
 
     local origin_win = vim.api.nvim_get_current_win()
     vim.cmd("tab split")
-    focus_tabs[vim.api.nvim_get_current_tabpage()] = { origin_tab = tab, origin_win = origin_win }
+    focus_tabs[vim.api.nvim_get_current_tabpage()] = { origin_tab = tab, origin_win = origin_win, term_id = term.id }
     vim.cmd("tcd " .. vim.fn.fnameescape(term.cwd))
 
     local term_win = vim.api.nvim_get_current_win()

@@ -191,8 +191,79 @@ check "keep_alive_on_quit = false opens no window" "$(lua '(function() local o =
 sleep 0.2
 check "a failed quit removes the empty window" "$(lua '#vim.api.nvim_list_wins() .. " " .. tostring(vim.b.claude_deck_id)')" "1 1"
 
+# send_location(): "path:line " typed into the prompt (stdin.<id> of the dummy), no <CR>
+ESC=$(printf '\033')
+sent() { # id: what the terminal received since the last call, in brackets (<paste>: bracketed paste)
+    sleep 0.3
+    printf '[%s]' "$(sed "s/$ESC\[200~/<paste>/g; s/$ESC\[201~/<\/paste>/g" "$TEST_OUT/stdin.$1" 2>/dev/null)"
+    : >"$TEST_OUT/stdin.$1"
+}
+to_editor() { # leave terminal mode and go back to the editor window of focus mode
+    nvim --server "$SOCK" --remote-send '<C-\><C-n>' >/dev/null 2>&1
+    lua '(function() vim.api.nvim_set_current_win(_G.T_edit_win); return "" end)()' >/dev/null
+}
+keys() { # keys typed in the editor
+    nvim --server "$SOCK" --remote-send "$1" >/dev/null 2>&1
+}
+lua '(function() require("claude-deck").setup(vim.tbl_extend("force", T_opts, { keymaps = { send_location = "<F5>" } })); return "" end)()' >/dev/null
+check "send_location keymap in normal and visual mode" "$(lua '(function() local n, x = vim.fn.maparg("<F5>", "n", false, true), vim.fn.maparg("<F5>", "x", false, true); return n.desc .. " | " .. x.desc end)()')" "Claude: send file location | Claude: send file location"
+sent 1 >/dev/null
+lua '(function() vim.cmd("stopinsert"); require("claude-deck").focus(); _G.T_edit_win = vim.api.nvim_get_current_win(); vim.cmd("edit README.md"); vim.api.nvim_win_set_cursor(0, { 3, 0 }); return "" end)()' >/dev/null
+check "send_location in focus mode switches to the terminal" "$(lua '(function() require("claude-deck").send_location(); return tostring(vim.b.claude_deck_id) end)()')" "1"
+check "send_location sends the relative path and line" "$(sent 1)" "[<paste>README.md:3 </paste>]"
+sleep 0.2
+check "send_location leaves the terminal in terminal mode" "$(lua 'vim.api.nvim_get_mode().mode')" "t"
+to_editor
+keys '5GVjj<F5>'
+check "visual line selection sends a range" "$(sent 1)" "[<paste>README.md:5-7 </paste>]"
+sleep 0.2
+check "visual mode is left after sending" "$(lua '(function() local b = vim.api.nvim_win_get_buf(_G.T_edit_win); return vim.api.nvim_get_mode().mode .. " " .. vim.api.nvim_buf_get_mark(b, "<")[1] .. "-" .. vim.api.nvim_buf_get_mark(b, ">")[1] end)()')" "t 5-7"
+to_editor
+keys '9G<C-v>kk<F5>'
+check "upward blockwise selection sends start-end" "$(sent 1)" "[<paste>README.md:7-9 </paste>]"
+to_editor
+keys '6Gvl<F5>'
+check "selection on one line sends one line" "$(sent 1)" "[<paste>README.md:6 </paste>]"
+to_editor
+keys "4GVj:ClaudeDeck location<CR>"
+check ":'<,'>ClaudeDeck location sends the range" "$(sent 1)" "[<paste>README.md:4-5 </paste>]"
+to_editor
+lua '(function() vim.cmd("noswapfile edit ~/claude-deck-test-nonexistent/a.lua"); vim.api.nvim_buf_set_lines(0, 0, -1, false, { "x", "y" }); vim.api.nvim_win_set_cursor(0, { 2, 0 }); local b = vim.api.nvim_get_current_buf(); require("claude-deck").send_location(); vim.bo[b].modified = false; return "" end)()' >/dev/null
+check "file outside the cwd is sent with ~ (unsaved is fine)" "$(sent 1)" "[<paste>~/claude-deck-test-nonexistent/a.lua:2 </paste>]"
+to_editor
+lua '(function() vim.cmd("edit " .. vim.fn.fnameescape(vim.env.TEST_OUT .. "/outside.txt")); require("claude-deck").send_location(); return "" end)()' >/dev/null
+check "file outside the cwd and home is sent as absolute path" "$(sent 1)" "[<paste>$(cd "$TEST_OUT" && pwd -P)/outside.txt:1 </paste>]"
+to_editor
+check "unnamed buffer warns" "$(lua '(function() vim.cmd("enew!"); return T_notify(require("claude-deck").send_location) end)()')" "the current buffer is not a file"
+check "unnamed buffer sends nothing and stays" "$(sent 1)$(lua 'tostring(vim.b.claude_deck_id)')" "[]nil"
+check "inside the terminal warns" "$(lua '(function() vim.cmd("stopinsert"); require("claude-deck").show(1); return T_notify(require("claude-deck").send_location) end)()')" "the current buffer is not a file"
+to_editor
+check "focus mode terminal not shown warns" "$(lua '(function() vim.cmd("edit README.md"); local term_win = vim.fn.bufwinid(require("claude-deck.state").get(1).buf); vim.api.nvim_win_close(term_win, false); return T_notify(require("claude-deck").send_location) end)()')" "terminal #1 is not shown in this tab"
+check "nothing sent when the terminal is not shown" "$(sent 1)" "[]"
+lua '(function() require("claude-deck").focus(); return "" end)()' >/dev/null
+
+# send_location() outside focus mode: the only terminal shown in the tab
+lua '(function() vim.cmd("stopinsert | tabnew | edit README.md"); _G.T_edit_win = vim.api.nvim_get_current_win(); require("claude-deck").new(); vim.cmd("stopinsert"); _G.T_tab_term = vim.b.claude_deck_id; vim.api.nvim_set_current_win(_G.T_edit_win); return "" end)()' >/dev/null
+TAB_TERM=$(lua '_G.T_tab_term')
+sleep 0.3
+lua '(function() vim.api.nvim_win_set_cursor(0, { 2, 0 }); require("claude-deck").send_location(); return "" end)()' >/dev/null
+check "outside focus mode the only terminal in the tab gets it" "$(sent "$TAB_TERM")" "[<paste>README.md:2 </paste>]"
+to_editor
+check "two terminals in the tab warn" "$(lua '(function() local w = vim.api.nvim_get_current_win(); require("claude-deck").new("below"); vim.cmd("stopinsert"); _G.T_second = vim.api.nvim_get_current_win(); vim.api.nvim_set_current_win(w); return T_notify(require("claude-deck").send_location) end)()')" "more than one terminal is shown in this tab"
+check "nothing sent with two terminals" "$(sent "$TAB_TERM")" "[]"
+keys '3GVj<F5>'
+check "visual mode is left also when only warning" "$(lua 'vim.api.nvim_get_mode().mode .. " " .. vim.fn.line("'"'"'<") .. "-" .. vim.fn.line("'"'"'>")')" "n 3-4"
+check "exited terminal warns" "$(lua '(function() vim.api.nvim_win_close(_G.T_second, true); local t = require("claude-deck.state").get(_G.T_tab_term); vim.fn.jobstop(t.job); vim.fn.jobwait({ t.job }, 1000); vim.wait(1000, function() return t.state == "exited" end); return T_notify(require("claude-deck").send_location) end)()')" "terminal #$TAB_TERM has exited"
+check "nothing sent to an exited terminal" "$(sent "$TAB_TERM")" "[]"
+lua '(function() vim.cmd("tabclose!"); require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
+check "invalid keymaps.send_location warns" "$(lua 'T_notify(function() require("claude-deck").setup(vim.tbl_extend("force", T_opts, { keymaps = { send_location = true } })) end)')" "invalid keymaps.send_location true"
+check "invalid keymaps.send_location is replaced with false" "$(lua 'tostring(require("claude-deck.config").options.keymaps.send_location) .. " [" .. vim.fn.maparg("<F5>", "n") .. "]"')" "false []"
+lua '(function() require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
+check "send_location keymap is off by default" "$(lua '"[" .. vim.fn.maparg("<F5>", "n") .. vim.fn.maparg("<F5>", "x") .. "]"')" "[]"
+
 # User command
 check "user command completion" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck f", "cmdline"), ",")')" "focus,fork"
+check "user command completion has location" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck l", "cmdline"), ",")')" "list,location"
 
 messages=$(lua 'vim.api.nvim_exec2("messages", { output = true }).output')
 case "$messages" in

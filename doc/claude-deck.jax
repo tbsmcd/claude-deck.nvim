@@ -52,7 +52,10 @@ Neovim 0.11 以降と、PATH にある `claude` が必要です。フックス�
     vim.keymap.set("n", "<leader>cf", ct.fork)
     vim.keymap.set("n", "<leader>cr", ct.rename)
     vim.keymap.set("n", "<leader>co", ct.focus)
+    vim.keymap.set({ "n", "x" }, "<leader>cp", ct.send_location)
 <
+`send_location()` は `keymaps.send_location` で割り当てることもできます。
+
 ==============================================================================
 3. 使い方                                                  *claude-deck-usage*
 
@@ -103,6 +106,28 @@ focus()                                                  *claude-deck.focus()*
     ターミナルの中では、「ファイルツリー ｜ エディタ ｜ ターミナル」を並べた
     新しいタブを開き、ターミナルの cwd に |:tcd| します。そのタブの中では、
     タブを閉じて元の window に戻ります。
+
+send_location()                                  *claude-deck.send_location()*
+    今のファイルのパスと行を Claude の入力欄に挿入して、ターミナルへ移動
+    します。そのまま続けて指示を入力できます。`:ClaudeDeck location` でも
+    同じです（`:'<,'>` のように範囲を付けると、その行の範囲を渡します）。
+    - ノーマルモード: カーソルのある行。例: `app/services/example.rb:24`
+    - ビジュアルモード（|v|、|V|、|CTRL-V|）: 選択した行の範囲。例:
+      `app/services/example.rb:24-58`
+    パスはターミナルの cwd からの相対パスです（cwd の外なら絶対パスで、
+    ホームディレクトリの下は "~" で始まります）。末尾に空白を 1 つ付けます。
+    パスに空白が含まれていても、エスケープせずにそのまま挿入します。
+    送信はしません（<CR> は送りません）。保存していない変更があっても、
+    渡すのはパスと行番号だけです。
+    挿入先は、集中モードのタブではその集中モードのターミナルです。それ以外
+    のタブでは、表示しているターミナルがちょうど 1 つのときに、そのターミ
+    ナルへ挿入します。それ以外の場合や、ファイル以外のバッファ（名前のない
+    バッファやターミナルの中）で実行した場合、挿入先のターミナルが終了して
+    いたりタブに表示されていなかったりする場合は、何も挿入せず、理由を
+    メッセージで表示します。
+    ノーマルモードとビジュアルモードの両方に割り当てるか
+    （|claude-deck-setup| を参照）、`keymaps.send_location` を設定して
+    ください。
 
 show_settings()                                  *claude-deck.show_settings()*
     Claude Code に渡す設定の JSON（hook と `ct` の権限）をスクラッチバッファ
@@ -237,6 +262,9 @@ macOS ではさらにターミナルアプリが最前面にあるときは、�
                           ためのプレフィックス（既定: false。例: "<C-w>"）
     keymaps.send_esc      ターミナルモードで Claude に <Esc> を送るキー
                           （既定: "<C-]>"、false で無効）
+    keymaps.send_location |claude-deck.send_location()| を呼ぶ、ノーマル
+                          モードとビジュアルモードのグローバルなキー
+                          （既定: false。例: "<leader>cp"）
     renderer              "classic"、"fullscreen"、または false。false
                           のときは Neovim の環境の CLAUDE_CODE_NO_FLICKER
                           をそのまま使う（未設定なら Claude Code の

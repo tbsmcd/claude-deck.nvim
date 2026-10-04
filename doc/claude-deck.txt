@@ -53,7 +53,10 @@ No keymaps are created. Map the functions below, for example:
     vim.keymap.set("n", "<leader>cf", ct.fork)
     vim.keymap.set("n", "<leader>cr", ct.rename)
     vim.keymap.set("n", "<leader>co", ct.focus)
+    vim.keymap.set({ "n", "x" }, "<leader>cp", ct.send_location)
 <
+`send_location()` can also be mapped with `keymaps.send_location`.
+
 ==============================================================================
 3. USAGE                                                     *claude-deck-usage*
 
@@ -103,6 +106,26 @@ focus()                                                    *claude-deck.focus()*
     Inside a terminal, open a new tab with file tree | editor | terminal and
     |:tcd| to the terminal's cwd. In that tab, close it and return to the
     original window.
+
+send_location()                                    *claude-deck.send_location()*
+    Insert the current file path and line into Claude's prompt and move to
+    the terminal, to go on typing your instructions. `:ClaudeDeck location`
+    does the same (with a range, e.g. `:'<,'>`, it sends those lines).
+    - normal mode: the cursor line, e.g. `app/services/example.rb:24`
+    - Visual mode (|v|, |V| or |CTRL-V|): the selected lines, e.g.
+      `app/services/example.rb:24-58`
+    The path is relative to the terminal's cwd (outside it: absolute, with
+    "~" for the home directory) and is followed by a space. A path with
+    spaces is inserted as it is, without escaping. Nothing is submitted: no
+    <CR> is sent, and only the path and line numbers go in, even when the
+    file has unsaved changes.
+    The location goes to the terminal of the focus mode in that tab;
+    outside focus mode, to the terminal shown in the current tab when there
+    is exactly one. Otherwise, and for buffers that are not files (unnamed,
+    inside a terminal) or a terminal that has exited or is not shown in the
+    tab, nothing is inserted and a message tells why.
+    Map it in both normal and Visual mode (see |claude-deck-setup|), or set
+    `keymaps.send_location`.
 
 show_settings()                                    *claude-deck.show_settings()*
     Show the Claude Code settings JSON (hooks and `ct` permissions) in a
@@ -229,6 +252,9 @@ transcript files, whose format is internal and may change.
                           (default: false, e.g. "<C-w>")
     keymaps.send_esc      terminal-mode key that sends <Esc> to Claude
                           (default: "<C-]>", false to disable)
+    keymaps.send_location global normal / Visual mode key for
+                          |claude-deck.send_location()|
+                          (default: false, e.g. "<leader>cp")
     renderer              "classic", "fullscreen" or false to leave
                           CLAUDE_CODE_NO_FLICKER as it is in Neovim's
                           environment (unset: Claude Code's `tui`); see

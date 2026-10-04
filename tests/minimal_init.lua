@@ -1,5 +1,6 @@
 -- Minimal config for tests/smoke.sh. Replaces `claude` with a dummy process that records its
--- arguments (args.<id>) and CLAUDE_CODE_NO_FLICKER (env.<id>, "unset" when not set).
+-- arguments (args.<id>), CLAUDE_CODE_NO_FLICKER (env.<id>, "unset" when not set) and what is
+-- typed into it (stdin.<id>, appended as it arrives: raw mode, no echo).
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 vim.opt.runtimepath:prepend(root)
 
@@ -12,7 +13,8 @@ _G.T_opts = {
         "-c",
         'printf "%s\\n" "$@" > "' .. out .. '/args.$CLAUDE_DECK_ID"; '
             .. 'echo "CLAUDE_CODE_NO_FLICKER=${CLAUDE_CODE_NO_FLICKER-unset}" > "' .. out .. '/env.$CLAUDE_DECK_ID"; '
-            .. "sleep 300",
+            .. "stty raw -echo 2>/dev/null; "
+            .. 'exec cat >> "' .. out .. '/stdin.$CLAUDE_DECK_ID"',
         "dummy",
     },
     dir_roots = { root .. "/tests/fixtures/roots" },
@@ -44,6 +46,19 @@ end
 
 function _G.T_statusline()
     return vim.api.nvim_eval_statusline(vim.wo.statusline, { winid = 0 }).str
+end
+
+-- Runs fn and returns the last message given to vim.notify ("none" without one)
+function _G.T_notify(fn)
+    local message = "none"
+    local notify = vim.notify
+    vim.notify = function(msg)
+        message = msg
+    end
+    local ok, err = pcall(fn)
+    vim.notify = notify
+    assert(ok, err)
+    return message
 end
 
 -- index nil: no selection (nothing matches the query)

@@ -7,6 +7,8 @@ local terminal = require("claude-deck.terminal")
 local M = {}
 
 local did_setup = false
+-- Key of the global send_location() mapping made by the last setup()
+local location_key
 
 local function is_float(win)
     return vim.api.nvim_win_get_config(win).relative ~= ""
@@ -84,9 +86,24 @@ local function keep_alive_on_quit()
     end)
 end
 
+local function set_location_keymap()
+    if location_key then
+        pcall(vim.keymap.del, { "n", "x" }, location_key)
+        location_key = nil
+    end
+    local key = config.options.keymaps.send_location
+    if type(key) == "string" and key ~= "" then
+        vim.keymap.set({ "n", "x" }, key, function()
+            M.send_location()
+        end, { desc = "Claude: send file location" })
+        location_key = key
+    end
+end
+
 function M.setup(opts)
     config.setup(opts)
     did_setup = true
+    set_location_keymap()
 
     local ui = require("claude-deck.ui")
     ui.set_highlights()
@@ -379,6 +396,13 @@ function M.focus()
     require("claude-deck.focus").toggle()
 end
 
+-- Insert "path:line" (Visual mode: "path:start-end") of the current file into the prompt of
+-- the focus mode terminal (or the only terminal in this tab) and move there. Not submitted.
+function M.send_location()
+    ensure_setup()
+    require("claude-deck.location").send()
+end
+
 local SUBCOMMANDS = {
     toggle = function()
         M.toggle()
@@ -407,19 +431,25 @@ local SUBCOMMANDS = {
     show = function(args)
         M.show(tonumber(args[1]), args[2])
     end,
+    -- With a range (e.g. `:'<,'>ClaudeDeck location`), the range is sent
+    location = function(_, range)
+        ensure_setup()
+        require("claude-deck.location").send(range)
+    end,
 }
 
 M.subcommands = vim.tbl_keys(SUBCOMMANDS)
 table.sort(M.subcommands)
 
-function M.command(fargs)
+-- range: { line1, line2 } when the command was given a range
+function M.command(fargs, range)
     local name = fargs[1] or "toggle"
     local sub = SUBCOMMANDS[name]
     if not sub then
         vim.notify("claude-deck: unknown subcommand " .. name, vim.log.levels.ERROR)
         return
     end
-    sub(vim.list_slice(fargs, 2))
+    sub(vim.list_slice(fargs, 2), range)
 end
 
 return M

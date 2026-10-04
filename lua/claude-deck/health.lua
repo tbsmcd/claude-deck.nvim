@@ -28,7 +28,7 @@ function M.check()
         )
     end
 
-    for _, name in ipairs({ "renderer", "scrollback" }) do
+    for _, name in ipairs({ "renderer", "scrollback", "keymaps.send_location" }) do
         if config.invalid[name] ~= nil then
             health.warn("`" .. name .. "`: invalid value " .. vim.inspect(config.invalid[name]) .. ", using false")
         end

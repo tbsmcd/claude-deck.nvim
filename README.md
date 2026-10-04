@@ -57,11 +57,12 @@ The hook script and `ct` are POSIX `sh` scripts that call `nvim --server`, so `n
         { "<leader>cf", function() require("claude-deck").fork() end, desc = "Claude: fork session" },
         { "<leader>cr", function() require("claude-deck").rename() end, desc = "Claude: rename task" },
         { "<leader>co", function() require("claude-deck").focus() end, desc = "Claude: focus mode" },
+        { "<leader>cp", function() require("claude-deck").send_location() end, mode = { "n", "x" }, desc = "Claude: send file location" },
     },
 }
 ```
 
-No keymaps are created by default.
+No keymaps are created by default. (Instead of `keys`, `send_location()` can also be mapped with the `keymaps.send_location` option.)
 
 Options go in `opts` (see [Configuration](#configuration)), for example:
 
@@ -84,6 +85,7 @@ opts = {
 | `rename()` | `:ClaudeDeck rename` | Rename the current task |
 | `show_settings()` | `:ClaudeDeck settings` | Show the Claude Code settings JSON (hooks, permissions) |
 | `focus()` | `:ClaudeDeck focus` | Toggle focus mode |
+| `send_location()` | `:ClaudeDeck location` | Insert the current file path and line (or selected lines) into Claude's prompt |
 | `show(id, where?)` | `:ClaudeDeck show <id>` | Show a terminal by id |
 
 Where a new terminal opens (without `where`):
@@ -103,6 +105,15 @@ In the fzf-lua pickers, `enter` opens with the rule above, `ctrl-v` splits right
 `focus()` opens a new tab with file tree | editor | terminal in the terminal's cwd. Run it again in that tab to return to your previous layout.
 
 ![Focus mode: file tree, editor and terminal](docs/images/focus.webp)
+
+To point Claude at code you are reading, run `send_location()` (`:ClaudeDeck location`) in the editor. It inserts the file path and line into Claude's prompt and moves to the terminal, so you can go on typing your instructions:
+
+- normal mode: the cursor line, e.g. `app/services/example.rb:24`
+- Visual mode (`v`, `V` or `CTRL-V`): the selected lines, e.g. `app/services/example.rb:24-58`
+
+The path is relative to the terminal's cwd (outside it: an absolute path, with `~` for the home directory), followed by a space. A path containing spaces is inserted as it is, without escaping. Nothing is submitted: no Enter is sent, and only the path and line numbers go in, even when the file has unsaved changes. The location goes to the terminal of the focus mode in that tab; outside focus mode, to the terminal shown in the current tab when there is exactly one. Otherwise, and for buffers that are not files (unnamed, inside a terminal) or a terminal that has exited or is not shown in the tab, nothing is inserted and a message tells why.
+
+Map it in normal and Visual mode (`mode = { "n", "x" }`, as in the [installation](#installation) example), or set `keymaps.send_location = "<leader>cp"` to let `setup()` create the mapping.
 
 Closing a terminal window (`:q`) only hides it. The Claude session keeps running and still updates its status and sends notifications. Bring it back with `list()` (`:ClaudeDeck list`). Exit Claude (`/exit`) to end it.
 
@@ -249,10 +260,13 @@ require("claude-deck").setup({
         skip_when_watching = true,
         notifier = nil, -- function({ title, subtitle, body, state, terminal })
     },
-    keymaps = { -- terminal-mode keys in claude-deck terminals; false to disable
+    keymaps = { -- false to disable
+        -- terminal-mode keys in claude-deck terminals
         normal_mode = "<C-q>",
         window = false, -- e.g. "<C-w>"
         send_esc = "<C-]>", -- send <Esc> to Claude
+        -- global normal / Visual mode key for send_location()
+        send_location = false, -- e.g. "<leader>cp"
     },
     renderer = "classic", -- "classic" | "fullscreen" | false (keep CLAUDE_CODE_NO_FLICKER from Neovim's environment, else Claude Code's `tui`)
     scrollback = 100000, -- 'scrollback' of terminal buffers (max 100000); false to leave it
