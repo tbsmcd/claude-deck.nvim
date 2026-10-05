@@ -353,7 +353,7 @@ function M.fork(where)
     end
 
     local term = terminal.open_new(parent.cwd, where or "right", { "--resume", parent.session_id, "--fork-session" })
-    state.set_title(term, "↳" .. (parent.title ~= "" and parent.title or ("#" .. parent.id)))
+    state.set_title(term, "↳" .. (parent.title ~= "" and parent.title or ("#" .. parent.id)), "auto")
 end
 
 -- Show the Claude Code settings JSON (hooks and `ct` permissions) in a scratch buffer,
@@ -374,7 +374,7 @@ function M.show_settings()
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 end
 
--- Rename the current terminal's task.
+-- Rename the current terminal's task. The title takes precedence over `ct title`.
 function M.rename()
     ensure_setup()
     local term = state.current()
@@ -385,7 +385,7 @@ function M.rename()
 
     vim.ui.input({ prompt = "Task title: ", default = term.title }, function(input)
         if input then
-            state.set_title(term, state.make_title(input))
+            state.set_title(term, state.make_title(input), "user")
         end
     end)
 end

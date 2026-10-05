@@ -100,7 +100,8 @@ fork({where})                                               *claude-deck.fork()*
     for the current terminal's session.
 
 rename()                                                  *claude-deck.rename()*
-    Rename the current terminal's task.
+    Rename the current terminal's task. This title takes precedence over
+    the one Claude sets with `ct title` (|claude-deck-ct|).
 
 focus()                                                    *claude-deck.focus()*
     Inside a terminal, open a new tab with file tree | editor | terminal and
@@ -216,6 +217,12 @@ Waiting means Claude finished its turn and waits for your next prompt (it
 is not queued or about to run). Needs you means Claude is blocked in the
 middle of a task until you answer a permission prompt or a question.
 
+By default (when cli.enabled, cli.system_prompt and cli.auto_title are all
+on), Claude names its terminal with `ct title` once it understands the task
+(|claude-deck-ct|). Until then, the task title is the beginning of the first
+prompt (slash commands are ignored). A title set with |claude-deck.rename()|
+takes precedence. `/clear` resets the title, except one set with rename().
+
 A notification is skipped when Neovim has focus, the current window shows
 that terminal and, on macOS, the terminal app is the frontmost app.
 
@@ -226,9 +233,20 @@ Inside a terminal, `ct` is on PATH and Claude is told about it:
 
     ct list                 list terminals
     ct read <id> [count]    recent messages of a terminal (default 20)
+    ct title [title]        set the task title of this terminal; without a
+                            title, show it
+    ct title --force title  also replace a title set with rename()
 
-Both are allowed without a permission prompt. `ct read` parses Claude Code's
-transcript files, whose format is internal and may change.
+All of them are allowed without a permission prompt. `ct read` parses Claude
+Code's transcript files, whose format is internal and may change.
+
+With `cli.auto_title`, Claude is told to name its terminal with `ct title`
+as soon as it understands the task, with a short title in the language of
+your prompt, and to rename it when the task changes. A title may be at most
+40 cells wide (display width); a longer one is refused, not cut, so that
+Claude picks a shorter one. A title set with |claude-deck.rename()| takes
+precedence: `ct title` refuses to change it, and Claude uses
+`ct title --force` only when you ask it to rename the terminal.
 
 ==============================================================================
 6. CONFIGURATION                                           *claude-deck-config*
@@ -272,6 +290,8 @@ transcript files, whose format is internal and may change.
     focus.tree            "auto", false or function(cwd)
     cli.enabled           put `ct` on PATH and allow it  (default: true)
     cli.system_prompt     tell Claude about `ct`  (default: true)
+    cli.auto_title        tell Claude to name its terminal with `ct title`;
+                          `ct title` works either way  (default: true)
 
 ==============================================================================
 7. HIGHLIGHTS                                          *claude-deck-highlights*

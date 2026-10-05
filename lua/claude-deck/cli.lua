@@ -4,6 +4,9 @@ local state = require("claude-deck.state")
 local M = {}
 
 local MAX_MESSAGE_LENGTH = 2000
+-- Max display width (cells) of a title given with `ct title`. Longer titles are refused, not
+-- cut, so that Claude picks a shorter one.
+local MAX_TITLE_WIDTH = 40
 
 function M.list(self_id)
     local lines = {}
@@ -80,6 +83,33 @@ function M.read(id, count)
         term.cwd
     )
     return header .. "\n\n" .. table.concat(vim.list_slice(messages, first), "\n\n")
+end
+
+-- `ct title`: without `text`, the current title of terminal `id`; otherwise sets it. A title
+-- set by the user (rename()) is changed only with `force` (`ct title --force`).
+function M.title(id, text, force)
+    local term = state.get(id)
+    if not term then
+        return "ct: no terminal #" .. tostring(id)
+    end
+    if text == nil then
+        return state.title(term)
+    end
+
+    local title = state.normalize_title(text)
+    if title == "" then
+        return "ct: the title is empty"
+    end
+    local width = vim.fn.strdisplaywidth(title)
+    if width > MAX_TITLE_WIDTH then
+        return string.format("ct: title is too long (%d cells, max %d)", width, MAX_TITLE_WIDTH)
+    end
+    if term.title_source == "user" and not force then
+        return "ct: the title was set by the user; run `ct title --force <title>` if the user asked you to rename it"
+    end
+
+    state.set_title(term, title, "claude")
+    return string.format("Terminal #%d title: %s", term.id, title)
 end
 
 return M

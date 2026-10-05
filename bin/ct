@@ -1,9 +1,11 @@
 #!/bin/sh
-# Inspect other claude-deck terminals. Works only inside a claude-deck terminal.
-#   ct list                 list terminals
-#   ct read <id> [count]    recent conversation of a terminal (default 20 messages)
+# Inspect other claude-deck terminals and name this one. Works only inside a claude-deck terminal.
+#   ct list                      list terminals
+#   ct read <id> [count]         recent conversation of a terminal (default 20 messages)
+#   ct title [title]             set the task title of this terminal (show it without a title)
+#   ct title --force <title>     also replace a title set by the user (the title is required)
 usage() {
-    sed -n '3,4p' "$0" | sed 's/^# //' >&2
+    sed -n '3,7p' "$0" | sed 's/^# //' >&2
     exit 1
 }
 
@@ -24,6 +26,25 @@ read)
     count="${3:-20}"
     is_number "$id" && is_number "$count" || usage
     expr="v:lua.require'claude-deck.cli'.read($id,$count)"
+    ;;
+title)
+    self="$CLAUDE_DECK_ID"
+    is_number "$self" || { echo "ct: run this inside a claude-deck terminal" >&2; exit 1; }
+    shift
+    force=v:false
+    if [ "${1-}" = --force ]; then
+        force=v:true
+        shift
+        [ $# -gt 0 ] || usage
+    fi
+    [ "${1-}" = -- ] && shift
+    if [ $# -eq 0 ]; then
+        expr="v:lua.require'claude-deck.cli'.title($self)"
+    else
+        # Pass the title as a "\xHH…" string so that quotes, backslashes and newlines are safe
+        hex=$(printf '%s' "$*" | od -An -v -tx1 | tr -d ' \n' | sed 's/../\\x&/g')
+        expr="v:lua.require'claude-deck.cli'.title($self,\"$hex\",$force)"
+    fi
     ;;
 *)
     usage

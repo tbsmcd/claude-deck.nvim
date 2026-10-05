@@ -18,8 +18,9 @@ function M.settings_json()
 
     local settings = { hooks = hooks }
     if config.options.cli.enabled then
-        -- `ct list` / `ct read` only read state, so allow them without a prompt
-        settings.permissions = { allow = { "Bash(ct list)", "Bash(ct read:*)" } }
+        -- `ct list` / `ct read` only read state and `ct title` only names the terminal it runs
+        -- in, so allow them without a prompt
+        settings.permissions = { allow = { "Bash(ct list)", "Bash(ct read:*)", "Bash(ct title:*)" } }
     end
     return vim.json.encode(settings)
 end
@@ -32,14 +33,15 @@ local function handle(term, event, data)
     end
 
     if event == "SessionStart" then
-        if data.source == "clear" then
+        -- A title set by the user is kept
+        if data.source == "clear" and term.title_source ~= "user" then
             state.set_title(term, "")
         end
         state.set_state(term, "idle")
     elseif event == "UserPromptSubmit" then
         local prompt = type(data.prompt) == "string" and data.prompt or ""
         if term.title == "" and prompt ~= "" and not prompt:match("^%s*/") then
-            state.set_title(term, state.make_title(prompt))
+            state.set_title(term, state.make_title(prompt), "auto")
         end
         state.set_state(term, "running")
     elseif event == "PostToolUse" then

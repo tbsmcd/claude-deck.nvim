@@ -12,8 +12,8 @@ M.defaults = {
     -- the hooks in your own Claude Code settings (`:ClaudeDeck settings` shows them) or
     -- go without status tracking.
     claude_settings = true,
-    -- Max characters kept for the task title (taken from the first prompt). The winbar
-    -- cuts it further to fit the window.
+    -- Max characters kept for a task title taken from the first prompt or given to rename().
+    -- The winbar cuts it further to fit the window.
     title_width = 60,
     -- Two-line header: status and task title in the winbar, cwd and session id in the
     -- window's statusline. When false (or with 'laststatus' = 3), the cwd goes into the winbar.
@@ -89,6 +89,9 @@ M.defaults = {
         enabled = true,
         -- Tell Claude about the `ct` command via --append-system-prompt.
         system_prompt = true,
+        -- Also tell Claude (in that system prompt) to name its terminal with `ct title`.
+        -- `ct title` works either way.
+        auto_title = true,
     },
 }
 

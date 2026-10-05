@@ -261,6 +261,40 @@ check "invalid keymaps.send_location is replaced with false" "$(lua 'tostring(re
 lua '(function() require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
 check "send_location keymap is off by default" "$(lua '"[" .. vim.fn.maparg("<F5>", "n") .. vim.fn.maparg("<F5>", "x") .. "]"')" "[]"
 
+# ct title: Claude names its own terminal
+lua '(function() vim.cmd("tabnew"); require("claude-deck").new(); vim.cmd("stopinsert"); _G.T_title_term = vim.b.claude_deck_id; return "" end)()' >/dev/null
+TT=$(lua '_G.T_title_term')
+sleep 0.3
+ct_title() { # ct title in terminal $TT; prints the output and the exit status
+    out=$(NVIM="$SOCK" CLAUDE_DECK_ID="$TT" bin/ct title "$@" 2>&1)
+    printf '%s exit=%s' "$out" "$?"
+}
+check "system prompt asks for ct title by default" "$(cat "$TEST_OUT/args.$TT")" 'ct title "<title>"'
+check "permissions allow ct title" "$(lua 'require("claude-deck.hooks").settings_json()')" '"Bash(ct title:*)"'
+hook "$TT" UserPromptSubmit '{"prompt":"first prompt of the task"}'
+check "ct title replaces the title from the first prompt" "$(ct_title Fix   the parser)" "title: Fix the parser exit=0"
+check "ct title shows in the winbar" "$(lua 'T_winbar()')" "#$TT Running │ Fix the parser"
+check "ct title renames the buffer" "$(lua 'vim.api.nvim_buf_get_name(0)')" "claude:#$TT Fix the parser"
+check "ct title with quotes, backslash and Japanese" "$(ct_title "It's \"パーサー\" \\ 修正")|$(lua 'T_winbar()')" "exit=0| #$TT Running │ It's \"パーサー\" \\ 修正"
+check "ct title without a title shows the title" "$(ct_title)" "It's \"パーサー\" \\ 修正 exit=0"
+check "ct title refuses more than 40 cells" "$(ct_title あいうえおかきくけこさしすせそたちつてとな)" "ct: title is too long (42 cells, max 40) exit=1"
+check "too long title is not set" "$(ct_title)" "It's \"パーサー\" \\ 修正 exit=0"
+check "ct title outside a terminal fails" "$(NVIM= bin/ct title x 2>&1; echo "exit=$?")" "exit=1"
+check "ct title without an id fails" "$(NVIM="$SOCK" CLAUDE_DECK_ID= bin/ct title x 2>&1; echo "exit=$?")" "ct: run this inside a claude-deck terminal
+exit=1"
+hook "$TT" SessionStart '{"source":"clear"}'
+check "/clear removes the title from ct title" "$(lua 'T_winbar()')" "#$TT New │ (new task)"
+lua '(function() local input = vim.ui.input; vim.ui.input = function(_, cb) cb("  My   name ") end; require("claude-deck").rename(); vim.ui.input = input; return "" end)()' >/dev/null
+check "ct title keeps the title from rename()" "$(ct_title Other)" "ct: the title was set by the user; run \`ct title --force <title>\` if the user asked you to rename it exit=1"
+check "the user's title is unchanged" "$(lua 'T_winbar()')" "#$TT New │ My name"
+hook "$TT" SessionStart '{"source":"clear"}'
+check "/clear keeps the title from rename()" "$(lua 'T_winbar()')" "#$TT New │ My name"
+check "ct title --force replaces the user's title" "$(ct_title --force Forced name)|$(lua 'T_winbar()')" "exit=0| #$TT New │ Forced name"
+check "a forced title is Claude's" "$(ct_title Again)" "title: Again exit=0"
+lua '(function() vim.cmd("tabclose!"); return "" end)()' >/dev/null
+check "auto_title = false leaves out the ct title paragraph" "$(lua '(function() require("claude-deck").setup(vim.tbl_extend("force", T_opts, { cli = { auto_title = false } })); require("claude-deck").new("below"); vim.cmd("stopinsert"); local id = vim.b.claude_deck_id; vim.cmd("close"); vim.wait(500); local args = table.concat(vim.fn.readfile(vim.env.TEST_OUT .. "/args." .. id), "\n"); return tostring(args:find("ct list", 1, true) ~= nil) .. " " .. tostring(args:find([[ct title "]], 1, true) ~= nil) end)()')" "true false"
+lua '(function() require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
+
 # User command
 check "user command completion" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck f", "cmdline"), ",")')" "focus,fork"
 check "user command completion has location" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck l", "cmdline"), ",")')" "list,location"

@@ -3,7 +3,10 @@ local config = require("claude-deck.config")
 
 local M = {}
 
--- id -> { id, buf, job, cwd, title, state, session_id, transcript_path }
+-- id -> { id, buf, job, cwd, title, title_source, state, session_id, transcript_path }
+-- title_source: who set the title: "user" (rename()), "claude" (`ct title`), "auto" (first
+-- prompt, fork) or nil (no title)
+-- A fork's "↳…" title is "auto" even if the parent's is "user", so the child Claude can rename it.
 M.terminals = {}
 M.next_id = 1
 -- Updated by FocusGained / FocusLost
@@ -49,8 +52,13 @@ function M.title(term)
     return term.title ~= "" and term.title or config.options.labels.untitled
 end
 
+-- Runs of whitespace become one space; leading and trailing whitespace is removed
+function M.normalize_title(text)
+    return vim.trim((text:gsub("%s+", " ")))
+end
+
 function M.make_title(text)
-    local s = vim.trim(text:gsub("%s+", " "))
+    local s = M.normalize_title(text)
     local width = config.options.title_width
     if vim.fn.strchars(s) > width then
         s = vim.fn.strcharpart(s, 0, width) .. "…"
@@ -60,8 +68,10 @@ end
 
 -- Sets the task title and renames the buffer to "claude:#<id> <title>", which reads well
 -- in tablines and statuslines (no "/" so that path shortening leaves it alone).
-function M.set_title(term, title)
+-- source: see title_source above (nil for an empty title).
+function M.set_title(term, title, source)
     term.title = title
+    term.title_source = title ~= "" and source or nil
     if vim.api.nvim_buf_is_valid(term.buf) then
         local old_name = vim.api.nvim_buf_get_name(term.buf)
         local name = string.format("claude:#%d %s", term.id, (M.title(term):gsub("/", "-")))

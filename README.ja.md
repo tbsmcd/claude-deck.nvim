@@ -201,7 +201,7 @@ require("claude-deck").setup({ renderer = "fullscreen" }) -- または renderer 
 
 「Waiting」は、Claude が実行の順番を待っているという意味ではありません。あなたがプロンプトを送るまで、何も進みません。
 
-タスク名は最初のプロンプトの先頭部分です（スラッシュコマンドは使いません）。`/clear` するとリセットされます。
+既定では（`cli.enabled`、`cli.system_prompt`、`cli.auto_title` がすべて有効なとき）、タスク名は Claude がタスクを把握した時点で `ct title` で付けます（[後述](#claude-用の-ct-コマンド)）。それまでは最初のプロンプトの先頭部分を使います（スラッシュコマンドは使いません）。`rename()` で自分で付けた名前が優先され、頼まない限り Claude は変更しません。`/clear` するとタスク名はリセットされますが、`rename()` で付けた名前は残ります。
 
 各ターミナルの表示は 2 行です。
 
@@ -229,9 +229,13 @@ require("claude-deck").setup({ renderer = "fullscreen" }) -- または renderer 
 ```sh
 ct list            # 全ターミナルの番号・状態・タスク名・cwd・session_id・transcript のパス
 ct read 2 [件数]   # ターミナル #2 の直近の会話（既定 20 件）
+ct title "ログイン不具合の修正"   # このターミナルのタスク名を付ける（名前なしなら今の名前を表示）
+ct title --force "…"              # rename() で付けた名前も置き換える
 ```
 
-どちらも許可の確認なしで実行できます。たとえば「#1 でやっている作業と矛盾しないか確認して」のように頼めます。
+いずれも許可の確認なしで実行できます。たとえば「#1 でやっている作業と矛盾しないか確認して」のように頼めます。
+
+`cli.auto_title`（既定で有効）のときは、タスクを把握したらすぐに `ct title` でターミナルに名前を付け、タスクが変わったら付け直すよう Claude に伝えます。名前は、プロンプトと同じ言語の短いものにするよう指示しています。名前の上限は表示幅で 40 桁（日本語は 1 文字 2 桁）です。超えた名前は切り詰めずに拒否し、Claude に短くさせます。`rename()` で自分で付けた名前が優先され、`ct title` では変更できません。Claude が `ct title --force` を使うのは、名前を変えるよう頼んだときだけです。
 
 ![ターミナル #4 の Claude が、ターミナルの一覧を表示し、ターミナル #1 の会話を読んでいる画面](docs/images/ja/ct.webp)
 
@@ -284,6 +288,7 @@ require("claude-deck").setup({
     cli = {
         enabled = true, -- `ct` を PATH に入れ、許可の確認なしで実行できるようにする
         system_prompt = true, -- `ct` のことを Claude に伝える
+        auto_title = true, -- `ct title` でターミナルに名前を付けるよう Claude に伝える（`ct title` 自体はどちらでも使える）
     },
 })
 ```

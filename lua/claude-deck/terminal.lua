@@ -6,13 +6,24 @@ local ui = require("claude-deck.ui")
 local M = {}
 
 local function system_prompt(id)
-    return table.concat({
+    local lines = {
         string.format("You are running inside terminal #%d of claude-deck (a Neovim plugin that runs multiple Claude Code sessions).", id),
         "Other terminals in the same Neovim run their own Claude Code sessions. You can inspect them with:",
         "- `ct list`: list terminals (id, status, task title, cwd, session_id, transcript path)",
         "- `ct read <id> [count]`: recent conversation of a terminal (default 20 messages)",
         "Use these when the user refers to another terminal or task, or when you need to check consistency with parallel work.",
-    }, "\n")
+    }
+    if config.options.cli.auto_title then
+        vim.list_extend(lines, {
+            "",
+            "As soon as you understand the task, name this terminal with `ct title \"<title>\"`.",
+            "The title is shown to the user to tell terminals apart: a short noun phrase that says at a glance what you are doing,",
+            "at most 20 characters (about 5 words in English), in the same language as the user's prompt.",
+            "Set it again when the task changes. If `ct title` says the title was set by the user, keep it;",
+            "change it with `ct title --force \"<title>\"` only when the user asks you to rename the terminal.",
+        })
+    end
+    return table.concat(lines, "\n")
 end
 
 local function set_keymaps(buf)

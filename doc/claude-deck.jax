@@ -100,7 +100,8 @@ fork({where})                                             *claude-deck.fork()*
     `claude --resume <session> --fork-session` を実行します。
 
 rename()                                                *claude-deck.rename()*
-    今のターミナルのタスク名を変更します。
+    今のターミナルのタスク名を変更します。ここで付けた名前は、Claude が
+    `ct title` で付ける名前より優先されます（|claude-deck-ct|）。
 
 focus()                                                  *claude-deck.focus()*
     ターミナルの中では、「ファイルツリー ｜ エディタ ｜ ターミナル」を並べた
@@ -223,6 +224,13 @@ Waiting は、Claude が応答を終えて次のプロンプトを待ってい�
 順番待ちや、これから動き出す状態ではありません）。Needs you は、作業の途中
 で、許可の確認や質問へのあなたの回答を待って Claude が止まっている状態です。
 
+既定では（cli.enabled、cli.system_prompt、cli.auto_title がすべて有効なと
+き）、タスク名は Claude がタスクを把握した時点で `ct title` で付けます
+（|claude-deck-ct|）。それまでは最初のプロンプトの先頭部分を使います（スラッ
+シュコマンドは使いません）。|claude-deck.rename()| で付けた名前が優先されま
+す。`/clear` するとタスク名はリセットされますが、rename() で付けた名前は残
+ります。
+
 Neovim にフォーカスがあり、今の window にそのターミナルが表示されていて、
 macOS ではさらにターミナルアプリが最前面にあるときは、通知を出しません。
 
@@ -234,10 +242,21 @@ macOS ではさらにターミナルアプリが最前面にあるときは、�
 
     ct list                 ターミナルの一覧
     ct read <id> [count]    ターミナルの直近の会話（既定 20 件）
+    ct title [title]        このターミナルのタスク名を付ける。名前を
+                            省くと今の名前を表示する
+    ct title --force title  rename() で付けた名前も置き換える
 
-どちらも許可の確認なしで実行できます。`ct read` は Claude Code の transcript
+いずれも許可の確認なしで実行できます。`ct read` は Claude Code の transcript
 ファイルを読み取ります。このファイルの形式は内部仕様のため、変わる可能性が
 あります。
+
+`cli.auto_title` のときは、タスクを把握したらすぐに `ct title` でターミナル
+に名前を付け、タスクが変わったら付け直すよう Claude に伝えます。名前は、プ
+ロンプトと同じ言語の短いものにするよう指示しています。名前の上限は表示幅で
+40 桁です。超えた名前は切り詰めずに拒否し、Claude に短くさせます。
+|claude-deck.rename()| で付けた名前が優先され、`ct title` では変更できませ
+ん。Claude が `ct title --force` を使うのは、名前を変えるよう頼んだときだけ
+です。
 
 ==============================================================================
 6. 設定                                                   *claude-deck-config*
@@ -285,6 +304,9 @@ macOS ではさらにターミナルアプリが最前面にあるときは、�
     cli.enabled           `ct` を PATH に入れ、許可の確認なしで実行できる
                           ようにする（既定: true）
     cli.system_prompt     `ct` のことを Claude に伝える（既定: true）
+    cli.auto_title        `ct title` でターミナルに名前を付けるよう Claude
+                          に伝える。`ct title` 自体はどちらでも使える
+                          （既定: true）
 
 ==============================================================================
 7. ハイライト                                         *claude-deck-highlights*

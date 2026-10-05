@@ -201,7 +201,7 @@ The renderer is passed to Claude with the `CLAUDE_CODE_NO_FLICKER` environment v
 
 "Waiting" does not mean that Claude is queued or about to run: nothing happens until you send a prompt.
 
-The task title is the beginning of the first prompt (slash commands are ignored). `/clear` resets it.
+By default (when `cli.enabled`, `cli.system_prompt` and `cli.auto_title` are all on), Claude names its terminal with `ct title` once it understands the task (see [below](#ct-command-for-claude)). Until then, the task title is the beginning of the first prompt (slash commands are ignored). A title you set with `rename()` takes precedence: Claude does not change it unless you ask. `/clear` resets the title, except one you set with `rename()`.
 
 Each terminal has a two-line header:
 
@@ -227,9 +227,13 @@ Inside a terminal, `ct` is on `PATH` and Claude is told about it with `--append-
 ```sh
 ct list            # id, status, title, cwd, session_id and transcript path of every terminal
 ct read 2 [count]  # recent messages of terminal #2 (default 20)
+ct title "Fix login bug"   # set the task title of this terminal (without a title: show it)
+ct title --force "…"       # also replace a title you set with rename()
 ```
 
-Both are allowed without a permission prompt. So you can ask, for example, "check that this doesn't conflict with what #1 is doing".
+All of them are allowed without a permission prompt. So you can ask, for example, "check that this doesn't conflict with what #1 is doing".
+
+With `cli.auto_title` (default), Claude is told to name its terminal with `ct title` as soon as it understands the task, with a short title in the language of your prompt, and to rename it when the task changes. The title may be at most 40 cells wide (display width; a Japanese character takes 2); a longer one is refused rather than cut, so that Claude picks a shorter one. A title you set with `rename()` takes precedence: `ct title` refuses to change it, and Claude uses `ct title --force` only when you ask it to rename the terminal.
 
 ![Claude in terminal #5 listing the terminals and reading the conversation of terminal #4](docs/images/ct.webp)
 
@@ -282,6 +286,7 @@ require("claude-deck").setup({
     cli = {
         enabled = true, -- `ct` on PATH and allowed without a prompt
         system_prompt = true, -- tell Claude about `ct`
+        auto_title = true, -- tell Claude to name its terminal with `ct title` (`ct title` works either way)
     },
 })
 ```
