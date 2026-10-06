@@ -313,6 +313,11 @@ check "terminal-notifier without a bundle id has no -activate" "$(tn_args nil '"
 check "terminal-notifier escapes values read as non-strings" "$(tn_args nil '"-x", "[y]", "(a, b)", 7')" "[-title][\\-x][-subtitle][\\[y]][-message][\\(a, b)][-group]"
 check "terminal-notifier escapes a leading brace" "$(tn_args nil '"T", "S", "{z}", 7')" "[-message][\\{z}][-group]"
 check "terminal-notifier leaves out an empty subtitle and body" "$(tn_args nil '"T", "", "", 7')" "[-title][T][-group][claude-deck-7]"
+# A failing terminal-notifier is reported once per session
+printf '#!/bin/sh\necho "Notifications are turned off for this application." >&2\nexit 3\n' >"$TEST_OUT/bin/terminal-notifier"
+fail_msgs=$(lua '(function() local path = vim.env.PATH; vim.env.PATH = vim.env.TEST_OUT .. "/bin:" .. path; require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { notify = { method = "terminal-notifier", notifier = false } })); local n = require("claude-deck.notify"); n.desktop_notify("T", "S", "B", 7); vim.wait(2000, function() return vim.api.nvim_exec2("messages", { output = true }).output:find("exit 3", 1, true) ~= nil end); n.desktop_notify("T", "S", "B", 7); vim.wait(500); vim.env.PATH = path; return vim.api.nvim_exec2("messages", { output = true }).output end)()')
+check "failing terminal-notifier warns with the reason" "$fail_msgs" "claude-deck: terminal-notifier failed (exit 3): Notifications are turned off for this application."
+check "failing terminal-notifier warns only once" "$(printf '%s' "$fail_msgs" | grep -c 'terminal-notifier failed (exit 3)')" "1"
 osc_out() { # ui list, desktop_notify arguments, expression of the output `out`
     lua '(function() local parts = {}; local api = vim.api; local uis, send, chan_send = api.nvim_list_uis, api.nvim_ui_send, api.nvim_chan_send; api.nvim_list_uis = function() return '"$1"' end; api.nvim_ui_send = function(s) table.insert(parts, s) end; api.nvim_chan_send = function(_, s) table.insert(parts, s) end; require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { notify = { method = "osc", notifier = false } })); require("claude-deck.notify").desktop_notify('"$2"'); api.nvim_list_uis, api.nvim_ui_send, api.nvim_chan_send = uis, send, chan_send; local out = table.concat(parts); return '"$3"' end)()'
 }

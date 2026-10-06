@@ -233,6 +233,8 @@ A notification is skipped only when all of these hold:
 
 On macOS, install terminal-notifier (`brew install terminal-notifier`) so that clicking a notification takes you back to Neovim; `"auto"` then uses it. If the command of the chosen method is not found, `setup()` warns once and uses `"auto"`. `:checkhealth claude-deck` shows the method in use and whether clicking a notification brings back the terminal.
 
+If terminal-notifier shows nothing on macOS, allow it under System Settings > Notifications (the permission prompt may not appear the first time). When a notification command fails, Neovim shows a warning with the reason, once per command per session.
+
 ### `ct` command for Claude
 
 Inside a terminal, `ct` is on `PATH` and Claude is told about it with `--append-system-prompt`:

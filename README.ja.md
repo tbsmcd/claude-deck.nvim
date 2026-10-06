@@ -235,6 +235,8 @@ require("claude-deck").setup({ renderer = "fullscreen" }) -- または renderer 
 
 macOS では、通知のクリックで Neovim に戻れるよう terminal-notifier を入れておくことをおすすめします（`brew install terminal-notifier`）。入っていれば `"auto"` で使われます。指定した方法のコマンドが見つからない場合は、`setup()` で一度だけ警告し、`"auto"` を使います。実際に使われる方法と、クリックでターミナルに戻れるかどうかは `:checkhealth claude-deck` で確認できます。
 
+macOS で terminal-notifier の通知が表示されないときは、システム設定の「通知」で terminal-notifier を許可してください（初回は許可の確認が表示されないことがあります）。通知コマンドが失敗した場合は、Neovim に理由を示す警告が表示されます（コマンドごとに、セッション中一度だけ）。
+
 ### Claude 用の `ct` コマンド
 
 ターミナルの中では `ct` が `PATH` に入っており、`--append-system-prompt` でそのことを Claude に伝えています。

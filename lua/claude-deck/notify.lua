@@ -66,6 +66,38 @@ end
 -- Bytes kept of an OSC notification text
 local OSC_MAX_BYTES = 500
 
+-- Commands whose failure was already shown in this session
+local reported = {}
+
+-- Shows why a notification command failed, once per command
+local function report_failure(name, code, output)
+    if reported[name] then
+        return
+    end
+    reported[name] = true
+    local msg = ("claude-deck: %s failed (exit %s)"):format(name, tostring(code))
+    output = vim.trim((((output or ""):gsub("%s+", " "))))
+    if output ~= "" then
+        msg = msg .. ": " .. output
+    end
+    vim.schedule(function()
+        vim.notify(msg, vim.log.levels.WARN)
+    end)
+end
+
+-- Runs a notification command and reports a failure
+local function run(cmd)
+    local name = cmd[1]
+    local ok, err = pcall(vim.system, cmd, { text = true }, function(res)
+        if res.code ~= 0 then
+            report_failure(name, res.code, (res.stdout or "") .. " " .. (res.stderr or ""))
+        end
+    end)
+    if not ok then
+        report_failure(name, "error", tostring(err))
+    end
+end
+
 local senders = {
     ["terminal-notifier"] = function(title, subtitle, body, id)
         local cmd = { "terminal-notifier", "-title", tn_value(title) }
@@ -80,7 +112,7 @@ local senders = {
         end
         -- Replaces the previous notification of the same terminal
         vim.list_extend(cmd, { "-group", "claude-deck-" .. tostring(id or 0) })
-        vim.system(cmd)
+        run(cmd)
     end,
     osc = function(title, subtitle, body)
         if not has_tty_ui() then
@@ -99,7 +131,7 @@ local senders = {
         send_to_terminal("\27]9;" .. text .. "\7")
     end,
     osascript = function(title, subtitle, body)
-        vim.system({
+        run({
             "osascript",
             "-e",
             "on run argv",
@@ -113,7 +145,7 @@ local senders = {
         })
     end,
     ["notify-send"] = function(title, subtitle, body)
-        vim.system({ "notify-send", title .. ": " .. subtitle, body })
+        run({ "notify-send", title .. ": " .. subtitle, body })
     end,
 }
 

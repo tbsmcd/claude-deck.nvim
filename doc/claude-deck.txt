@@ -257,6 +257,11 @@ If the command of the chosen method is not found, setup() warns once and
 uses "auto". `:checkhealth claude-deck` shows the method in use and whether
 clicking a notification brings back the terminal.
 
+If terminal-notifier shows nothing on macOS, allow it in System Settings >
+Notifications (the permission prompt may not appear the first time). When a
+notification command fails, Neovim shows a warning with the reason, once per
+command per session.
+
 ==============================================================================
 5. THE CT COMMAND                                               *claude-deck-ct*
 
