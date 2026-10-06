@@ -32,9 +32,12 @@ Optional (everything works without them):
 - nvim-tree.lua: file tree in focus mode; falls back to netrw
 - zoxide: extra directories in |claude-deck.pick_dir()|
 - jq: pretty-prints the JSON of |claude-deck.show_settings()|
-- osascript (macOS, with lsappinfo for the frontmost app check) or
-  notify-send (Linux) for desktop notifications, or your own
-  `notify.notifier`
+- terminal-notifier (macOS, `brew install terminal-notifier`): desktop
+  notifications that bring back the terminal app when clicked
+- otherwise osascript (macOS, with lsappinfo for the frontmost app check),
+  notify-send (Linux) or the terminal's own notifications for desktop
+  notifications, or your own `notify.notifier`
+  (|claude-deck-notify|)
 
 ==============================================================================
 2. SETUP                                                     *claude-deck-setup*
@@ -226,6 +229,34 @@ takes precedence. `/clear` resets the title, except one set with rename().
 A notification is skipped when Neovim has focus, the current window shows
 that terminal and, on macOS, the terminal app is the frontmost app.
 
+                                                            *claude-deck-notify*
+`notify.method` chooses how notifications are sent. `notify.notifier`, when
+set, takes precedence.
+
+    "auto"               (default) "terminal-notifier" if installed,
+                         otherwise "osascript" on macOS; "notify-send" on
+                         Linux
+    "terminal-notifier"  macOS. Clicking the notification brings back the
+                         terminal app running Neovim. A newer notification
+                         of the same terminal replaces the older one.
+    "osc"                the terminal emulator shows the notification (OSC 9
+                         escape sequence, supported by iTerm2 among
+                         others). Clicking it brings back the terminal.
+                         Allow notifications in the terminal's settings
+                         (iTerm2: Profiles > Terminal > Notifications).
+                         Does nothing in a GUI or with --headless.
+                         Inside tmux, OSC 9 does not reach the outer
+                         terminal.
+    "osascript"          macOS, built in. Clicking the notification does
+                         NOT bring back the terminal app.
+    "notify-send"        Linux
+
+On macOS, install terminal-notifier (`brew install terminal-notifier`) so
+that clicking a notification takes you back to Neovim; "auto" then uses it.
+If the command of the chosen method is not found, setup() warns once and
+uses "auto". `:checkhealth claude-deck` shows the method in use and whether
+clicking a notification brings back the terminal.
+
 ==============================================================================
 5. THE CT COMMAND                                               *claude-deck-ct*
 
@@ -266,6 +297,9 @@ precedence: `ct title` refuses to change it, and Claude uses
     notify.enabled        (default: true)
     notify.states         (default: { "waiting", "attention" })
     notify.skip_when_watching  (default: true)
+    notify.method         "auto", "terminal-notifier", "osc", "osascript"
+                          or "notify-send"; see |claude-deck-notify|
+                          (default: "auto")
     notify.notifier       function({ title, subtitle, body, state, terminal })
     keymaps.normal_mode   terminal-mode key to leave terminal mode
                           (default: "<C-q>", false to disable)

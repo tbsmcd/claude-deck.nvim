@@ -39,8 +39,15 @@ M.defaults = {
         states = { "waiting", "attention" },
         -- Skip the notification when you are looking at that terminal.
         skip_when_watching = true,
+        -- Built-in notifier:
+        -- "auto": terminal-notifier if installed, otherwise osascript on macOS; notify-send elsewhere.
+        -- "terminal-notifier": macOS; clicking the notification brings back the terminal app.
+        -- "osc": the terminal emulator's own notification (OSC 9, e.g. iTerm2).
+        -- "osascript": macOS; clicking the notification does not bring back the terminal app.
+        -- "notify-send": Linux.
+        method = "auto",
         -- function({ title, subtitle, body, state, terminal }) to replace the built-in
-        -- notifier (osascript on macOS, notify-send elsewhere).
+        -- notifier. Takes precedence over `method`.
         notifier = nil,
     },
     -- Keys mapped by the plugin. Set an entry to false to disable it.
@@ -100,15 +107,30 @@ M.options = vim.deepcopy(M.defaults)
 -- Options that were invalid in the last setup(), as given (for :checkhealth).
 M.invalid = {}
 
-local function warn_invalid(name, value, hint)
+local function warn_invalid(name, value, hint, fallback)
     M.invalid[name] = value
     vim.notify(
-        string.format("claude-deck: invalid %s %s (%s); using false", name, vim.inspect(value), hint),
+        string.format(
+            "claude-deck: invalid %s %s (%s); using %s",
+            name,
+            vim.inspect(value),
+            hint,
+            vim.inspect(fallback or false)
+        ),
         vim.log.levels.WARN
     )
 end
 
--- Replaces invalid values with false, warning once per setup().
+-- Command run by each notify.method (false: needs no command).
+local notify_commands = {
+    auto = false,
+    ["terminal-notifier"] = "terminal-notifier",
+    osc = false,
+    osascript = "osascript",
+    ["notify-send"] = "notify-send",
+}
+
+-- Replaces invalid values with false (notify.method: "auto"), warning once per setup().
 local function validate(options)
     local renderer = options.renderer
     if renderer ~= false and renderer ~= "classic" and renderer ~= "fullscreen" then
@@ -127,6 +149,24 @@ local function validate(options)
     if send_location ~= false and type(send_location) ~= "string" then
         warn_invalid("keymaps.send_location", send_location, "use a key such as \"<leader>cp\" or false")
         options.keymaps.send_location = false
+    end
+    -- A notifier function replaces the built-in methods, so the method is not used
+    if type(options.notify.notifier) == "function" then
+        return
+    end
+    local method = options.notify.method
+    local command = notify_commands[method]
+    if command == nil then
+        warn_invalid(
+            "notify.method",
+            method,
+            'use "auto", "terminal-notifier", "osc", "osascript" or "notify-send"',
+            "auto"
+        )
+        options.notify.method = "auto"
+    elseif command and vim.fn.executable(command) == 0 then
+        warn_invalid("notify.method", method, "`" .. command .. "` was not found", "auto")
+        options.notify.method = "auto"
     end
 end
 

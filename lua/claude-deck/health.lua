@@ -52,19 +52,55 @@ function M.check()
         end
     end
 
+    if config.invalid["notify.method"] ~= nil then
+        health.warn(
+            "`notify.method`: cannot use " .. vim.inspect(config.invalid["notify.method"]) .. ", using \"auto\""
+        )
+    end
+    local notify = require("claude-deck.notify")
+    local method = notify.method()
+    local is_mac = vim.fn.has("mac") == 1
     if config.options.notify.notifier then
         health.ok("Using a custom notifier")
-    elseif vim.fn.has("mac") == 1 then
-        health.ok("Notifications via osascript")
-        if vim.env.__CFBundleIdentifier and vim.fn.executable("lsappinfo") == 1 then
-            health.ok("Frontmost app check enabled (" .. vim.env.__CFBundleIdentifier .. ")")
+    elseif method then
+        local how = config.options.notify.method == "auto" and " (auto)" or ""
+        if notify.returns_to_terminal(method) then
+            health.ok("Notifications via " .. method .. how .. "; clicking one brings back the terminal app")
+        else
+            health.ok("Notifications via " .. method .. how)
+            if is_mac then
+                health.info("Clicking a notification does not bring back the terminal app")
+            end
+        end
+        if method == "osc" then
+            health.info("The terminal sends the notification (OSC 9); allow notifications in its settings")
+        end
+    elseif is_mac then
+        health.warn(
+            "No notifier found",
+            "Install terminal-notifier (`brew install terminal-notifier`), set `notify.method = \"osc\"` "
+                .. "or set `notify.notifier`"
+        )
+    else
+        health.warn("No notifier found", "Install notify-send, set `notify.method = \"osc\"` or set `notify.notifier`")
+    end
+    if
+        is_mac
+        and not config.options.notify.notifier
+        and config.options.notify.method == "auto"
+        and vim.fn.executable("terminal-notifier") == 0
+    then
+        health.info(
+            "terminal-notifier not found. Install it (`brew install terminal-notifier`) so that "
+                .. "clicking a notification brings back the terminal app"
+        )
+    end
+    if is_mac then
+        if notify.bundle_id and vim.fn.executable("lsappinfo") == 1 then
+            health.ok("Frontmost app check enabled (" .. notify.bundle_id .. ")")
         else
             health.info("Frontmost app check disabled; relying on FocusLost only")
         end
-    elseif vim.fn.executable("notify-send") == 1 then
-        health.ok("Notifications via notify-send")
-    else
-        health.warn("No notifier found", "Install notify-send or set `notify.notifier`")
     end
 
     if pcall(require, "fzf-lua") then

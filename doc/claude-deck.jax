@@ -31,9 +31,11 @@ Neovim 0.11 以降と、PATH にある `claude` が必要です。フックス�
 - nvim-tree.lua: 集中モードのファイルツリー。ない場合は netrw を使います
 - zoxide: |claude-deck.pick_dir()| の候補にディレクトリを追加します
 - jq: |claude-deck.show_settings()| の JSON を整形して表示します
-- デスクトップ通知: osascript（macOS。最前面のアプリの判定に lsappinfo も
-  使います）または notify-send（Linux）。独自の `notify.notifier` も
-  指定できます
+- terminal-notifier（macOS。`brew install terminal-notifier`）: クリック
+  するとターミナルアプリに戻れるデスクトップ通知
+- それ以外のデスクトップ通知: osascript（macOS。最前面のアプリの判定に
+  lsappinfo も使います）、notify-send（Linux）、ターミナル自身の通知。
+  独自の `notify.notifier` も指定できます（|claude-deck-notify|）
 
 ==============================================================================
 2. セットアップ                                            *claude-deck-setup*
@@ -234,6 +236,35 @@ Waiting は、Claude が応答を終えて次のプロンプトを待ってい�
 Neovim にフォーカスがあり、今の window にそのターミナルが表示されていて、
 macOS ではさらにターミナルアプリが最前面にあるときは、通知を出しません。
 
+                                                            *claude-deck-notify*
+通知の出し方は `notify.method` で選べます。`notify.notifier` を設定した
+場合はそちらが優先されます。
+
+    "auto"               （既定）macOS では terminal-notifier があれば
+                         "terminal-notifier"、なければ "osascript"。
+                         Linux では "notify-send"
+    "terminal-notifier"  macOS。通知をクリックすると、Neovim を動かして
+                         いるターミナルアプリに戻れます。同じターミナル
+                         の通知は新しいもので置き換えます。
+    "osc"                ターミナルエミュレータ自身が通知を出します
+                         （OSC 9 のエスケープシーケンス。iTerm2 などが
+                         対応しています）。クリックするとターミナルに
+                         戻れます。ターミナル側で通知を許可しておく必要
+                         があります（iTerm2 では Profiles > Terminal >
+                         Notifications）。GUI や --headless では何も
+                         しません。tmux の中では、OSC 9 が外側の
+                         ターミナルに届きません。
+    "osascript"          macOS 標準。通知をクリックしてもターミナル
+                         アプリには戻れません。
+    "notify-send"        Linux
+
+macOS では、通知のクリックで Neovim に戻れるよう terminal-notifier を
+入れておくことをおすすめします（`brew install terminal-notifier`）。
+入っていれば "auto" で使われます。指定した方法のコマンドが見つからない
+場合は、setup() で一度だけ警告し、"auto" を使います。実際に使われる方法と、
+クリックでターミナルに戻れるかどうかは `:checkhealth claude-deck` で確認
+できます。
+
 ==============================================================================
 5. ct コマンド                                                *claude-deck-ct*
 
@@ -277,6 +308,9 @@ macOS ではさらにターミナルアプリが最前面にあるときは、�
     notify.enabled        （既定: true）
     notify.states         （既定: { "waiting", "attention" }）
     notify.skip_when_watching  （既定: true）
+    notify.method         "auto"、"terminal-notifier"、"osc"、"osascript"、
+                          "notify-send" のいずれか。|claude-deck-notify|
+                          を参照（既定: "auto"）
     notify.notifier       function({ title, subtitle, body, state, terminal })
     keymaps.normal_mode   ターミナルモードを抜けるためのキー
                           （既定: "<C-q>"、false で無効）

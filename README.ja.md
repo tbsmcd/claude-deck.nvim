@@ -33,7 +33,8 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
 - [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua): 集中モードのファイルツリー。ない場合は netrw を使います
 - [zoxide](https://github.com/ajeetdsouza/zoxide): `pick_dir()` の候補にディレクトリを追加します
 - [jq](https://jqlang.org/): `:ClaudeDeck settings` の JSON を整形して表示します
-- デスクトップ通知: macOS では `osascript`（標準搭載。最前面のアプリの判定に `lsappinfo` も使います）、Linux では `notify-send`。`notify.notifier` で独自の通知方法も指定できます
+- [terminal-notifier](https://github.com/julienXX/terminal-notifier)（macOS。`brew install terminal-notifier`）: クリックするとターミナルアプリに戻れるデスクトップ通知
+- それ以外のデスクトップ通知: macOS では `osascript`（標準搭載。最前面のアプリの判定に `lsappinfo` も使います）、Linux では `notify-send`。ターミナル自身の通知（`notify.method = "osc"`）も使えます。`notify.notifier` で独自の通知方法も指定できます
 
 フックスクリプトと `ct` は `nvim --server` を呼ぶ POSIX `sh` スクリプトです。Claude Code から見える `PATH` に `nvim` が必要です。
 
@@ -222,6 +223,18 @@ require("claude-deck").setup({ renderer = "fullscreen" }) -- または renderer 
 2. 今の window にそのターミナルが表示されている
 3. macOS の場合、Neovim を動かしているターミナルアプリが最前面にある（フォーカスの変化を伝えないターミナルへの対策として `lsappinfo` で確認します）
 
+通知の出し方は `notify.method` で選べます（`notify.notifier` を設定した場合はそちらが優先されます）。
+
+| 方法 | 説明 |
+| --- | --- |
+| `"auto"`（既定） | macOS では `terminal-notifier` があれば `"terminal-notifier"`、なければ `"osascript"`。Linux では `"notify-send"` |
+| `"terminal-notifier"` | macOS。通知をクリックすると、Neovim を動かしているターミナルアプリに戻れます。同じターミナルの通知は新しいもので置き換えます |
+| `"osc"` | ターミナルエミュレータ自身が通知を出します（OSC 9 のエスケープシーケンス。iTerm2 などが対応しています）。クリックするとターミナルに戻れます。ターミナル側で通知を許可しておく必要があります（iTerm2 では Profiles > Terminal > Notifications）。GUI や `--headless` では何もしません。tmux の中では、OSC 9 が外側のターミナルに届きません |
+| `"osascript"` | macOS 標準。通知をクリックしてもターミナルアプリには**戻れません** |
+| `"notify-send"` | Linux |
+
+macOS では、通知のクリックで Neovim に戻れるよう terminal-notifier を入れておくことをおすすめします（`brew install terminal-notifier`）。入っていれば `"auto"` で使われます。指定した方法のコマンドが見つからない場合は、`setup()` で一度だけ警告し、`"auto"` を使います。実際に使われる方法と、クリックでターミナルに戻れるかどうかは `:checkhealth claude-deck` で確認できます。
+
 ### Claude 用の `ct` コマンド
 
 ターミナルの中では `ct` が `PATH` に入っており、`--append-system-prompt` でそのことを Claude に伝えています。
@@ -267,6 +280,7 @@ require("claude-deck").setup({
         enabled = true,
         states = { "waiting", "attention" },
         skip_when_watching = true,
+        method = "auto", -- "terminal-notifier"、"osc"、"osascript"、"notify-send"
         notifier = nil, -- function({ title, subtitle, body, state, terminal })
     },
     keymaps = { -- false で無効

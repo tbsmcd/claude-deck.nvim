@@ -295,6 +295,38 @@ lua '(function() vim.cmd("tabclose!"); return "" end)()' >/dev/null
 check "auto_title = false leaves out the ct title paragraph" "$(lua '(function() require("claude-deck").setup(vim.tbl_extend("force", T_opts, { cli = { auto_title = false } })); require("claude-deck").new("below"); vim.cmd("stopinsert"); local id = vim.b.claude_deck_id; vim.cmd("close"); vim.wait(500); local args = table.concat(vim.fn.readfile(vim.env.TEST_OUT .. "/args." .. id), "\n"); return tostring(args:find("ct list", 1, true) ~= nil) .. " " .. tostring(args:find([[ct title "]], 1, true) ~= nil) end)()')" "true false"
 lua '(function() require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
 
+# Notification methods
+notify_methods='(function() local fn, n = vim.fn, require("claude-deck.notify"); local has, ex = fn.has, fn.executable; local r = {}; fn.has = function(f) return f == "mac" and 1 or has(f) end; for _, tn in ipairs({ 1, 0 }) do fn.executable = function(c) return c == "terminal-notifier" and tn or 1 end; table.insert(r, n.method()) end; fn.has = function() return 0 end; table.insert(r, n.method()); fn.has, fn.executable = has, ex; return table.concat(r, " ") end)()'
+check "auto method: terminal-notifier, osascript, notify-send" "$(lua "$notify_methods")" "terminal-notifier osascript notify-send"
+mkdir -p "$TEST_OUT/bin"
+printf '#!/bin/sh\nprintf "[%%s]" "$@" > "%s/tn.args"\n' "$TEST_OUT" >"$TEST_OUT/bin/terminal-notifier"
+chmod +x "$TEST_OUT/bin/terminal-notifier"
+tn_args() { # bundle id ("nil" for none), desktop_notify arguments
+    rm -f "$TEST_OUT/tn.args"
+    lua '(function() local path = vim.env.PATH; vim.env.PATH = vim.env.TEST_OUT .. "/bin:" .. path; require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { notify = { method = "terminal-notifier", notifier = false } })); local n = require("claude-deck.notify"); local saved = n.bundle_id; n.bundle_id = '"$1"'; n.desktop_notify('"$2"'); n.bundle_id = saved; vim.env.PATH = path; return "" end)()' >/dev/null
+    i=0
+    while [ ! -s "$TEST_OUT/tn.args" ] && [ $i -lt 30 ]; do sleep 0.1; i=$((i + 1)); done
+    cat "$TEST_OUT/tn.args" 2>/dev/null
+}
+check "terminal-notifier gets title, subtitle, body, -activate and -group" "$(tn_args '"com.example.term"' '"Claude: Waiting", "Fix tests", "~/src", 7')" "[-title][Claude: Waiting][-subtitle][Fix tests][-message][~/src][-activate][com.example.term][-group][claude-deck-7]"
+check "terminal-notifier without a bundle id has no -activate" "$(tn_args nil '"Claude: Waiting", "Fix tests", "~/src", 7')" "[-message][~/src][-group][claude-deck-7]"
+check "terminal-notifier escapes values read as non-strings" "$(tn_args nil '"-x", "[y]", "(a, b)", 7')" "[-title][\\-x][-subtitle][\\[y]][-message][\\(a, b)][-group]"
+check "terminal-notifier escapes a leading brace" "$(tn_args nil '"T", "S", "{z}", 7')" "[-message][\\{z}][-group]"
+check "terminal-notifier leaves out an empty subtitle and body" "$(tn_args nil '"T", "", "", 7')" "[-title][T][-group][claude-deck-7]"
+osc_out() { # ui list, desktop_notify arguments, expression of the output `out`
+    lua '(function() local parts = {}; local api = vim.api; local uis, send, chan_send = api.nvim_list_uis, api.nvim_ui_send, api.nvim_chan_send; api.nvim_list_uis = function() return '"$1"' end; api.nvim_ui_send = function(s) table.insert(parts, s) end; api.nvim_chan_send = function(_, s) table.insert(parts, s) end; require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { notify = { method = "osc", notifier = false } })); require("claude-deck.notify").desktop_notify('"$2"'); api.nvim_list_uis, api.nvim_ui_send, api.nvim_chan_send = uis, send, chan_send; local out = table.concat(parts); return '"$3"' end)()'
+}
+osc_shown='"[" .. out:gsub("\27", "<ESC>"):gsub("\7", "<BEL>") .. "]"'
+check "osc writes OSC 9 without control characters" "$(osc_out '{ { stdout_tty = true } }' '"Claude: Waiting", "Fix\27 tests", "line 1\nline 2\194\156\7", 7' "$osc_shown")" "[<ESC>]9;Claude: Waiting: Fix tests — line 1 line 2<BEL>]"
+check "osc cuts a long text at a character boundary" "$(osc_out '{ { stdout_tty = true } }' '"T", "S", string.rep("あ", 300), 7' '#out .. " " .. tostring(out:sub(-4) == "あ\7")')" "503 true"
+check "osc writes nothing without a terminal UI" "$(osc_out '{}' '"T", "S", "B", 7' "$osc_shown")" "[]"
+check "invalid notify.method warns" "$(lua 'T_notify(function() require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { notify = { method = "nope", notifier = false } })) end) .. " " .. require("claude-deck.config").options.notify.method')" 'invalid notify.method "nope" (use "auto"'
+check "invalid notify.method falls back to auto" "$(lua 'require("claude-deck.config").options.notify.method')" "auto"
+check "missing notify.method command warns" "$(lua '(function() local ex = vim.fn.executable; vim.fn.executable = function() return 0 end; local m = T_notify(function() require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { notify = { method = "notify-send", notifier = false } })) end); vim.fn.executable = ex; return m .. " " .. require("claude-deck.config").options.notify.method end)()')" '`notify-send` was not found); using "auto" auto'
+check "notifier function: no notify.method check" "$(lua 'T_notify(function() require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { notify = { method = "nope" } })) end) .. " " .. require("claude-deck.config").options.notify.method')" "none nope"
+check "notifier function takes precedence over notify.method" "$(lua '(function() _G.notifications = {}; local c = require("claude-deck.config"); c.options.notify.skip_when_watching = false; require("claude-deck.notify").on_state(require("claude-deck.state").sorted()[1], "waiting"); return table.concat(_G.notifications, ";") end)()')" "Claude: Waiting |"
+lua '(function() require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
+
 # User command
 check "user command completion" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck f", "cmdline"), ",")')" "focus,fork"
 check "user command completion has location" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck l", "cmdline"), ",")')" "list,location"
