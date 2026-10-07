@@ -39,6 +39,9 @@ M.defaults = {
         states = { "waiting", "attention" },
         -- Skip the notification when you are looking at that terminal.
         skip_when_watching = true,
+        -- Milliseconds to wait before sending. The notification is dropped if the terminal
+        -- changes state meanwhile (e.g. Claude resumes after a background task). 0: send at once.
+        delay = 2000,
         -- Built-in notifier:
         -- "auto": terminal-notifier if installed, otherwise osascript on macOS; notify-send elsewhere.
         -- "terminal-notifier": macOS; clicking the notification brings back the terminal app.
@@ -149,6 +152,11 @@ local function validate(options)
     if send_location ~= false and type(send_location) ~= "string" then
         warn_invalid("keymaps.send_location", send_location, "use a key such as \"<leader>cp\" or false")
         options.keymaps.send_location = false
+    end
+    local delay = options.notify.delay
+    if type(delay) ~= "number" or delay < 0 then
+        warn_invalid("notify.delay", delay, "use a number of milliseconds, 0 or more", 2000)
+        options.notify.delay = 2000
     end
     -- A notifier function replaces the built-in methods, so the method is not used
     if type(options.notify.notifier) == "function" then

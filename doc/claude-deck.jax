@@ -236,6 +236,11 @@ Waiting は、Claude が応答を終えて次のプロンプトを待ってい�
 Neovim にフォーカスがあり、今の window にそのターミナルが表示されていて、
 macOS ではさらにターミナルアプリが最前面にあるときは、通知を出しません。
 
+通知は少し遅らせて（`notify.delay`、既定は 2 秒）送ります。その間に Claude
+が動き出した場合は、通知を送りません。バックグラウンドの処理を待つために
+Claude がいったん応答を終え、処理が終わると自動で再開する場合に備えたもの
+です。
+
                                                             *claude-deck-notify*
 通知の出し方は `notify.method` で選べます。`notify.notifier` を設定した
 場合はそちらが優先されます。
@@ -313,6 +318,8 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
     notify.enabled        （既定: true）
     notify.states         （既定: { "waiting", "attention" }）
     notify.skip_when_watching  （既定: true）
+    notify.delay          送るまでの待ち時間（ミリ秒）。0 ですぐに送る
+                          （既定: 2000）
     notify.method         "auto"、"terminal-notifier"、"osc"、"osascript"、
                           "notify-send" のいずれか。|claude-deck-notify|
                           を参照（既定: "auto"）

@@ -215,6 +215,8 @@ With `statusline = false`, or with `'laststatus'` set to 3 (one global statuslin
 
 ### Notifications
 
+Notifications are sent after a short delay (`notify.delay`, 2 seconds by default). If Claude resumes in the meantime, nothing is sent. This covers the case where Claude finishes its turn while waiting for a background process and continues by itself when the process ends.
+
 A notification is skipped only when all of these hold:
 
 1. Neovim has focus (`FocusGained` / `FocusLost`)
@@ -280,6 +282,7 @@ require("claude-deck").setup({
         enabled = true,
         states = { "waiting", "attention" },
         skip_when_watching = true,
+        delay = 2000, -- milliseconds to wait before sending; 0 to send at once
         method = "auto", -- "terminal-notifier", "osc", "osascript" or "notify-send"
         notifier = nil, -- function({ title, subtitle, body, state, terminal })
     },

@@ -332,6 +332,20 @@ check "notifier function: no notify.method check" "$(lua 'T_notify(function() re
 check "notifier function takes precedence over notify.method" "$(lua '(function() _G.notifications = {}; local c = require("claude-deck.config"); c.options.notify.skip_when_watching = false; require("claude-deck.notify").on_state(require("claude-deck.state").sorted()[1], "waiting"); return table.concat(_G.notifications, ";") end)()')" "Claude: Waiting |"
 lua '(function() require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
 
+# Delayed notifications
+delay_case() { # delay, Lua statements run after setup (terminal #1, unwatched); prints the notifications
+    lua '(function() _G.notifications = {}; require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { notify = { delay = '"$1"', skip_when_watching = false } })); local s = require("claude-deck.state"); local t = s.get(1); '"$2"'; return "[" .. table.concat(_G.notifications, ";") .. "]" end)()'
+}
+check "notification is dropped when Claude resumes within the delay" "$(delay_case 300 'local o = t.state; s.set_state(t, "waiting"); s.set_state(t, "running"); vim.wait(400); s.set_state(t, o)')" "[]"
+check "notification is sent after the delay" "$(delay_case 300 'local o = t.state; s.set_state(t, "waiting"); local early = #_G.notifications; vim.wait(400); s.set_state(t, o); _G.notifications[#_G.notifications + 1] = "early=" .. early')" "[Claude: Waiting | "
+check "nothing is sent before the delay has passed" "$(lua '_G.notifications[#_G.notifications]')" "early=0"
+check "attention replaces a pending waiting notification" "$(delay_case 300 'local o = t.state; s.set_state(t, "waiting"); s.set_state(t, "attention"); vim.wait(400); s.set_state(t, o)')" "[Claude: Needs you | "
+check "only the attention notification is sent" "$(lua '#_G.notifications')" "1"
+check "removed terminal gets no delayed notification" "$(delay_case 300 'local o = t.state; s.set_state(t, "waiting"); s.terminals[t.id] = nil; vim.wait(400); s.terminals[t.id] = t; s.set_state(t, o)')" "[]"
+check "invalid notify.delay warns" "$(lua 'T_notify(function() require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { notify = { delay = -1 } })) end)')" "invalid notify.delay -1"
+check "invalid notify.delay falls back to 2000" "$(lua '(function() local r = {}; for _, v in ipairs({ "x", -5 }) do T_notify(function() require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { notify = { delay = v } })) end); table.insert(r, require("claude-deck.config").options.notify.delay) end; return table.concat(r, " ") end)()')" "2000 2000"
+lua '(function() require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
+
 # User command
 check "user command completion" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck f", "cmdline"), ",")')" "focus,fork"
 check "user command completion has location" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck l", "cmdline"), ",")')" "list,location"

@@ -21,6 +21,7 @@ _G.T_opts = {
     zoxide = false,
     picker = "fzf-lua",
     notify = {
+        delay = 0,
         notifier = function(payload)
             table.insert(_G.notifications, payload.title .. " | " .. payload.subtitle)
         end,

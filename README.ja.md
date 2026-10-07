@@ -217,6 +217,8 @@ require("claude-deck").setup({ renderer = "fullscreen" }) -- または renderer 
 
 ### 通知
 
+通知は少し遅らせて（`notify.delay`、既定は 2 秒）送ります。その間に Claude が動き出した場合は、通知を送りません。バックグラウンドの処理を待つために Claude がいったん応答を終え、処理が終わると自動で再開する場合に備えたものです。
+
 次の条件をすべて満たすときだけ、通知を出しません。
 
 1. Neovim にフォーカスがある（`FocusGained` / `FocusLost`）
@@ -282,6 +284,7 @@ require("claude-deck").setup({
         enabled = true,
         states = { "waiting", "attention" },
         skip_when_watching = true,
+        delay = 2000, -- 送るまでの待ち時間（ミリ秒）。0 ですぐに送る
         method = "auto", -- "terminal-notifier"、"osc"、"osascript"、"notify-send"
         notifier = nil, -- function({ title, subtitle, body, state, terminal })
     },

@@ -229,6 +229,11 @@ takes precedence. `/clear` resets the title, except one set with rename().
 A notification is skipped when Neovim has focus, the current window shows
 that terminal and, on macOS, the terminal app is the frontmost app.
 
+Notifications are sent after a short delay (`notify.delay`, 2 seconds by
+default). If Claude resumes in the meantime, nothing is sent. This covers
+Claude finishing its turn while it waits for a background process and
+continuing by itself when the process ends.
+
                                                             *claude-deck-notify*
 `notify.method` chooses how notifications are sent. `notify.notifier`, when
 set, takes precedence.
@@ -302,6 +307,8 @@ precedence: `ct title` refuses to change it, and Claude uses
     notify.enabled        (default: true)
     notify.states         (default: { "waiting", "attention" })
     notify.skip_when_watching  (default: true)
+    notify.delay          milliseconds to wait before sending; 0 sends at
+                          once  (default: 2000)
     notify.method         "auto", "terminal-notifier", "osc", "osascript"
                           or "notify-send"; see |claude-deck-notify|
                           (default: "auto")

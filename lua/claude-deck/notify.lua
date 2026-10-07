@@ -186,36 +186,72 @@ local function is_watching(term, callback)
     terminal_is_frontmost(vim.schedule_wrap(callback))
 end
 
+-- Pending delayed notification per terminal id
+local pending = {}
+
+local function cancel(id)
+    local timer = pending[id]
+    pending[id] = nil
+    if timer and not timer:is_closing() then
+        timer:stop()
+        timer:close()
+    end
+end
+
 function M.on_state(term, new_state, message)
+    -- A new state change replaces the notification still waiting for its delay
+    cancel(term.id)
+
     local opts = config.options.notify
     if not opts.enabled or not vim.tbl_contains(opts.states, new_state) then
         return
     end
 
-    local payload = {
-        title = "Claude: " .. state.label(new_state),
-        subtitle = state.title(term),
-        body = message or vim.fn.fnamemodify(term.cwd, ":~"),
-        state = new_state,
-        terminal = term,
-    }
-    local function send()
-        if opts.notifier then
-            opts.notifier(payload)
-        else
-            M.desktop_notify(payload.title, payload.subtitle, payload.body, term.id)
+    local function notify()
+        local payload = {
+            title = "Claude: " .. state.label(new_state),
+            subtitle = state.title(term),
+            body = message or vim.fn.fnamemodify(term.cwd, ":~"),
+            state = new_state,
+            terminal = term,
+        }
+        local function send()
+            if opts.notifier then
+                opts.notifier(payload)
+            else
+                M.desktop_notify(payload.title, payload.subtitle, payload.body, term.id)
+            end
         end
+
+        if not opts.skip_when_watching then
+            send()
+            return
+        end
+        is_watching(term, function(watching)
+            if not watching then
+                send()
+            end
+        end)
     end
 
-    if not opts.skip_when_watching then
-        send()
+    local delay = opts.delay
+    if not delay or delay <= 0 then
+        notify()
         return
     end
-    is_watching(term, function(watching)
-        if not watching then
-            send()
+    local timer
+    timer = vim.defer_fn(function()
+        if pending[term.id] == timer then
+            pending[term.id] = nil
+        else
+            return
         end
-    end)
+        -- Still the same state, and the terminal still exists
+        if state.terminals[term.id] == term and term.state == new_state then
+            notify()
+        end
+    end, delay)
+    pending[term.id] = timer
 end
 
 return M
