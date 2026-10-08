@@ -354,8 +354,85 @@ check "invalid notify.delay warns" "$(lua 'T_notify(function() require("claude-d
 check "invalid notify.delay falls back to 2000" "$(lua '(function() local r = {}; for _, v in ipairs({ "x", -5 }) do T_notify(function() require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { notify = { delay = v } })) end); table.insert(r, require("claude-deck.config").options.notify.delay) end; return table.concat(r, " ") end)()')" "2000 2000"
 lua '(function() require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
 
+# redraw(): the job is stopped and the same session resumed with the same id in a new buffer
+redraw_term() { # opens a terminal in a new tab; prints its id
+    lua '(function() vim.cmd("tabnew"); require("claude-deck").new(); vim.cmd("stopinsert"); return vim.b.claude_deck_id end)()'
+}
+wait_resumed() { # id: waits until the dummy of terminal $1 got --resume
+    i=0
+    while ! grep -q -- "--resume" "$TEST_OUT/args.$1" 2>/dev/null && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+    sleep 0.3
+}
+capture_notify='_G.T_msgs = {}; _G.T_orig_notify = vim.notify; vim.notify = function(m) table.insert(_G.T_msgs, m) end'
+captured='(function() vim.notify = _G.T_orig_notify; vim.cmd("stopinsert"); return table.concat(_G.T_msgs, ";") end)()'
+RT=$(redraw_term)
+sleep 0.3
+check "redraw without a session id warns" "$(lua 'T_notify(require("claude-deck").redraw)')" "session id is known"
+hook "$RT" SessionStart '{"session_id":"sess-redraw"}'
+hook "$RT" UserPromptSubmit '{"prompt":"Redraw me"}'
+check "redraw while running warns" "$(lua 'T_notify(require("claude-deck").redraw)')" "claude-deck: wait until Claude finishes (state: running)"
+check "redraw while running does not resume" "$(tr '\n' ' ' <"$TEST_OUT/args.$RT")" "--append-system-prompt"
+case "$(cat "$TEST_OUT/args.$RT")" in
+*--resume*) echo "FAIL - redraw while running starts nothing"; failures=$((failures + 1)) ;;
+*) echo "ok   - redraw while running starts nothing" ;;
+esac
+hook "$RT" Notification '{"message":"Allow?"}'
+check "redraw while attention warns" "$(lua 'T_notify(require("claude-deck").redraw)')" "(state: attention)"
+hook "$RT" Stop '{}'
+sent "$RT" >/dev/null
+rm -f "$TEST_OUT/env.$RT"
+lua '(function() _G.T_old_buf = vim.api.nvim_get_current_buf(); '"$capture_notify"'; vim.cmd("ClaudeDeck redraw"); require("claude-deck").redraw(); return "" end)()' >/dev/null
+wait_resumed "$RT"
+check "redraw types nothing into the prompt" "$(sent "$RT")" "[]"
+check "redraw resumes the session" "$(tr '\n' ' ' <"$TEST_OUT/args.$RT")" "--resume sess-redraw"
+check "redraw keeps --settings" "$(cat "$TEST_OUT/args.$RT")" "claude-deck-hook"
+check "redraw keeps the system prompt with the same id" "$(cat "$TEST_OUT/args.$RT")" "terminal #$RT of claude-deck"
+check "redraw reports when done (and once while redrawing)" "$(lua "$captured")" "claude-deck: #$RT is being redrawn;claude-deck: redrew #$RT"
+check "redraw keeps the id in a new buffer in the same window" "$(lua 'tostring(vim.b.claude_deck_id) .. " " .. tostring(vim.api.nvim_get_current_buf() ~= _G.T_old_buf) .. " " .. tostring(vim.api.nvim_buf_is_valid(_G.T_old_buf)) .. " " .. #vim.api.nvim_tabpage_list_wins(0)')" "$RT true false 1"
+check "redraw keeps the winbar number and title" "$(lua 'T_winbar()')" "#$RT New │ Redraw me"
+check "redrawn terminal is registered with the new buffer" "$(lua '(function() local s = require("claude-deck.state").get(_G.T_redraw_term or vim.b.claude_deck_id); return tostring(s.buf == vim.api.nvim_get_current_buf()) .. " " .. s.state .. " " .. vim.api.nvim_buf_get_name(0):match("claude:#.*") end)()')" "true idle claude:#$RT Redraw me"
+check "redrawn terminal has scrollback and keymaps" "$(lua 'vim.bo.buftype .. " " .. vim.bo.scrollback .. " " .. vim.fn.maparg("<C-]>", "t", false, true).desc')" "terminal 100000 Send <Esc> to Claude"
+check "redrawn terminal gets the renderer" "$(cat "$TEST_OUT/env.$RT" 2>/dev/null)" "CLAUDE_CODE_NO_FLICKER=0"
+hook "$RT" SessionStart '{"source":"resume","session_id":"sess-redraw"}'
+check "SessionStart from resume keeps the title" "$(lua 'T_winbar()')" "#$RT New │ Redraw me"
+# idle (resumed, no prompt yet) can be redrawn
+lua '(function() '"$capture_notify"'; require("claude-deck").redraw(); return "" end)()' >/dev/null
+sleep 1
+check "redraw while idle" "$(lua "$captured")" "claude-deck: redrew #$RT"
+# exited: started again directly
+lua '(function() local t = require("claude-deck.state").get('"$RT"'); vim.fn.jobstop(t.job); vim.wait(3000, function() return t.state == "exited" end); return "" end)()' >/dev/null
+rm -f "$TEST_OUT/args.$RT"
+check "redraw of an exited terminal starts it at once" "$(lua '(function() local s = require("claude-deck.state"); local old = vim.api.nvim_get_current_buf(); '"$capture_notify"'; require("claude-deck").redraw(); return tostring(s.get('"$RT"').buf ~= old) .. " " .. s.get('"$RT"').state .. " " .. '"$captured"' end)()')" "true idle claude-deck: redrew #$RT"
+wait_resumed "$RT"
+check "exited terminal resumes the session" "$(tr '\n' ' ' <"$TEST_OUT/args.$RT")" "--resume sess-redraw"
+# The old buffer is wiped while waiting: the terminal is gone and nothing is started
+lua '(function() _G.T_rtab = vim.api.nvim_get_current_tabpage(); local cd = require("claude-deck"); cd._redraw_timeout = 3000; local s = require("claude-deck.state"); local t = s.get('"$RT"'); local saved = vim.fn.jobstop; vim.fn.jobstop = function() return 1 end; cd.redraw(); vim.fn.jobstop = saved; vim.cmd("bwipe! " .. t.buf); return "" end)()' >/dev/null
+rm -f "$TEST_OUT/args.$RT"
+sleep 0.5
+check "wiping the buffer while waiting removes the terminal" "$(lua 'tostring(require("claude-deck.state").get('"$RT"'))')" "nil"
+check "wiping the buffer while waiting starts nothing" "[$(cat "$TEST_OUT/args.$RT" 2>/dev/null)]" "[]"
+lua '(function() require("claude-deck")._redraw_timeout = 5000; if vim.api.nvim_tabpage_is_valid(_G.T_rtab) then vim.cmd(vim.api.nvim_tabpage_get_number(_G.T_rtab) .. "tabclose!") end; return "" end)()' >/dev/null
+# A job that ignores SIGTERM / SIGHUP: give up after the timeout
+lua '(function() local o = vim.deepcopy(T_opts); o.cmd = { "sh", "-c", "trap \"\" TERM HUP; while :; do sleep 0.1; done" }; require("claude-deck").setup(o); return "" end)()' >/dev/null
+RT=$(redraw_term)
+lua '(function() require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
+sleep 0.3
+hook "$RT" SessionStart '{"session_id":"sess-stuck"}'
+check "redraw gives up when the job does not exit" "$(lua '(function() local cd = require("claude-deck"); cd._redraw_timeout = 300; '"$capture_notify"'; cd.redraw(); vim.wait(1000, function() return #_G.T_msgs > 0 end); cd._redraw_timeout = 5000; return '"$captured"' end)()')" "claude-deck: #$RT did not exit; not redrawn"
+check "redraw can be retried after giving up" "$(lua 'tostring(require("claude-deck.state").get('"$RT"').redrawing)')" "nil"
+lua '(function() local t = require("claude-deck.state").get('"$RT"'); vim.wait(4000, function() return t.state == "exited" end); vim.cmd("tabclose!"); return "" end)()' >/dev/null
+# The window is closed while waiting: no window is opened, the terminal is dropped
+RT=$(redraw_term)
+sleep 0.3
+hook "$RT" SessionStart '{"session_id":"sess-closed"}'
+lua '(function() vim.cmd("vsplit | enew"); local edit = vim.api.nvim_get_current_win(); vim.cmd("wincmd p"); '"$capture_notify"'; require("claude-deck").redraw(); vim.api.nvim_win_close(0, true); return "" end)()' >/dev/null
+sleep 1
+check "closed window: redraw warns and stops" "$(lua "$captured")|$(lua '#vim.api.nvim_tabpage_list_wins(0) .. " " .. tostring(require("claude-deck.state").get('"$RT"'))')" "claude-deck: window for #$RT was closed; not redrawn|1 nil"
+lua '(function() vim.cmd("tabclose!"); return "" end)()' >/dev/null
+
 # User command
 check "user command completion" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck f", "cmdline"), ",")')" "focus,fork"
+check "user command completion has redraw" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck re", "cmdline"), ",")')" "redraw,rename"
 check "user command completion has location" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck l", "cmdline"), ",")')" "list,location"
 
 messages=$(lua 'vim.api.nvim_exec2("messages", { output = true }).output')

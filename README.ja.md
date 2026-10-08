@@ -59,6 +59,7 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
         { "<leader>cf", function() require("claude-deck").fork() end, desc = "Claude: セッションを分岐" },
         { "<leader>cr", function() require("claude-deck").rename() end, desc = "Claude: タスク名を変更" },
         { "<leader>co", function() require("claude-deck").focus() end, desc = "Claude: 集中モード" },
+        { "<leader>cR", function() require("claude-deck").redraw() end, desc = "Claude: 表示を描き直す" },
         { "<leader>cp", function() require("claude-deck").send_location() end, mode = { "n", "x" }, desc = "Claude: ファイルの場所を渡す" },
     },
 }
@@ -85,6 +86,7 @@ opts = {
 | `pick_dir(opts?)` | `:ClaudeDeck dir` | ディレクトリを選んで新しいターミナルを開きます |
 | `fork(where?)` | `:ClaudeDeck fork` | 今のセッションを分岐させた新しいターミナルを開きます |
 | `rename()` | `:ClaudeDeck rename` | 今のタスク名を変更します |
+| `redraw()` | `:ClaudeDeck redraw` | 同じセッションを開き直して、今のターミナルを今の幅で描き直します |
 | `show_settings()` | `:ClaudeDeck settings` | Claude Code に渡す設定の JSON（hook と権限）を表示します |
 | `focus()` | `:ClaudeDeck focus` | 集中モードを切り替えます |
 | `send_location()` | `:ClaudeDeck location` | 今のファイルのパスと行（または選択した行の範囲）を Claude の入力欄に挿入します |
@@ -358,7 +360,7 @@ opts = {
 - macOS で、ターミナルアプリの中でタブやペインを切り替えても、フォーカスが外れたとは判定されません。
 - ターミナルは 1 つの Neovim の中だけで管理しているため、Neovim を終了すると消えます（セッションは `claude --resume` で再開できます）。`:qa`（または動いているターミナル以外の window での `:q`）で Neovim を終了すると、確認なしで Claude のセッションもすべて終了します。
 - `:q!` と `ZQ` はターミナルのバッファを破棄するため、Neovim が終了しない場合でもその Claude のセッションは終了します。
-- classic では、window が狭くなったとき（集中モードを開いたときなど）に、Claude Code がそれまでの出力の一部を消し損ね、古い出力の断片（行の末尾だけが残った行など）がスクロールバックに残ることがあります。これは普通のターミナルで大きさを変えたときの classic の挙動と同じで、プラグインからは防げず、Ctrl+L でも断片は消えませんが、新しい出力と入力欄は正しく描画されます。window の大きさを頻繁に変えるなら `renderer = "fullscreen"` にするか、集中モードを使い終えてメインのタブに戻り、Claude に何か出力させれば、以降は正常に描画されます。
+- classic では、window が狭くなったとき（集中モードを開いたときなど）に、Claude Code がそれまでの出力の一部を消し損ね、古い出力の断片（行の末尾だけが残った行など）がスクロールバックに残ることがあります。これは普通のターミナルで大きさを変えたときの classic の挙動と同じで、プラグインからは防げず、Ctrl+L でも断片は消えませんが、新しい出力と入力欄は正しく描画されます。window の大きさを頻繁に変えるなら `renderer = "fullscreen"` にするか、集中モードを使い終えてメインのタブに戻り、Claude に何か出力させれば、以降は正常に描画されます。断片を消すには、Claude が入力を待っているときに `redraw()`（`:ClaudeDeck redraw`）を実行します。Claude Code を終了し、同じ window で同じセッションを `claude --resume` で開き直すので、会話全体が今の幅で描き直されます。数秒かかります。
 
 ## ヘルプ
 

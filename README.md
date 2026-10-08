@@ -59,6 +59,7 @@ The hook script and `ct` are POSIX `sh` scripts that call `nvim --server`, so `n
         { "<leader>cf", function() require("claude-deck").fork() end, desc = "Claude: fork session" },
         { "<leader>cr", function() require("claude-deck").rename() end, desc = "Claude: rename task" },
         { "<leader>co", function() require("claude-deck").focus() end, desc = "Claude: focus mode" },
+        { "<leader>cR", function() require("claude-deck").redraw() end, desc = "Claude: redraw terminal" },
         { "<leader>cp", function() require("claude-deck").send_location() end, mode = { "n", "x" }, desc = "Claude: send file location" },
     },
 }
@@ -85,6 +86,7 @@ opts = {
 | `pick_dir(opts?)` | `:ClaudeDeck dir` | Pick a directory and open a new terminal there |
 | `fork(where?)` | `:ClaudeDeck fork` | Fork the current session into a new terminal |
 | `rename()` | `:ClaudeDeck rename` | Rename the current task |
+| `redraw()` | `:ClaudeDeck redraw` | Draw the current terminal again at the current width by resuming the same session |
 | `show_settings()` | `:ClaudeDeck settings` | Show the Claude Code settings JSON (hooks, permissions) |
 | `focus()` | `:ClaudeDeck focus` | Toggle focus mode |
 | `send_location()` | `:ClaudeDeck location` | Insert the current file path and line (or selected lines) into Claude's prompt |
@@ -341,7 +343,7 @@ To keep them, add the hooks to your own Claude Code settings (e.g. `~/.claude/se
 - On macOS, switching tabs or panes inside the terminal app is not detected as losing focus.
 - Terminals live in one Neovim instance and are lost when Neovim exits (sessions can be resumed with `claude --resume`). Quitting Neovim with `:qa` (or `:q` on a window that is not a running terminal) ends every Claude session without asking.
 - `:q!` and `ZQ` discard the terminal buffer, which ends that Claude session even when Neovim stays open.
-- With the classic renderer, when the window gets narrower (for example when focus mode opens), Claude Code may fail to erase part of its earlier output, so fragments of stale output (such as the tail of a line) can remain in the scrollback. This is how the classic renderer behaves in any terminal when it is resized, the plugin cannot prevent it, and Ctrl+L does not remove the fragments; new output and the prompt are drawn correctly. If you resize windows often, use `renderer = "fullscreen"`; otherwise return to the main tab after focus mode and let Claude print something, and drawing is normal from then on.
+- With the classic renderer, when the window gets narrower (for example when focus mode opens), Claude Code may fail to erase part of its earlier output, so fragments of stale output (such as the tail of a line) can remain in the scrollback. This is how the classic renderer behaves in any terminal when it is resized, the plugin cannot prevent it, and Ctrl+L does not remove the fragments; new output and the prompt are drawn correctly. If you resize windows often, use `renderer = "fullscreen"`; otherwise return to the main tab after focus mode and let Claude print something, and drawing is normal from then on. To clean up the fragments, run `redraw()` (`:ClaudeDeck redraw`) while Claude is waiting for input: it stops Claude Code and resumes the same session with `claude --resume` in the same window, so the whole conversation is drawn again at the current width. It takes a few seconds.
 
 ## Help
 

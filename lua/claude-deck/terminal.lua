@@ -62,10 +62,15 @@ function M.fit_pty(win)
 end
 
 -- Starts Claude Code in `win`. `extra_args` are appended to the command.
-function M.start(win, cwd, extra_args)
+-- opts.reuse: an exited terminal to start again in a new buffer, keeping its id, title and cwd
+-- (redraw()). Its old buffer is deleted.
+function M.start(win, cwd, extra_args, start_opts)
     local opts = config.options
-    local id = state.next_id
-    state.next_id = state.next_id + 1
+    local reuse = start_opts and start_opts.reuse
+    local id = reuse and reuse.id or state.next_id
+    if not reuse then
+        state.next_id = state.next_id + 1
+    end
 
     local buf = vim.api.nvim_create_buf(true, false)
     vim.api.nvim_win_set_buf(win, buf)
@@ -73,8 +78,19 @@ function M.start(win, cwd, extra_args)
     vim.b[buf].claude_deck_id = id
     set_keymaps(buf)
 
-    local term = { id = id, buf = buf, cwd = cwd, title = "", state = "idle" }
-    state.add(term)
+    local term, old_buf
+    if reuse then
+        term, old_buf = reuse, reuse.buf
+        -- The old buffer no longer belongs to the terminal, so that deleting it (BufDelete)
+        -- does not remove the terminal from the registry
+        if vim.api.nvim_buf_is_valid(old_buf) then
+            vim.b[old_buf].claude_deck_id = nil
+        end
+        term.buf, term.job, term.state = buf, nil, "idle"
+    else
+        term = { id = id, buf = buf, cwd = cwd, title = "", state = "idle" }
+        state.add(term)
+    end
 
     local cmd = vim.deepcopy(opts.cmd)
     if opts.claude_settings then
@@ -93,19 +109,23 @@ function M.start(win, cwd, extra_args)
         env.CLAUDE_CODE_NO_FLICKER = renderer_env[opts.renderer]
     end
 
-    term.job = vim.fn.jobstart(cmd, {
-        term = true,
-        cwd = cwd,
-        env = env,
-        on_exit = function()
-            vim.schedule(function()
-                if state.get(id) then
-                    term.state = "exited"
-                    ui.redraw()
-                end
-            end)
-        end,
-    })
+    -- jobstart() turns the current buffer into the terminal; `win` need not be the current window
+    vim.api.nvim_buf_call(buf, function()
+        term.job = vim.fn.jobstart(cmd, {
+            term = true,
+            cwd = cwd,
+            env = env,
+            on_exit = function(job)
+                vim.schedule(function()
+                    -- Not when the terminal has been started again with a new job (redraw())
+                    if state.get(id) == term and term.job == job then
+                        term.state = "exited"
+                        ui.redraw()
+                    end
+                end)
+            end,
+        })
+    end)
 
     -- 'scrollback' can only be set once the buffer is a terminal. Validated in config.setup();
     -- pcall so that a bad value never leaves a half-set-up terminal.
@@ -115,10 +135,22 @@ function M.start(win, cwd, extra_args)
         end)
     end
 
-    -- jobstart() names the buffer "term://…"; use a readable name instead
-    state.set_title(term, "")
+    if old_buf and vim.api.nvim_buf_is_valid(old_buf) then
+        -- Other windows showing the old buffer show the new one instead of being closed
+        for _, w in ipairs(vim.fn.win_findbuf(old_buf)) do
+            vim.api.nvim_win_set_buf(w, buf)
+            ui.style_window(w)
+        end
+        pcall(vim.api.nvim_buf_delete, old_buf, { force = true })
+    end
+
+    -- jobstart() names the buffer "term://…"; use a readable name instead (after deleting the
+    -- old buffer, which has the same name)
+    state.set_title(term, term.title, term.title_source)
     ui.style_window(win)
-    vim.cmd("startinsert")
+    if vim.api.nvim_get_current_win() == win then
+        vim.cmd("startinsert")
+    end
     return term
 end
 

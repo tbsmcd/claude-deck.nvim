@@ -105,6 +105,14 @@ rename()                                                *claude-deck.rename()*
     今のターミナルのタスク名を変更します。ここで付けた名前は、Claude が
     `ct title` で付ける名前より優先されます（|claude-deck-ct|）。
 
+redraw()                                                *claude-deck.redraw()*
+    今のターミナルを今の window の幅で描き直します。Claude Code を終了し、
+    同じ window の新しいバッファで `claude --resume <session>` を実行して、
+    同じセッションを開き直します。番号とタスク名はそのままです。Claude が
+    入力を待っているとき（または終了しているとき）だけ使え、数秒かかります。
+    classic で残る古い出力の断片（|claude-deck-limitations|）を消すのに
+    使います。
+
 focus()                                                  *claude-deck.focus()*
     ターミナルの中では、「ファイルツリー ｜ エディタ ｜ ターミナル」を並べた
     新しいタブを開き、ターミナルの cwd に |:tcd| します。そのタブの中では、
@@ -389,6 +397,9 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
   らは防げず、Ctrl+L でも断片は消えません。新しい出力と入力欄は正しく描画
   されます。window の大きさを頻繁に変えるなら `renderer = "fullscreen"` に
   するか、集中モードを使い終えてメインのタブに戻り、Claude に何か出力させ
-  れば、以降は正常に描画されます。
+  れば、以降は正常に描画されます。断片を消すには、Claude が入力を待って
+  いるときに |claude-deck.redraw()| を実行します。Claude Code を終了し、
+  同じ window で同じセッションを `claude --resume` で開き直すので、会話
+  全体が今の幅で描き直されます。数秒かかります。
 
  vim:tw=78:ts=8:ft=help:norl:

@@ -373,6 +373,91 @@ function M.fork(where)
     state.set_title(term, "↳" .. (parent.title ~= "" and parent.title or ("#" .. parent.id)), "auto")
 end
 
+-- How long redraw() waits for Claude Code to exit after jobstop() (ms). Changed by the tests.
+M._redraw_timeout = 5000
+
+-- Redraw the current terminal: stop Claude Code and resume the same session in a new buffer
+-- in the same window, so that the whole conversation is drawn again at the current width.
+-- Only while Claude is idle, waiting for input or has exited. Returns at once; reports when done.
+function M.redraw()
+    ensure_setup()
+    local term = state.current()
+    if not term then
+        vim.notify("claude-deck: run this inside a terminal", vim.log.levels.WARN)
+        return
+    end
+    if term.redrawing then
+        vim.notify(string.format("claude-deck: #%d is being redrawn", term.id), vim.log.levels.INFO)
+        return
+    end
+    if not term.session_id then
+        vim.notify(
+            "claude-deck: run this inside a terminal whose session id is known (needs the hooks)",
+            vim.log.levels.WARN
+        )
+        return
+    end
+    if term.state ~= "waiting" and term.state ~= "idle" and term.state ~= "exited" then
+        vim.notify(
+            string.format("claude-deck: wait until Claude finishes (state: %s)", term.state),
+            vim.log.levels.WARN
+        )
+        return
+    end
+
+    local win = vim.api.nvim_get_current_win()
+    local session_id = term.session_id
+
+    local function restart()
+        term.redrawing = nil
+        -- The terminal was removed (its buffer deleted) while Claude Code was exiting
+        if state.get(term.id) ~= term then
+            return
+        end
+        -- Do not open a window the user did not ask for: give up and drop the exited terminal
+        if not vim.api.nvim_win_is_valid(win) or vim.api.nvim_win_get_buf(win) ~= term.buf then
+            vim.notify(
+                string.format("claude-deck: window for #%d was closed; not redrawn", term.id),
+                vim.log.levels.WARN
+            )
+            if vim.api.nvim_buf_is_valid(term.buf) then
+                pcall(vim.api.nvim_buf_delete, term.buf, { force = true })
+            end
+            state.remove(term.id)
+            return
+        end
+        terminal.start(win, term.cwd, { "--resume", session_id }, { reuse = term })
+        vim.notify(string.format("claude-deck: redrew #%d", term.id), vim.log.levels.INFO)
+    end
+
+    if term.state == "exited" then
+        restart()
+        return
+    end
+
+    -- Stop the job instead of typing `/exit`, which would be appended to an unsent prompt.
+    -- on_exit (in terminal.start()) sets "exited" for this job.
+    term.redrawing = true
+    local job = term.job
+    pcall(vim.fn.jobstop, job)
+    local timer = assert(vim.uv.new_timer())
+    local waited, timeout = 0, M._redraw_timeout
+    timer:start(50, 50, vim.schedule_wrap(function()
+        if timer:is_closing() then
+            return
+        end
+        waited = waited + 50
+        if (term.state == "exited" and term.job == job) or state.get(term.id) ~= term then
+            timer:close()
+            restart()
+        elseif waited >= timeout then
+            timer:close()
+            term.redrawing = nil
+            vim.notify(string.format("claude-deck: #%d did not exit; not redrawn", term.id), vim.log.levels.WARN)
+        end
+    end))
+end
+
 -- Show the Claude Code settings JSON (hooks and `ct` permissions) in a scratch buffer,
 -- for adding to your own settings when `claude_settings` is false.
 function M.show_settings()
@@ -438,6 +523,9 @@ local SUBCOMMANDS = {
     end,
     rename = function()
         M.rename()
+    end,
+    redraw = function()
+        M.redraw()
     end,
     focus = function()
         M.focus()

@@ -106,6 +106,15 @@ rename()                                                  *claude-deck.rename()*
     Rename the current terminal's task. This title takes precedence over
     the one Claude sets with `ct title` (|claude-deck-ct|).
 
+redraw()                                                  *claude-deck.redraw()*
+    Draw the current terminal again at the current window width: stop
+    Claude Code and resume the same session with
+    `claude --resume <session>` in a new buffer in the same window. The
+    terminal keeps its number and title. Only while Claude is waiting for
+    input (or has exited); it takes a few seconds. Use it to clean up the
+    stale output fragments of the classic renderer
+    (|claude-deck-limitations|).
+
 focus()                                                    *claude-deck.focus()*
     Inside a terminal, open a new tab with file tree | editor | terminal and
     |:tcd| to the terminal's cwd. In that tab, close it and return to the
@@ -374,6 +383,10 @@ deficiencies. All are defined with `default = true` and can be overridden.
   not remove the fragments. New output and the prompt are drawn correctly.
   If you resize windows often, use `renderer = "fullscreen"`; otherwise
   return to the main tab after focus mode and let Claude print something,
-  and drawing is normal from then on.
+  and drawing is normal from then on. To clean up the fragments, run
+  |claude-deck.redraw()| while Claude is waiting for input: it stops Claude
+  Code and resumes the same session with `claude --resume` in the same
+  window, so the whole conversation is drawn again at the current width.
+  It takes a few seconds.
 
  vim:tw=78:ts=8:ft=help:norl:
