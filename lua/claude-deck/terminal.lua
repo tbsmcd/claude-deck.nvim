@@ -44,6 +44,23 @@ end
 -- so a value in Neovim's environment is inherited.
 local renderer_env = { classic = "0", fullscreen = "1" }
 
+-- Makes the pty of the terminal shown in `win` the size of `win` (height minus the winbar).
+-- Neovim only does this on entering a window and, when a buffer is shown in several windows,
+-- keeps one of their sizes. Skipped for exited terminals. Always called: the kernel sends no SIGWINCH for an unchanged size.
+function M.fit_pty(win)
+    if not win or not vim.api.nvim_win_is_valid(win) then
+        return
+    end
+    local buf = vim.api.nvim_win_get_buf(win)
+    local term = state.of_buf(buf)
+    local job = term and vim.b[buf].terminal_job_id
+    if not job or term.state == "exited" then
+        return
+    end
+    local width, height = vim.api.nvim_win_get_width(win), math.max(vim.api.nvim_win_get_height(win) - 1, 1)
+    pcall(vim.fn.jobresize, job, width, height)
+end
+
 -- Starts Claude Code in `win`. `extra_args` are appended to the command.
 function M.start(win, cwd, extra_args)
     local opts = config.options

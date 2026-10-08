@@ -75,6 +75,7 @@ function M.toggle()
 
     open_tree(term.cwd)
     vim.api.nvim_set_current_win(edit_win)
+    require("claude-deck.terminal").fit_pty(term_win)
 end
 
 return M

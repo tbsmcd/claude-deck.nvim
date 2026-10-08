@@ -130,10 +130,19 @@ function M.send(range)
         text = text .. "-" .. last
     end
 
-    -- As a bracketed paste, so that a path starting with "/" in an empty prompt is not taken
-    -- as a slash command typed key by key
-    vim.api.nvim_chan_send(vim.bo[term.buf].channel, "\27[200~" .. text .. " \27[201~")
+    -- Enter the terminal's window first: Neovim resizes the pty to the window only on entering
+    -- it, and text sent at the old width is drawn wrongly (the window scrolls sideways).
     vim.api.nvim_set_current_win(term_win)
+    local buf_of_term = term.buf
+    require("claude-deck.terminal").fit_pty(term_win)
+
+    -- As a bracketed paste, so that a path starting with "/" in an empty prompt is not taken
+    -- as a slash command typed key by key. Scheduled so that the pty size is updated first.
+    vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(buf_of_term) then
+            pcall(vim.api.nvim_chan_send, vim.bo[buf_of_term].channel, "\27[200~" .. text .. " \27[201~")
+        end
+    end)
 end
 
 return M

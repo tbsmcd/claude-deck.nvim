@@ -92,6 +92,11 @@ check "fork resumes the session" "$(tr '\n' ' ' <"$TEST_OUT/args.3")" "--resume 
 check "fork title" "$(lua 'T_winbar()')" "↳Refactor"
 
 # Focus mode opens a tab and returns
+lua '(function() vim.cmd("wincmd h"); _G.T_calls = {}; _G.T_jobresize = vim.fn.jobresize; vim.fn.jobresize = function(j, w, h) table.insert(_G.T_calls, w .. "x" .. h); return _G.T_jobresize(j, w, h) end; require("claude-deck").focus(); return "" end)()' >/dev/null
+check "focus mode resizes the pty to the terminal window" "$(lua '(function() local win = vim.fn.bufwinid(require("claude-deck.state").get(1).buf); return tostring(_G.T_calls[#_G.T_calls] == vim.api.nvim_win_get_width(win) .. "x" .. vim.api.nvim_win_get_height(win) - 1) end)()')" "true"
+lua '(function() _G.T_calls = {}; local win = vim.fn.bufwinid(require("claude-deck.state").get(1).buf); vim.api.nvim_win_set_width(win, vim.api.nvim_win_get_width(win) - 5); return "" end)()' >/dev/null
+sleep 0.3
+check "resizing the terminal window resizes the pty" "$(lua '(function() local win = vim.fn.bufwinid(require("claude-deck.state").get(1).buf); local ok = _G.T_calls[#_G.T_calls] == vim.api.nvim_win_get_width(win) .. "x" .. vim.api.nvim_win_get_height(win) - 1; vim.fn.jobresize = _G.T_jobresize; require("claude-deck").focus(); return tostring(ok) end)()')" "true"
 check "focus opens a tab in the terminal cwd" "$(lua '(function() vim.cmd("wincmd h"); require("claude-deck").focus(); return #vim.api.nvim_list_tabpages() .. " " .. vim.fn.getcwd() end)()')" "2 $ROOT"
 check "focus closes and returns" "$(lua '(function() require("claude-deck").focus(); return #vim.api.nvim_list_tabpages() .. " " .. vim.b.claude_deck_id end)()')" "1 1"
 
@@ -211,6 +216,9 @@ sent 1 >/dev/null
 lua '(function() vim.cmd("stopinsert"); require("claude-deck").focus(); _G.T_edit_win = vim.api.nvim_get_current_win(); vim.cmd("edit README.md"); vim.api.nvim_win_set_cursor(0, { 3, 0 }); return "" end)()' >/dev/null
 check "send_location in focus mode switches to the terminal" "$(lua '(function() require("claude-deck").send_location(); return tostring(vim.b.claude_deck_id) end)()')" "1"
 check "send_location sends the relative path and line" "$(sent 1)" "[<paste>README.md:3 </paste>]"
+to_editor
+check "send_location enters the terminal window before sending" "$(lua '(function() local orig, at = vim.api.nvim_chan_send, nil; vim.api.nvim_chan_send = function(...) at = vim.api.nvim_get_current_win(); return orig(...) end; require("claude-deck").send_location(); vim.wait(1000, function() return at ~= nil end); vim.api.nvim_chan_send = orig; return tostring(at == vim.fn.bufwinid(require("claude-deck.state").get(1).buf)) end)()')" "true"
+sent 1 >/dev/null
 sleep 0.2
 check "send_location leaves the terminal in terminal mode" "$(lua 'vim.api.nvim_get_mode().mode')" "t"
 to_editor

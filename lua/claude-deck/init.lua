@@ -142,6 +142,23 @@ function M.setup(opts)
             ui.on_buf_win_enter(args.buf)
         end,
     })
+    vim.api.nvim_create_autocmd({ "WinEnter", "BufWinEnter", "WinResized", "VimResized" }, {
+        group = group,
+        callback = function(args)
+            local terminal = require("claude-deck.terminal")
+            if args.event == "WinResized" then
+                for _, win in ipairs(vim.v.event.windows or {}) do
+                    terminal.fit_pty(win)
+                end
+            elseif args.event == "VimResized" then
+                for _, win in ipairs(state.wins_in_tab()) do
+                    terminal.fit_pty(win)
+                end
+            else
+                terminal.fit_pty(vim.api.nvim_get_current_win())
+            end
+        end,
+    })
     vim.api.nvim_create_autocmd("QuitPre", {
         group = group,
         callback = function()
