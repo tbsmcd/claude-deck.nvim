@@ -6,21 +6,64 @@ This guide walks through using claude-deck.nvim after you install it, following 
 
 ## 0. Assumptions in this guide
 
-claude-deck.nvim does not create any keymaps. This guide assumes the settings below. If your own `init.lua` differs, read the guide accordingly.
+**claude-deck.nvim does not create a single keymap.** Keys such as `<leader>cc` in this guide are the ones the author maps in their own `init.lua`. Without the same settings, pressing them does nothing: to use them, you have to add the mappings to your own `init.lua`.
+
+This guide assumes the settings below. If your own `init.lua` differs, read the guide accordingly.
 
 | Item | Assumed in this guide | Where it is set |
 |---|---|---|
-| `<leader>` | Space (`vim.g.mapleader = " "`) | Your `init.lua` |
-| Keys such as `<leader>cc` | As in the README installation example (lazy.nvim `keys`) | Your `init.lua` |
-| `<leader>cp` | `send_location()` is mapped with `mode = { "n", "x" }` | Your `init.lua` |
-| `<Esc>` in terminal mode | A mapping leaves terminal mode with `<Esc>` (the README's example) | Your `init.lua` |
-| `<C-h>` / `<C-j>` / `<C-k>` / `<C-l>` | Mappings move between windows in normal and terminal mode (the README's example) | Your `init.lua` |
-| fzf-lua, nvim-tree.lua | Installed (used for the split keys in the lists, directory browsing, and the focus mode tree) | Your plugin setup |
-| `laststatus` | `2` (a statusline per window; with `3`, the second line moves into the winbar) | Your `init.lua` |
+| `<leader>` | Space (`vim.g.mapleader = " "`) | Your own `init.lua` |
+| Keys such as `<leader>cc` | As in the README installation example (lazy.nvim `keys`) | Your own `init.lua` |
+| `<leader>cp` | `send_location()` is mapped with `mode = { "n", "x" }` | Your own `init.lua` |
+| `<Esc>` in terminal mode | A mapping leaves terminal mode with `<Esc>` (the README's example) | Your own `init.lua` |
+| `<C-h>` / `<C-j>` / `<C-k>` / `<C-l>` | Mappings move between windows in normal and terminal mode (the README's example) | Your own `init.lua` |
+| fzf-lua, nvim-tree.lua | Installed (used for the split keys in the lists, directory browsing, and the focus mode tree) | Your own plugin setup |
+| `laststatus` | `2` (a statusline per window; with `3`, the second line moves into the winbar) | Your own `init.lua` |
 | `dir_roots` | `{ "~/repos" }` (the place offered by `<leader>cd`) | The plugin's `opts` |
 | `terminal-notifier` | Installed (so that clicking a notification on macOS brings back the terminal app) | `brew install terminal-notifier` |
 
 Everything else (the renderer, the notification delay, `<C-q>` and `<C-]>`, and so on) is left at the plugin's defaults.
+
+### Example configuration
+
+The relevant part of the author's `init.lua`, which this guide assumes. Copy it into your own `init.lua` and change the keys as you like.
+
+```lua
+-- Settings in your own init.lua (taken from the author's init.lua)
+
+vim.g.mapleader = " "
+vim.opt.laststatus = 2
+
+-- lazy.nvim plugin spec
+{
+    "tbsmcd/claude-deck.nvim",
+    opts = {
+        dir_roots = { "~/repos" },
+    },
+},
+
+-- Keys for claude-deck.nvim
+local ct = require("claude-deck")
+vim.keymap.set("n", "<leader>cc", ct.toggle, { desc = "open/focus/grow claude terminal" })
+vim.keymap.set("n", "<leader>cv", function() ct.new("right") end, { desc = "claude terminal split right" })
+vim.keymap.set("n", "<leader>cs", function() ct.new("below") end, { desc = "claude terminal split below" })
+vim.keymap.set("n", "<leader>cl", ct.list, { desc = "list claude terminals" })
+vim.keymap.set("n", "<leader>cd", ct.pick_dir, { desc = "open claude terminal in directory" })
+vim.keymap.set("n", "<leader>cf", ct.fork, { desc = "fork claude terminal session" })
+vim.keymap.set("n", "<leader>cr", ct.rename, { desc = "rename claude terminal task" })
+vim.keymap.set("n", "<leader>co", ct.focus, { desc = "toggle tree/editor mode for claude terminal" })
+vim.keymap.set({ "n", "x" }, "<leader>cp", ct.send_location, { desc = "send file:line to claude terminal" })
+vim.keymap.set("n", "<leader>cR", ct.redraw, { desc = "redraw claude terminal (resume session)" })
+
+-- <Esc> leaves terminal mode (send Esc to Claude with <C-]> instead)
+vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]])
+
+-- <C-h/j/k/l> move between windows in normal and terminal mode
+for _, key in ipairs({ "h", "j", "k", "l" }) do
+    vim.keymap.set("n", "<C-" .. key .. ">", "<C-w>" .. key)
+    vim.keymap.set("t", "<C-" .. key .. ">", [[<C-\><C-n><C-w>]] .. key)
+end
+```
 
 ## 1. What this plugin does
 
@@ -233,7 +276,7 @@ On macOS, if `terminal-notifier` is installed, clicking a notification brings yo
 
 ## 10. Key reference
 
-These are the mappings from the setup in chapter 0 (the README installation example). The mappings for `<Esc>` and `<C-h>` etc. come from your own `init.lua`.
+**All of these come from the example configuration in chapter 0 (the author's `init.lua`).** The plugin does not provide them: unless you add the same mappings to your own `init.lua`, they do not work. The same goes for `<Esc>`, `<C-h>` and so on.
 
 | Key | Action |
 |---|---|
@@ -246,7 +289,8 @@ These are the mappings from the setup in chapter 0 (the README installation exam
 | `<leader>cr` | Rename the task |
 | `<leader>co` | Toggle focus mode |
 | `<leader>cp` | Send the file and line to Claude |
+| `<leader>cR` | Redraw the terminal (resume the session) |
 | `<C-q>` (in a terminal) | Leave terminal mode |
 | `<C-]>` (in a terminal) | Send Esc to Claude |
 
-To run them as commands, use `:ClaudeDeck` followed by a subcommand (`new`, `list`, `dir`, `fork`, `rename`, `focus`, `location`, `show`, `settings`).
+To run them as commands, use `:ClaudeDeck` followed by a subcommand (`new`, `list`, `dir`, `fork`, `rename`, `focus`, `location`, `redraw`, `show`, `settings`).

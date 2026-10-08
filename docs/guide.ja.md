@@ -6,21 +6,64 @@
 
 ## 0. このガイドの前提
 
-claude-deck.nvim はキーを割り当てません。このガイドは、次の設定がある前提で書いています。自分の `init.lua` が違う場合は読み替えてください。
+**claude-deck.nvim は、キーを 1 つも割り当てません。** このガイドに出てくる `<leader>cc` などのキーは、作者がユーザー自身の `init.lua` で割り当てているものです。同じ設定をしていなければ、これらのキーを押しても何も起こりません。使うには、ユーザー自身の `init.lua` に設定を書く必要があります。
+
+このガイドは、次の設定がある前提で書いています。ユーザー自身の `init.lua` が違う場合は読み替えてください。
 
 | 項目 | このガイドの前提 | どこで決まるか |
 |---|---|---|
-| `<leader>` | Space（`vim.g.mapleader = " "`） | 自分の `init.lua` |
-| `<leader>cc` などのキー | README のインストール例（lazy.nvim の `keys`）どおり | 自分の `init.lua` |
-| `<leader>cp` | `send_location()` を `mode = { "n", "x" }` で割り当てている | 自分の `init.lua` |
-| ターミナルモードの `<Esc>` | `<Esc>` でターミナルモードを抜ける mapping がある（README の参考設定） | 自分の `init.lua` |
-| `<C-h>` / `<C-j>` / `<C-k>` / `<C-l>` | ノーマルモードとターミナルモードで window を移動する mapping がある（README の参考設定） | 自分の `init.lua` |
-| fzf-lua、nvim-tree.lua | 入っている（一覧の分割キー、ディレクトリのたどり、集中モードのツリーに使う） | 自分のプラグイン設定 |
-| `laststatus` | `2`（window ごとのステータスライン。`3` にすると 2 行目は winbar にまとまる） | 自分の `init.lua` |
+| `<leader>` | Space（`vim.g.mapleader = " "`） | ユーザー自身の `init.lua` |
+| `<leader>cc` などのキー | README のインストール例（lazy.nvim の `keys`）どおり | ユーザー自身の `init.lua` |
+| `<leader>cp` | `send_location()` を `mode = { "n", "x" }` で割り当てている | ユーザー自身の `init.lua` |
+| ターミナルモードの `<Esc>` | `<Esc>` でターミナルモードを抜ける mapping がある（README の参考設定） | ユーザー自身の `init.lua` |
+| `<C-h>` / `<C-j>` / `<C-k>` / `<C-l>` | ノーマルモードとターミナルモードで window を移動する mapping がある（README の参考設定） | ユーザー自身の `init.lua` |
+| fzf-lua、nvim-tree.lua | 入っている（一覧の分割キー、ディレクトリのたどり、集中モードのツリーに使う） | ユーザー自身のプラグイン設定 |
+| `laststatus` | `2`（window ごとのステータスライン。`3` にすると 2 行目は winbar にまとまる） | ユーザー自身の `init.lua` |
 | `dir_roots` | `{ "~/repos" }`（`<leader>cd` の候補にする場所） | プラグインの `opts` |
 | `terminal-notifier` | インストール済み（macOS で通知のクリックからターミナルに戻るため） | `brew install terminal-notifier` |
 
 このほかの設定（表示方式、通知の遅延、`<C-q>` と `<C-]>` など）は、プラグインの既定値のままです。
+
+### 設定例
+
+このガイドの前提になっている、作者の `init.lua` の該当部分です。ユーザー自身の `init.lua` に写して、好みのキーに変えてください。
+
+```lua
+-- ユーザー自身の init.lua に書く設定（作者の init.lua から抜粋）
+
+vim.g.mapleader = " "
+vim.opt.laststatus = 2
+
+-- lazy.nvim のプラグイン指定
+{
+    "tbsmcd/claude-deck.nvim",
+    opts = {
+        dir_roots = { "~/repos" },
+    },
+},
+
+-- claude-deck.nvim のキー
+local ct = require("claude-deck")
+vim.keymap.set("n", "<leader>cc", ct.toggle, { desc = "open/focus/grow claude terminal" })
+vim.keymap.set("n", "<leader>cv", function() ct.new("right") end, { desc = "claude terminal split right" })
+vim.keymap.set("n", "<leader>cs", function() ct.new("below") end, { desc = "claude terminal split below" })
+vim.keymap.set("n", "<leader>cl", ct.list, { desc = "list claude terminals" })
+vim.keymap.set("n", "<leader>cd", ct.pick_dir, { desc = "open claude terminal in directory" })
+vim.keymap.set("n", "<leader>cf", ct.fork, { desc = "fork claude terminal session" })
+vim.keymap.set("n", "<leader>cr", ct.rename, { desc = "rename claude terminal task" })
+vim.keymap.set("n", "<leader>co", ct.focus, { desc = "toggle tree/editor mode for claude terminal" })
+vim.keymap.set({ "n", "x" }, "<leader>cp", ct.send_location, { desc = "send file:line to claude terminal" })
+vim.keymap.set("n", "<leader>cR", ct.redraw, { desc = "redraw claude terminal (resume session)" })
+
+-- ターミナルモードの <Esc> でターミナルモードを抜ける（Claude への Esc は <C-]> で送る）
+vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]])
+
+-- <C-h/j/k/l> で window を移動する（ノーマルモードとターミナルモード）
+for _, key in ipairs({ "h", "j", "k", "l" }) do
+    vim.keymap.set("n", "<C-" .. key .. ">", "<C-w>" .. key)
+    vim.keymap.set("t", "<C-" .. key .. ">", [[<C-\><C-n><C-w>]] .. key)
+end
+```
 
 ## 1. このプラグインでできること
 
@@ -103,7 +146,7 @@ Waiting は「Claude があなたの番だと言っている」状態です。�
 |---|---|
 | `<C-q>` | ターミナルモードを抜ける（claude-deck のターミナルだけで有効） |
 | `<C-\><C-n>` | 同上（Neovim 標準） |
-| `<Esc>` | 同上。ただし 0 章の前提設定（自分の `init.lua` の mapping）によるもので、プラグインの機能ではない |
+| `<Esc>` | 同上。ただし 0 章の前提設定（ユーザー自身の `init.lua` の mapping）によるもので、プラグインの機能ではない |
 | `<C-]>` | Claude に Esc を送る（処理の中断、ダイアログを閉じる。2 回で巻き戻しメニュー） |
 
 ターミナルモードを抜けたあとは、`<C-w>h` などで普通に window を移動できます。0 章の前提設定なら、`<C-h>` / `<C-j>` / `<C-k>` / `<C-l>` でターミナルモードのまま移動することもできます。ターミナルの window に戻ると、自動でターミナルモードに戻ります。
@@ -244,7 +287,7 @@ macOS では、`terminal-notifier` が入っていると、通知のクリック
 
 ## 10. キーの一覧
 
-0 章の前提設定（README のインストール例）での割り当てです。`<Esc>` と `<C-h>` などの mapping は自分の `init.lua` によるものです。
+**これらはすべて、0 章の設定例（作者の `init.lua`）での割り当てです。** プラグインが用意しているキーではないので、ユーザー自身の `init.lua` に同じ設定を書かなければ使えません。`<Esc>` と `<C-h>` などの mapping も同様です。
 
 | キー | 動作 |
 |---|---|
@@ -257,7 +300,8 @@ macOS では、`terminal-notifier` が入っていると、通知のクリック
 | `<leader>cr` | タスク名を変える |
 | `<leader>co` | 集中モードの切り替え |
 | `<leader>cp` | ファイルと行を Claude に渡す |
+| `<leader>cR` | 表示を描き直す（同じセッションを開き直す） |
 | `<C-q>`（ターミナル内） | ターミナルモードを抜ける |
 | `<C-]>`（ターミナル内） | Claude に Esc を送る |
 
-コマンドで実行する場合は `:ClaudeDeck` に続けてサブコマンドを指定します（`new`、`list`、`dir`、`fork`、`rename`、`focus`、`location`、`show`、`settings`）。
+コマンドで実行する場合は `:ClaudeDeck` に続けてサブコマンドを指定します（`new`、`list`、`dir`、`fork`、`rename`、`focus`、`location`、`redraw`、`show`、`settings`）。
