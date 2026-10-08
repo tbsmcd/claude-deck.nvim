@@ -171,4 +171,35 @@ function M.open(id, text, cwd)
     return result
 end
 
+-- `ct diff [<path>[:line]] [--base <ref>]`: opens the diff of the pull request (or of the
+-- working tree) in the editor window of the focus mode of terminal `id`. `args`: the
+-- arguments as a list; relative paths are relative to `cwd` (the shell's current directory;
+-- empty or nil: the terminal's cwd).
+function M.diff(id, args, cwd)
+    local term = state.get(id)
+    if not term then
+        return "ct: no terminal #" .. tostring(id)
+    end
+    local diff = require("claude-deck.diff")
+    local opts, err = diff.parse_args(args or {})
+    if not opts then
+        return err
+    end
+    local base = (cwd and cwd ~= "") and cwd or term.cwd
+    if opts.path then
+        opts.path = vim.trim(opts.path)
+        if opts.path == "" then
+            opts.path = nil
+        elseif not M.resolve_path(opts.path, base) then
+            opts.path, opts.line = M.split_line(opts.path)
+        end
+    end
+    local ok, result = pcall(diff.open, term, base, opts)
+    if not ok then
+        pcall(vim.cmd, "stopinsert")
+        return "ct: " .. tostring(result)
+    end
+    return result
+end
+
 return M

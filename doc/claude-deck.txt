@@ -139,7 +139,8 @@ send_location()                                    *claude-deck.send_location()*
     outside focus mode, to the terminal shown in the current tab when there
     is exactly one. Otherwise, and for buffers that are not files (unnamed,
     inside a terminal) or a terminal that has exited or is not shown in the
-    tab, nothing is inserted and a message tells why.
+    tab, nothing is inserted and a message tells why. In the diff buffer of
+    `ct diff`, the file and line under the cursor are sent.
     Map it in both normal and Visual mode (see |claude-deck-setup|), or set
     `keymaps.send_location`.
 
@@ -154,6 +155,19 @@ open_file({path}, {line}, {id})                      *claude-deck.open_file()*
     `:ClaudeDeck open {path}[:{line}]` does the same, with a relative path
     relative to Neovim's current directory. `ct open` runs this
     (|claude-deck-ct|).
+
+open_diff({opts})                                    *claude-deck.open_diff()*
+    Open a diff in the editor window of the focus mode of terminal
+    {opts.id} (default: the current terminal, or the terminal of the focus
+    mode tab), opening focus mode first when needed: the diff of the pull
+    request of the current branch (`gh pr diff`), otherwise the uncommitted
+    changes (`git diff HEAD`); with {opts.base}, the working tree compared
+    with that ref (`git diff {base}`). With {opts.path} (relative to the
+    terminal's cwd), the cursor goes to that file, and with {opts.line} to
+    that line of the new side. See |claude-deck-ct| for the diff buffer.
+    `:ClaudeDeck diff [{path}[:{line}]] [--base {ref}]` does the same, with
+    a relative path relative to Neovim's current directory. `ct diff` runs
+    this.
 
 show_settings()                                    *claude-deck.show_settings()*
     Show the Claude Code settings JSON (hooks and `ct` permissions) in a
@@ -301,6 +315,9 @@ Inside a terminal, `ct` is on PATH and Claude is told about it:
                             title, show it
     ct title --force title  also replace a title set with rename()
     ct open path[:line]     open a file in the editor of focus mode
+    ct diff [path[:line]] [--base ref]
+                            open the diff of the pull request (or of the
+                            uncommitted changes) there
 
 All of them are allowed without a permission prompt. `ct read` parses Claude
 Code's transcript files, whose format is internal and may change.
@@ -321,6 +338,29 @@ relative path is relative to the current directory of Claude's shell, and
 Claude is told to use it when you ask it to open or show a
 file, or to show you the code it is explaining: e.g. "open app/index.html"
 or "show me line 24 of greeter.rb".
+
+`ct diff` opens a diff in that editor window (|claude-deck.open_diff()|), as
+a read-only buffer with the `diff` filetype: the diff of the pull request of
+the current branch (`gh pr diff`; needs the GitHub CLI `gh` and a pull
+request), otherwise the uncommitted changes (`git diff HEAD`). With
+`--base ref`, the working tree is compared with that ref (`git diff ref`),
+without looking for a pull request. The first line of the buffer names the
+source. With a path, the cursor goes to that file's section, and with a
+line to that line of the new side (a line outside the hunks: the nearest
+hunk header); a file without changes is refused. Keys in the diff buffer:
+
+    <CR>        open the file under the cursor at that line in a window
+                right of the diff (the diff stays; `ct open` while a diff
+                is shown opens the file beside it too)
+    ]f  [f      next / previous file
+    ]c  [c      next / previous hunk
+    q           close the window
+
+|claude-deck.send_location()| in the diff buffer sends the file and line
+under the cursor. Claude is told to use `ct diff` when you ask to see a
+diff, the changes or the pull request, or to show you a change it is
+explaining: e.g. "show me the diff of this PR" or "show me the change in
+greeter.rb".
 
 ==============================================================================
 6. CONFIGURATION                                           *claude-deck-config*

@@ -499,6 +499,95 @@ check "user command completion has location" "$(lua 'table.concat(vim.fn.getcomp
 check "user command completion has open" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck o", "cmdline"), ",")')" "open"
 check "ClaudeDeck open completes files" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck open tests/fixtures/open/g", "cmdline"), ",")')" "tests/fixtures/open/greeter.rb"
 
+# ct diff: a repository in $TEST_OUT with a commit and uncommitted changes
+REPO="$TEST_OUT/repo"
+mkdir -p "$REPO/app"
+(
+    cd "$REPO" || exit 1
+    git init -q -b main
+    git config user.email t@example.com
+    git config user.name t
+    printf 'line 1\nline 2\nline 3\nline 4\nline 5\n' >app/one.txt
+    printf 'gone\n' >app/gone.txt
+    printf 'same\n' >same.txt
+    git add . && git commit -q -m init
+    printf 'line 1\nline 2 changed\nline 3\nline 4\nline 5\nline 6 new\n' >app/one.txt
+    printf 'brand new\n' >'app/new file.txt'
+    git add 'app/new file.txt'
+    rm app/gone.txt
+)
+lua '(function() vim.cmd("tabnew"); _G.T_diff_origin = vim.api.nvim_get_current_tabpage(); require("claude-deck.terminal").open_new("'"$REPO"'"); _G.T_diff_term = vim.b.claude_deck_id; return "" end)()' >/dev/null
+DT=$(lua '_G.T_diff_term')
+sleep 0.3
+check "system prompt tells about ct diff" "$(cat "$TEST_OUT/args.$DT")" 'ct diff [<path>[:line]] [--base <ref>]'
+check "permissions allow ct diff" "$(lua 'require("claude-deck.hooks").settings_json()')" '"Bash(ct diff)","Bash(ct diff:*)"'
+DIFF_TABS=$(lua '#vim.api.nvim_list_tabpages()')
+diff_state() { # tabs, focus terminal, buffer name tail, cursor line text, filetype, modifiable, mode
+    lua '(function() return #vim.api.nvim_list_tabpages() .. " #" .. tostring(require("claude-deck.focus").term_id()) .. " " .. (vim.api.nvim_buf_get_name(0):gsub("^claude%-deck://", "")) .. " [" .. vim.fn.getline(".") .. "] " .. vim.bo.filetype .. " " .. tostring(vim.bo.modifiable) .. " " .. vim.api.nvim_get_mode().mode end)()'
+}
+ct_diff() { # ct diff in terminal $DT from $REPO; prints the output and the exit status
+    out=$(cd "$REPO" && NVIM="$SOCK" CLAUDE_DECK_ID="$DT" "$ROOT/bin/ct" diff "$@" 2>&1)
+    echo "$out exit=$?"
+}
+# Without gh on PATH: the uncommitted changes
+NOGH="$TEST_OUT/nogh"
+mkdir -p "$NOGH"
+lua '(function() _G.T_path = vim.env.PATH; vim.env.PATH = vim.env.TEST_OUT .. "/nogh:" .. vim.fn.join(vim.tbl_filter(function(d) return vim.fn.executable(d .. "/gh") == 0 end, vim.split(_G.T_path, ":")), ":"); return vim.fn.executable("gh") end)()' >/dev/null
+check "ct diff without a pull request opens git diff HEAD in focus mode" "$(ct_diff)|$(diff_state)" "Opened the diff in the editor (git diff HEAD (uncommitted changes), 3 files) exit=0|$((DIFF_TABS + 1)) #$DT diff/$DT [# git diff HEAD (uncommitted changes)] diff false n"
+check "the diff buffer lists the changed files" "$(lua '(function() local l = vim.api.nvim_buf_get_lines(0, 0, -1, false); local r = {}; for _, x in ipairs(l) do if x:find("^diff ") then table.insert(r, x) end end; return table.concat(r, ";") end)()')" "diff --git a/app/gone.txt b/app/gone.txt;diff --git a/app/new file.txt b/app/new file.txt;diff --git a/app/one.txt b/app/one.txt"
+check "ct diff path:line goes to that line of the new side" "$(ct_diff app/one.txt:6)|$(diff_state)" "3 files, at app/one.txt:6) exit=0|$((DIFF_TABS + 1)) #$DT diff/$DT [+line 6 new] diff false n"
+check "ct diff path goes to the file header" "$(ct_diff app/one.txt)|$(diff_state)" "at app/one.txt) exit=0|$((DIFF_TABS + 1)) #$DT diff/$DT [diff --git a/app/one.txt b/app/one.txt] diff false n"
+check "a path relative to a subdirectory" "$(cd "$REPO/app" && NVIM="$SOCK" CLAUDE_DECK_ID="$DT" "$ROOT/bin/ct" diff one.txt:2; echo "exit=$?")|$(diff_state)" "at app/one.txt:2)
+exit=0|$((DIFF_TABS + 1)) #$DT diff/$DT [+line 2 changed] diff false n"
+check "a line outside the hunks goes to the nearest hunk header" "$(ct_diff app/one.txt:99; diff_state)" "[@@ -1,5 +1,6 @@]"
+check "a staged new file with a space" "$(ct_diff 'app/new file.txt:1'; diff_state)" "[+brand new]"
+check "a deleted file" "$(ct_diff app/gone.txt; diff_state)" "[diff --git a/app/gone.txt b/app/gone.txt]"
+check "an unchanged file fails" "$(ct_diff same.txt)" "ct: no changes in same.txt (git diff HEAD (uncommitted changes)) exit=1"
+check "a path outside the repository fails" "$(ct_diff /tmp/x.txt)" "ct: not in the repository: /tmp/x.txt exit=1"
+check "an unknown option fails" "$(ct_diff --nope)" "ct: unknown option --nope exit=1"
+check "--base without a ref fails" "$(ct_diff --base)" "ct: --base needs a ref exit=1"
+check "--base compares the working tree with the ref" "$(ct_diff --base HEAD app/one.txt:6; diff_state)" "Opened the diff in the editor (git diff HEAD, 3 files, at app/one.txt:6) exit=0
+$((DIFF_TABS + 1)) #$DT diff/$DT [+line 6 new] diff false n"
+check "--base with a bad ref fails" "$(ct_diff --base nope)" "ct: git diff nope: fatal: "
+check "outside a repository fails" "$(cd "$TEST_OUT" && NVIM="$SOCK" CLAUDE_DECK_ID="$DT" "$ROOT/bin/ct" diff; echo "exit=$?")" "ct: not a git repository: $TEST_OUT
+exit=1"
+# Keys in the diff buffer
+ct_diff app/one.txt >/dev/null
+check "]c and [c move between hunks" "$(lua '(function() vim.cmd("normal ]c"); local a = vim.fn.getline("."); vim.cmd("normal [c"); return a .. "|" .. vim.fn.getline(".") end)()')" "@@ -1,5 +1,6 @@|@@ -0,0 +1 @@"
+check "]f and [f move between files" "$(lua '(function() vim.cmd("normal [f"); local a = vim.fn.getline("."); vim.cmd("normal ]f"); return a .. "|" .. vim.fn.getline(".") end)()')" "diff --git a/app/new file.txt b/app/new file.txt|diff --git a/app/one.txt b/app/one.txt"
+check "<CR> opens the file at the line right of the diff, keeping the diff" "$(lua '(function() vim.fn.search("^+line 6 new"); _G.T_diff_win = vim.api.nvim_get_current_win(); vim.cmd("normal \r"); local wins = vim.api.nvim_tabpage_list_wins(0); return vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":t") .. ":" .. vim.fn.line(".") .. " " .. #wins .. " " .. tostring(vim.api.nvim_win_is_valid(_G.T_diff_win) and (vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(_G.T_diff_win)):gsub("^claude%-deck://", ""))) .. " " .. tostring(vim.api.nvim_win_get_position(0)[2] > vim.api.nvim_win_get_position(_G.T_diff_win)[2] and vim.api.nvim_win_get_position(0)[1] == vim.api.nvim_win_get_position(_G.T_diff_win)[1]) end)()')" "one.txt:6 4 diff/$DT true"
+check "<CR> on a removed line opens the line that follows" "$(lua '(function() vim.api.nvim_set_current_win(_G.T_diff_win); vim.fn.search("^-line 2"); vim.cmd("normal \r"); return vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":t") .. ":" .. vim.fn.line(".") .. " " .. #vim.api.nvim_tabpage_list_wins(0) end)()')" "one.txt:2 4"
+check "<CR> on a deleted file warns" "$(lua '(function() vim.api.nvim_set_current_win(_G.T_diff_win); vim.fn.search("^-gone"); return T_notify(function() vim.cmd("normal \r") end) end)()')" "app/gone.txt does not exist in the working tree"
+check "<CR> above the first file warns" "$(lua '(function() vim.api.nvim_win_set_cursor(0, { 1, 0 }); return T_notify(function() vim.cmd("normal \r") end) end)()')" "move to a file section first"
+check "ct open beside a shown diff keeps the diff" "$(ct_diff app/one.txt:6 >/dev/null; lua '(function() local r = require("claude-deck.cli").open('"$DT"', "same.txt", "'"$REPO"'"); return r .. " " .. #vim.api.nvim_tabpage_list_wins(0) .. " " .. tostring(vim.api.nvim_win_is_valid(_G.T_diff_win)) end)()')" "Opened same.txt in the editor 4 true"
+# send_location from the diff buffer
+check "send_location in the diff sends the file and line of the new side" "$(lua '(function() vim.api.nvim_set_current_win(_G.T_diff_win); vim.fn.search("^+line 6 new"); local before = #vim.fn.readfile(vim.env.TEST_OUT .. "/stdin.'"$DT"'", "b"); require("claude-deck").send_location(); vim.wait(500, function() return #vim.fn.readfile(vim.env.TEST_OUT .. "/stdin.'"$DT"'", "b") > before end); vim.cmd("stopinsert"); return vim.fn.readfile(vim.env.TEST_OUT .. "/stdin.'"$DT"'", "b")[#vim.fn.readfile(vim.env.TEST_OUT .. "/stdin.'"$DT"'", "b")] end)()')" "app/one.txt:6 "
+check "send_location on the header warns" "$(lua '(function() vim.api.nvim_set_current_win(_G.T_diff_win); vim.api.nvim_win_set_cursor(0, { 1, 0 }); return T_notify(function() require("claude-deck").send_location() end) end)()')" "move to a changed line of the diff first"
+check "q closes the diff window" "$(lua '(function() vim.api.nvim_set_current_win(_G.T_diff_win); vim.cmd("normal q"); return #vim.api.nvim_tabpage_list_wins(0) .. " " .. tostring(vim.api.nvim_win_is_valid(_G.T_diff_win)) end)()')" "3 false"
+# With a pull request: a fake gh
+mkdir -p "$TEST_OUT/ghbin"
+cat >"$TEST_OUT/ghbin/gh" <<'GH'
+#!/bin/sh
+case "$*" in
+"pr view --json number,title,baseRefName") printf '{"number":12,"title":"Greet twice","baseRefName":"main"}\n' ;;
+"pr diff") printf 'diff --git a/app/one.txt b/app/one.txt\nindex 1..2 100644\n--- a/app/one.txt\n+++ b/app/one.txt\n@@ -1,3 +1,3 @@\n line 1\n-line 2\n+line 2 from the PR\n line 3\n' ;;
+*) echo "gh: unexpected $*" >&2; exit 1 ;;
+esac
+GH
+chmod +x "$TEST_OUT/ghbin/gh"
+lua '(function() vim.env.PATH = vim.env.TEST_OUT .. "/ghbin:" .. vim.env.PATH; return "" end)()' >/dev/null
+check "ct diff with a pull request opens gh pr diff" "$(ct_diff app/one.txt:2; diff_state)" "Opened the diff in the editor (PR #12 Greet twice (base: main), 1 file, at app/one.txt:2) exit=0
+$((DIFF_TABS + 1)) #$DT diff/$DT [+line 2 from the PR] diff false n"
+check "the header line names the PR" "$(lua 'vim.fn.getline(1)')" "# PR #12 Greet twice (base: main)"
+check "--base skips the pull request" "$(ct_diff --base HEAD)" "git diff HEAD, 3 files) exit=0"
+check "the diff buffer is reused" "$(lua '(function() local n = 0; for _, b in ipairs(vim.api.nvim_list_bufs()) do if vim.api.nvim_buf_get_name(b):find("claude%-deck://diff/") then n = n + 1 end end; return n end)()')" "1"
+check "open_diff() uses the terminal of the focus mode tab" "$(lua '(function() require("claude-deck").open_diff({ path = "app/one.txt", line = 2 }); return "" end)()')$(diff_state)" "[+line 2 from the PR] diff false n"
+check ":ClaudeDeck diff --base ref path:line" "$(lua '(function() local cwd = vim.fn.getcwd(); vim.cmd("tcd '"$REPO"'"); vim.cmd("ClaudeDeck diff --base HEAD app/one.txt:6"); vim.cmd("tcd " .. vim.fn.fnameescape(cwd)); return "" end)()')$(diff_state)" "[+line 6 new] diff false n"
+check ":ClaudeDeck diff with an unknown option warns" "$(lua 'T_notify(function() vim.cmd("ClaudeDeck diff --nope") end)')" "unknown option --nope"
+check "open_diff() outside a terminal warns" "$(lua '(function() vim.cmd("tabclose"); vim.api.nvim_set_current_tabpage(_G.T_diff_origin); vim.cmd("stopinsert | vnew"); return T_notify(function() require("claude-deck").open_diff() end) end)()')" "run this inside a terminal or its focus mode"
+lua '(function() vim.env.PATH = _G.T_path; vim.cmd("tabclose!"); return "" end)()' >/dev/null
+check "ClaudeDeck diff completes files" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck diff tests/fixtures/open/g", "cmdline"), ",")')" "tests/fixtures/open/greeter.rb"
+
 messages=$(lua 'vim.api.nvim_exec2("messages", { output = true }).output')
 case "$messages" in
 *rror* | *E[0-9]*) echo "FAIL - no errors in :messages"; echo "$messages"; failures=$((failures + 1)) ;;

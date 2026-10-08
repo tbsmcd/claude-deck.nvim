@@ -250,10 +250,11 @@ Claude in a terminal can check on the other terminals with the `ct` command. Cla
 | `ct read 2` | Recent conversation of terminal #2 (20 messages by default) |
 | `ct title "name"` | Set the title of its own terminal |
 | `ct open greeter.rb:24` | Open a file (at a line) in the editor of focus mode |
+| `ct diff greeter.rb:24` | Open the diff of the pull request (or of the uncommitted changes) there, at that file and line |
 
 All of them run without a permission prompt. `ct read` only reads the conversation that has been recorded, so you cannot see what the other side is in the middle of writing until that message is finished.
 
-With `ct open`, Claude opens a file in the editor of focus mode for you: just ask "open app/index.html" or "show me line 24 of greeter.rb".
+With `ct open`, Claude opens a file in the editor of focus mode for you: just ask "open app/index.html" or "show me line 24 of greeter.rb". With `ct diff`, it opens the diff of the pull request there (it needs the GitHub CLI `gh`; without a pull request, the uncommitted changes are shown): ask "show me the diff of this PR" or "show me the change in greeter.rb" while reviewing. In the diff, `<CR>` opens the file under the cursor beside it, `]f` / `[f` and `]c` / `[c` move between files and hunks, and `q` closes it. `:ClaudeDeck location` works there too, sending the file and line under the cursor.
 
 ![Claude in #2 reporting on the work in #1 with ct list and ct read](images/guide/en/ct.webp)
 

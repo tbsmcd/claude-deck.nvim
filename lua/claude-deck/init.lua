@@ -505,11 +505,8 @@ function M.send_location()
     require("claude-deck.location").send()
 end
 
--- Open `path` (absolute, "~/…" or relative to the terminal's cwd) in the editor window of the
--- focus mode of terminal `term_id` (default: the current terminal, or the one of this focus
--- mode tab), opening focus mode when needed, and go to `line` (optional).
-function M.open_file(path, line, term_id)
-    ensure_setup()
+-- Terminal `term_id`, the current terminal, or the one of this focus mode tab; nil with a warning
+local function target_term(term_id)
     local term
     if term_id then
         term = state.get(term_id)
@@ -522,10 +519,39 @@ function M.open_file(path, line, term_id)
                 or "claude-deck: run this inside a terminal or its focus mode",
             vim.log.levels.WARN
         )
+    end
+    return term
+end
+
+-- Open `path` (absolute, "~/…" or relative to the terminal's cwd) in the editor window of the
+-- focus mode of terminal `term_id` (default: the current terminal, or the one of this focus
+-- mode tab), opening focus mode when needed, and go to `line` (optional).
+function M.open_file(path, line, term_id)
+    ensure_setup()
+    local term = target_term(term_id)
+    if not term then
         return
     end
 
     local result = require("claude-deck.cli").open(term.id, line and (path .. ":" .. line) or path)
+    if vim.startswith(result, "ct: ") then
+        vim.notify("claude-deck: " .. result:sub(5), vim.log.levels.WARN)
+    end
+end
+
+-- Open the diff of the pull request of the current branch (`gh pr diff`), or of the uncommitted
+-- changes, in the editor window of the focus mode of terminal `opts.id` (default: the current
+-- terminal, or the one of this focus mode tab). opts: { path, line, base, id }; `path` is
+-- absolute, "~/…" or relative to the terminal's cwd; `base`: compare the working tree with
+-- this ref instead.
+function M.open_diff(opts)
+    ensure_setup()
+    opts = opts or {}
+    local term = target_term(opts.id)
+    if not term then
+        return
+    end
+    local result = require("claude-deck.diff").open(term, term.cwd, { path = opts.path, line = opts.line, base = opts.base })
     if vim.startswith(result, "ct: ") then
         vim.notify("claude-deck: " .. result:sub(5), vim.log.levels.WARN)
     end
@@ -580,6 +606,23 @@ local SUBCOMMANDS = {
         end
         local path, line = require("claude-deck.cli").split_line(text)
         M.open_file(absolute(path), line)
+    end,
+    -- `:ClaudeDeck diff [path[:line]] [--base ref]` (paths relative to Neovim's cwd)
+    diff = function(args)
+        local opts, err = require("claude-deck.diff").parse_args(args)
+        if not opts then
+            vim.notify("claude-deck: " .. err:sub(5), vim.log.levels.WARN)
+            return
+        end
+        if opts.path then
+            local whole = vim.fn.fnamemodify(vim.fn.expand(opts.path), ":p")
+            if not vim.uv.fs_stat(whole) then
+                local path, line = require("claude-deck.cli").split_line(opts.path)
+                whole, opts.line = vim.fn.fnamemodify(vim.fn.expand(path), ":p"), line
+            end
+            opts.path = whole
+        end
+        M.open_diff(opts)
     end,
     -- With a range (e.g. `:'<,'>ClaudeDeck location`), the range is sent
     location = function(_, range)

@@ -17,6 +17,7 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
 - **集中モード**: ターミナルの cwd で「ファイルツリー ｜ エディタ ｜ ターミナル」を並べた新しいタブを開き、閉じると元の画面構成に戻ります
 - **コードの場所を Claude に渡す**: キー 1 つで、今のファイルと行（または選択した行の範囲）を Claude の入力欄に挿入します。例: `app/models/user.rb:24-58`
 - **セッション間の連携**: ターミナル内の Claude が `ct list` / `ct read <番号>` で他のセッションの様子を確認できます
+- **Claude がコードを見せてくれる**: Claude がファイル（`ct open`）やプルリクエストの差分（`ct diff`）を、ターミナルの隣のエディタに開けます
 
 ![4 つの Claude Code セッションを並べ、winbar の色で状態を表示している画面](docs/images/terminals.webp)
 
@@ -35,6 +36,7 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
 - [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua): 集中モードのファイルツリー。ない場合は netrw を使います
 - [zoxide](https://github.com/ajeetdsouza/zoxide): `pick_dir()` の候補にディレクトリを追加します
 - [jq](https://jqlang.org/): `:ClaudeDeck settings` の JSON を整形して表示します
+- [GitHub CLI](https://cli.github.com/)（`gh`）: `ct diff` でプルリクエストの差分を取得します。ない場合（またはプルリクエストがない場合）は、未コミットの変更を表示します
 - [terminal-notifier](https://github.com/julienXX/terminal-notifier)（macOS。`brew install terminal-notifier`）: クリックするとターミナルアプリに戻れるデスクトップ通知
 - それ以外のデスクトップ通知: macOS では `osascript`（標準搭載。最前面のアプリの判定に `lsappinfo` も使います）、Linux では `notify-send`。ターミナル自身の通知（`notify.method = "osc"`）も使えます。`notify.notifier` で独自の通知方法も指定できます
 
@@ -93,6 +95,7 @@ opts = {
 | `focus()` | `:ClaudeDeck focus` | 集中モードを切り替えます |
 | `send_location()` | `:ClaudeDeck location` | 今のファイルのパスと行（または選択した行の範囲）を Claude の入力欄に挿入します |
 | `open_file(path, line?, id?)` | `:ClaudeDeck open <path>[:line]` | ターミナルの集中モードのエディタでファイルを開きます（[`ct open`](#claude-用の-ct-コマンド) を参照） |
+| `open_diff(opts?)` | `:ClaudeDeck diff [<パス>[:行]] [--base <ref>]` | プルリクエストの差分（または未コミットの変更）をそこに開きます（[`ct diff`](#claude-用の-ct-コマンド) を参照） |
 | `show(id, where?)` | `:ClaudeDeck show <番号>` | 番号を指定してターミナルを表示します |
 
 `where` を指定しない場合、新しいターミナルは次の場所に開きます。
@@ -115,7 +118,7 @@ fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`
 
 #### ファイルと行を Claude に渡す
 
-[集中モード](#集中モード)で使う機能です。エディタとターミナルを並べた状態で、エディタ側で `send_location()`（`:ClaudeDeck location`）を実行すると、読んでいるコードの場所を Claude に伝えられます（集中モード以外でも、そのタブに表示しているターミナルが 1 つだけなら使えます）。ファイルのパスと行を Claude の入力欄に挿入してターミナルへ移動するので、そのまま続けて指示を入力できます。
+[集中モード](#集中モード)で使う機能です。エディタとターミナルを並べた状態で、エディタ側で `send_location()`（`:ClaudeDeck location`）を実行すると、読んでいるコードの場所を Claude に伝えられます（集中モード以外でも、そのタブに表示しているターミナルが 1 つだけなら使えます。`ct diff` の差分のバッファでも使え、カーソル位置のファイルと行を送ります）。ファイルのパスと行を Claude の入力欄に挿入してターミナルへ移動するので、そのまま続けて指示を入力できます。
 
 - ノーマルモード: カーソルのある行。例: `app/services/example.rb:24`
 - ビジュアルモード（`v`、`V`、`CTRL-V`）: 選択した行の範囲。例: `app/services/example.rb:24-58`
@@ -255,6 +258,8 @@ ct read 2 [件数]   # ターミナル #2 の直近の会話（既定 20 件）
 ct title "ログイン不具合の修正"   # このターミナルのタスク名を付ける（名前なしなら今の名前を表示）
 ct title --force "…"              # rename() で付けた名前も置き換える
 ct open app/greeter.rb:24         # 集中モードのエディタでファイルを開く（行の指定もできる）
+ct diff                           # プルリクエストの差分（または未コミットの変更）をそこに開く
+ct diff app/greeter.rb:24         # … そのファイル（と行）の位置にカーソルを置いて
 ```
 
 いずれも許可の確認なしで実行できます。たとえば「#1 でやっている作業と矛盾しないか確認して」のように頼めます。
@@ -262,6 +267,8 @@ ct open app/greeter.rb:24         # 集中モードのエディタでファイ�
 `cli.auto_title`（既定で有効）のときは、タスクを把握したらすぐに `ct title` でターミナルに名前を付け、タスクが変わったら付け直すよう Claude に伝えます。名前は、プロンプトと同じ言語の短いものにするよう指示しています。名前の上限は表示幅で 40 桁（日本語は 1 文字 2 桁）です。超えた名前は切り詰めずに拒否し、Claude に短くさせます。`rename()` で自分で付けた名前が優先され、`ct title` では変更できません。Claude が `ct title --force` を使うのは、名前を変えるよう頼んだときだけです。
 
 `ct open <パス>[:行]` は、そのターミナルの[集中モード](#集中モード)のエディタのウィンドウでファイルを開き、そのウィンドウに（ノーマルモードで）移動します。行を指定するとその行にカーソルを置きます（行数を超えるときは最終行。`パス:行:桁` は行だけを使います）。そのターミナルの集中モードがなければ、先に集中モードを開きます（ターミナルが隠れていれば表示します）。相対パスは Claude のシェルの今のディレクトリからの相対で、`~/` や絶対パスも使えます。`foo:24` のような名前のファイルがあれば、そのファイルを開きます。ディレクトリは開けません。スワップファイルがある場合は読み取り専用で開きます。ファイルを開いて・見せてと頼まれたときや、説明している箇所を見せたいときに使うよう Claude に伝えているので、「app/index.html を開いて」「greeter.rb の 24 行目を開いて」のように頼めます。Neovim からは `open_file(path, line?, id?)` と `:ClaudeDeck open <パス>[:行]` で同じことができます（対象は今のターミナル、または集中モードのタブならそのターミナル）。相対パスの基準は、`open_file()` ではターミナルの cwd、`:ClaudeDeck open` では Neovim の今のディレクトリです。
+
+`ct diff [<パス>[:行]] [--base <ref>]` は、同じエディタのウィンドウに差分を読み取り専用のバッファ（filetype は `diff`）で開きます。内容は、今のブランチのプルリクエストの差分（`gh pr diff`。[GitHub CLI](https://cli.github.com/) とプルリクエストが必要）、それがなければ未コミットの変更（`git diff HEAD`）です。`--base <ref>` を付けると、プルリクエストは探さず、作業ツリーとその ref を比較します（`git diff <ref>`）。バッファの 1 行目に差分の出どころを表示します。パスを指定するとそのファイルの箇所に、行も指定すると新しい側のその行にカーソルを置きます（どのハンクにもない行なら、いちばん近いハンクの見出し）。変更のないファイルは拒否します。差分のバッファでは、`<CR>` でカーソル位置のファイルをその行で差分の右のウィンドウに開き（差分はそのまま残ります。差分を表示中の `ct open` も同じくその隣にファイルを開きます）、`]f` / `[f` でファイル間、`]c` / `[c` でハンク間を移動し、`q` でウィンドウを閉じます。そこで `send_location()` を使うと、カーソル位置のファイルと行を送ります。差分・変更・プルリクエストを見せてと頼まれたときや、説明している変更を見せたいときに使うよう Claude に伝えているので、「この PR の差分を見せて」「greeter.rb の変更を見せて」のように頼めます。Neovim からは `open_diff({ path?, line?, base?, id? })` と `:ClaudeDeck diff [<パス>[:行]] [--base <ref>]` で同じことができます（相対パスの基準は、それぞれターミナルの cwd と Neovim の今のディレクトリ）。
 
 ![ターミナル #4 の Claude が、ターミナルの一覧を表示し、ターミナル #1 の会話を読んでいる画面](docs/images/ja/ct.webp)
 

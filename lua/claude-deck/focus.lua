@@ -144,7 +144,7 @@ local function editor_win(focus, term)
     end
 
     for _, w in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
-        if not is_float(w) and not is_tree_or_terminal(w) and vim.bo[vim.api.nvim_win_get_buf(w)].buftype == "" then
+        if M.is_editor_window(w) then
             focus.edit_win = w
             return w
         end
@@ -172,11 +172,19 @@ local function same_file(a, b)
     return (vim.uv.fs_realpath(a) or a) == (vim.uv.fs_realpath(b) or b)
 end
 
--- Opens `path` (absolute, an existing file) in the editor window of the focus mode of `term`, opening
--- focus mode when there is none, and moves the cursor to `line` (optional; past the end: the
--- last line). The editor window becomes the current window in Normal mode. Returns a one-line
--- report for `ct open` ("ct: …" on failure).
-function M.open_file(term, path, line)
+-- True when `win` can show a file for focus mode: not floating, not a tree or terminal, and
+-- holding a normal buffer or a claude-deck diff buffer
+function M.is_editor_window(win)
+    if is_float(win) or is_tree_or_terminal(win) then
+        return false
+    end
+    local buf = vim.api.nvim_win_get_buf(win)
+    return vim.bo[buf].buftype == "" or require("claude-deck.diff").info(buf) ~= nil
+end
+
+-- The editor window of the focus mode of `term`, opening focus mode when there is none (showing
+-- the terminal first if it is hidden). Makes that tab current and returns the window.
+function M.editor_window(term)
     local tab = focus_tab_of(term)
     if tab then
         vim.api.nvim_set_current_tabpage(tab)
@@ -200,8 +208,19 @@ function M.open_file(term, path, line)
         M.open(term, origin)
         tab = vim.api.nvim_get_current_tabpage()
     end
+    return editor_win(focus_tabs[tab], term)
+end
 
-    local win = editor_win(focus_tabs[tab], term)
+-- Opens `path` (absolute, an existing file) in the editor window of the focus mode of `term`, opening
+-- focus mode when there is none, and moves the cursor to `line` (optional; past the end: the
+-- last line). The editor window becomes the current window in Normal mode. Returns a one-line
+-- report for `ct open` ("ct: …" on failure).
+function M.open_file(term, path, line)
+    local win = M.editor_window(term)
+    -- Keep a diff buffer shown there: open the file beside it, as <CR> in the diff does
+    if require("claude-deck.diff").info(vim.api.nvim_win_get_buf(win)) then
+        win = require("claude-deck.diff").file_window(win)
+    end
     vim.api.nvim_set_current_win(win)
     -- Not when the file is already shown: `:edit` would fail on unsaved changes
     if not same_file(vim.api.nvim_buf_get_name(0), path) then

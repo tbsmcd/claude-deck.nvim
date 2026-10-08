@@ -16,6 +16,10 @@ local function system_prompt(id)
         "`ct open <path>[:line]` opens a file in the editor of the Neovim next to this terminal (focus mode).",
         "Use it when the user asks you to open or show a file, or when you want to show the user the part you are explaining.",
         "The path may be relative to the current directory of your shell.",
+        "`ct diff [<path>[:line]] [--base <ref>]` opens a diff there the same way: the diff of the pull request",
+        "of the current branch (`gh pr diff`), or the uncommitted changes (`git diff HEAD`) when there is no pull request;",
+        "`--base <ref>` compares the working tree with that ref instead. With a path, the cursor goes to that file (and line).",
+        "Use it when the user asks to see a diff, the changes or the pull request, or to show the user a change you are explaining.",
     }
     if config.options.cli.auto_title then
         vim.list_extend(lines, {

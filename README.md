@@ -17,6 +17,7 @@ Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions
 - **Focus mode**: a new tab with file tree | editor | terminal in the terminal's cwd; toggle back to your previous layout
 - **Point Claude at your code**: one key inserts the current file and line (or selected lines) into Claude's prompt, e.g. `app/models/user.rb:24-58`
 - **Cross-session awareness**: Claude inside a terminal can run `ct list` / `ct read <id>` to see what the other sessions are doing
+- **Claude shows you the code**: Claude can open a file (`ct open`) or the diff of the pull request (`ct diff`) in the editor next to its terminal
 
 ![Four Claude Code sessions side by side, with status colors in the winbar](docs/images/terminals.webp)
 
@@ -35,6 +36,7 @@ Optional (everything works without them):
 - [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua): file tree in focus mode; falls back to netrw
 - [zoxide](https://github.com/ajeetdsouza/zoxide): extra directories in `pick_dir()`
 - [jq](https://jqlang.org/): pretty-prints the JSON of `:ClaudeDeck settings`
+- [GitHub CLI](https://cli.github.com/) (`gh`): the diff of the pull request for `ct diff`; without it (or without a pull request), the uncommitted changes are shown
 - [terminal-notifier](https://github.com/julienXX/terminal-notifier) (macOS, `brew install terminal-notifier`): desktop notifications that bring back the terminal app when clicked
 - Desktop notifications otherwise: `osascript` on macOS (built in; `lsappinfo` is also used to check the frontmost app), `notify-send` on Linux, the terminal's own notifications (`notify.method = "osc"`), or your own `notify.notifier`
 
@@ -93,6 +95,7 @@ opts = {
 | `focus()` | `:ClaudeDeck focus` | Toggle focus mode |
 | `send_location()` | `:ClaudeDeck location` | Insert the current file path and line (or selected lines) into Claude's prompt |
 | `open_file(path, line?, id?)` | `:ClaudeDeck open <path>[:line]` | Open a file in the editor of a terminal's focus mode (see [`ct open`](#ct-command-for-claude)) |
+| `open_diff(opts?)` | `:ClaudeDeck diff [<path>[:line]] [--base <ref>]` | Open the diff of the pull request (or the uncommitted changes) there (see [`ct diff`](#ct-command-for-claude)) |
 | `show(id, where?)` | `:ClaudeDeck show <id>` | Show a terminal by id |
 
 Where a new terminal opens (without `where`):
@@ -115,7 +118,7 @@ In the fzf-lua pickers, `enter` opens with the rule above, `ctrl-v` splits right
 
 #### Send the file and line to Claude
 
-This is made for [focus mode](#focus-mode): with the editor and the terminal side by side, run `send_location()` (`:ClaudeDeck location`) in the editor to point Claude at the code you are reading. (It also works outside focus mode when exactly one terminal is visible in the current tab.) It inserts the file path and line into Claude's prompt and moves to the terminal, so you can go on typing your instructions:
+This is made for [focus mode](#focus-mode): with the editor and the terminal side by side, run `send_location()` (`:ClaudeDeck location`) in the editor to point Claude at the code you are reading. (It also works outside focus mode when exactly one terminal is visible in the current tab, and in the diff buffer of `ct diff`, where it sends the file and line under the cursor.) It inserts the file path and line into Claude's prompt and moves to the terminal, so you can go on typing your instructions:
 
 - normal mode: the cursor line, e.g. `app/services/example.rb:24`
 - Visual mode (`v`, `V` or `CTRL-V`): the selected lines, e.g. `app/services/example.rb:24-58`
@@ -253,6 +256,8 @@ ct read 2 [count]  # recent messages of terminal #2 (default 20)
 ct title "Fix login bug"   # set the task title of this terminal (without a title: show it)
 ct title --force "…"       # also replace a title you set with rename()
 ct open app/greeter.rb:24  # open a file (at a line) in the editor of focus mode
+ct diff                    # open the diff of the pull request (or the uncommitted changes) there
+ct diff app/greeter.rb:24  # … with the cursor on that file (and line)
 ```
 
 All of them are allowed without a permission prompt. So you can ask, for example, "check that this doesn't conflict with what #1 is doing".
@@ -260,6 +265,8 @@ All of them are allowed without a permission prompt. So you can ask, for example
 With `cli.auto_title` (default), Claude is told to name its terminal with `ct title` as soon as it understands the task, with a short title in the language of your prompt, and to rename it when the task changes. The title may be at most 40 cells wide (display width; a Japanese character takes 2); a longer one is refused rather than cut, so that Claude picks a shorter one. A title you set with `rename()` takes precedence: `ct title` refuses to change it, and Claude uses `ct title --force` only when you ask it to rename the terminal.
 
 `ct open <path>[:line]` opens a file in the editor window of the terminal's [focus mode](#focus-mode) and makes that window current (in normal mode), with the cursor on the line if one is given (past the end: the last line; `path:line:col` uses only the line). Without focus mode for the terminal, it opens focus mode first (showing the terminal if it is hidden). A relative path is relative to the current directory of Claude's shell; `~/` and absolute paths work too. A file whose whole name matches (e.g. `foo:24`) is opened as it is. Directories are refused. When the file has a swap file, it is opened read-only. Claude is told to use it when you ask it to open or show a file, or to show you the code it is explaining, so you can ask "open app/index.html" or "show me line 24 of greeter.rb". From Neovim, `open_file(path, line?, id?)` and `:ClaudeDeck open <path>[:line]` do the same for the current terminal (or the terminal of the focus mode tab); a relative path is relative to the terminal's cwd for `open_file()` and to Neovim's current directory for `:ClaudeDeck open`.
+
+`ct diff [<path>[:line]] [--base <ref>]` opens a diff in that editor window, as a read-only buffer with the `diff` filetype: the diff of the pull request of the current branch (`gh pr diff`; needs the [GitHub CLI](https://cli.github.com/) and a pull request), otherwise the uncommitted changes (`git diff HEAD`). With `--base <ref>`, the working tree is compared with that ref instead (`git diff <ref>`), without looking for a pull request. The first line of the buffer names the source. With a path, the cursor goes to that file's section, and with a line to that line of the new side (a line outside the hunks: the nearest hunk header); a file without changes is refused. In the diff buffer, `<CR>` opens the file under the cursor at that line in a window right of the diff (the diff stays; `ct open` while a diff is shown opens the file beside it too), `]f` / `[f` move between files, `]c` / `[c` between hunks, and `q` closes the window; `send_location()` there sends the file and line under the cursor. Claude is told to use it when you ask to see a diff, the changes or the pull request, or when it wants to show you a change it is explaining, so you can ask "show me the diff of this PR" or "show me the change in greeter.rb". From Neovim, `open_diff({ path?, line?, base?, id? })` and `:ClaudeDeck diff [<path>[:line]] [--base <ref>]` do the same (paths relative to the terminal's cwd and to Neovim's current directory respectively).
 
 ![Claude in terminal #5 listing the terminals and reading the conversation of terminal #4](docs/images/ct.webp)
 

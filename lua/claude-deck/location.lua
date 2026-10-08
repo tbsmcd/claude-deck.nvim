@@ -93,7 +93,21 @@ function M.send(range)
 
     local buf = vim.api.nvim_get_current_buf()
     local name = vim.api.nvim_buf_get_name(buf)
-    if vim.bo[buf].buftype ~= "" or name == "" then
+    local diff = require("claude-deck.diff")
+    if diff.info(buf) then
+        -- In a diff buffer: the file and line (new side) under the cursor
+        local win = vim.api.nvim_get_current_win()
+        local path, line_first = diff.location_at_line(win, first)
+        local _, line_last = diff.location_at_line(win, last)
+        if not path or not line_first then
+            warn("move to a changed line of the diff first")
+            return
+        end
+        name, first, last = path, line_first, line_last or line_first
+        if first > last then
+            first, last = last, first
+        end
+    elseif vim.bo[buf].buftype ~= "" or name == "" then
         warn("the current buffer is not a file")
         return
     end
