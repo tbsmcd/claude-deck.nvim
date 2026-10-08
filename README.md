@@ -179,6 +179,7 @@ Claude Code has two renderers, and claude-deck starts it with the classic one by
 | Scroll, search, copy | Neovim normal mode (`j` / `k`, `/`, `y`) | `PageUp` / `PageDown`, `Ctrl+O` transcript, mouse wheel |
 | Mouse clicks | Handled by Neovim | Handled by Claude Code |
 | Long conversations | Redraw leftovers may pile up as duplicate lines in the scrollback | Stays fast; only the visible part is drawn |
+| Window resize | Stale output fragments may remain | The whole screen is redrawn |
 
 To use the fullscreen renderer, or to leave the choice to your Claude Code settings (`tui`):
 
@@ -340,6 +341,7 @@ To keep them, add the hooks to your own Claude Code settings (e.g. `~/.claude/se
 - On macOS, switching tabs or panes inside the terminal app is not detected as losing focus.
 - Terminals live in one Neovim instance and are lost when Neovim exits (sessions can be resumed with `claude --resume`). Quitting Neovim with `:qa` (or `:q` on a window that is not a running terminal) ends every Claude session without asking.
 - `:q!` and `ZQ` discard the terminal buffer, which ends that Claude session even when Neovim stays open.
+- With the classic renderer, when the window gets narrower (for example when focus mode opens), Claude Code may fail to erase part of its earlier output, so fragments of stale output (such as the tail of a line) can remain in the scrollback. This is how the classic renderer behaves in any terminal when it is resized, the plugin cannot prevent it, and Ctrl+L does not remove the fragments; new output and the prompt are drawn correctly. If you resize windows often, use `renderer = "fullscreen"`; otherwise return to the main tab after focus mode and let Claude print something, and drawing is normal from then on.
 
 ## Help
 

@@ -192,6 +192,8 @@ Fn+Down on a Mac), Ctrl+End for the latest, Ctrl+O for the transcript view
     Long          redraw leftovers may pile up  stays fast; only the
     conversations as duplicate lines in the     visible part is drawn
                   scrollback
+    Window        stale output fragments may    whole screen is redrawn
+    resize        remain
 
 Set `renderer = "fullscreen"`, or `renderer = false` to follow your Claude
 Code settings (`tui`). The renderer is passed with CLAUDE_CODE_NO_FLICKER
@@ -364,5 +366,14 @@ deficiencies. All are defined with `default = true` and can be overridden.
   not a running terminal) ends every Claude session without asking.
 - |:q!| and |ZQ| discard the terminal buffer, which ends that Claude session
   even when Neovim stays open.
+- With the classic renderer, when the window gets narrower (for example
+  when focus mode opens), Claude Code may fail to erase part of its earlier
+  output, so fragments of stale output (such as the tail of a line) can
+  remain in the scrollback. This is how the classic renderer behaves in any
+  terminal when it is resized; the plugin cannot prevent it, and Ctrl+L does
+  not remove the fragments. New output and the prompt are drawn correctly.
+  If you resize windows often, use `renderer = "fullscreen"`; otherwise
+  return to the main tab after focus mode and let Claude print something,
+  and drawing is normal from then on.
 
  vim:tw=78:ts=8:ft=help:norl:
