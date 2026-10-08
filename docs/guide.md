@@ -104,19 +104,19 @@ Waiting means "Claude says it is your turn". Nothing moves forward until you sen
 Claude names the task itself once it understands the task (about 20 characters). Until then, the beginning of the first prompt is shown as a temporary title.
 
 ![Right after sending a prompt. Running, with the beginning of the prompt as the temporary title](images/guide/en/running.webp)
-To name it yourself, use `<leader>cr`. Claude never changes a title you set yourself (it will if you ask it to rename the terminal).
+To name it yourself, run `:ClaudeDeck rename` (in the author's setup, `<leader>cr`). Claude never changes a title you set yourself (it will if you ask it to rename the terminal).
 
 ## 3. The basic flow
 
 ### Open
 
-Press `<leader>cc` in normal mode to open a Claude Code terminal.
+Run `:ClaudeDeck` (in the author's setup, `<leader>cc` in normal mode) to open a Claude Code terminal.
 
 - On an empty screen, it opens in place (full screen)
 - When you have a file open, it opens at the far right
 - When you are already inside a terminal, it opens another one to the right
 
-The terminal opens in Neovim's current directory. To open it somewhere else, use `<leader>cd` (chapter 4).
+The terminal opens in Neovim's current directory. To open it somewhere else, use `:ClaudeDeck dir` (in the author's setup, `<leader>cd`; chapter 4).
 
 ### Give it a task
 
@@ -153,7 +153,7 @@ If you mapped `<Esc>` in Neovim to leave terminal mode, `<Esc>` does not reach C
 
 You can close a terminal window with `:q`. Claude keeps running in the background, and status updates and notifications continue.
 
-To bring it back, open the list with `<leader>cl` and pick a terminal.
+To bring it back, open the list with `:ClaudeDeck list` (in the author's setup, `<leader>cl`) and pick a terminal.
 
 | Key in the list | Action |
 |---|---|
@@ -171,16 +171,16 @@ To end Claude, run `/exit` in Claude's prompt input.
 
 ### Split to add more
 
-| Key | Action |
+| Command (key in the author's setup) | Action |
 |---|---|
-| `<leader>cv` | Open a new terminal to the right of the current window |
-| `<leader>cs` | Open a new terminal below the current window |
+| `:ClaudeDeck new right` (`<leader>cv`) | Open a new terminal to the right of the current window |
+| `:ClaudeDeck new below` (`<leader>cs`) | Open a new terminal below the current window |
 
 A new terminal opens in the same directory as the terminal you are in. The size of your other windows does not change.
 
 ### Open in another directory
 
-`<leader>cd` opens a directory list. The candidates come in this order:
+Run `:ClaudeDeck dir` (in the author's setup, `<leader>cd`) to open a directory list. The candidates come in this order:
 
 1. The current directory
 2. The directories directly under the current directory
@@ -200,17 +200,17 @@ You can go down as many levels as you like with `Tab`. Press `Enter` at any leve
 
 ### Fork a conversation
 
-Press `<leader>cf` inside a terminal to continue the same conversation in another terminal. Use it when you want to try a different approach from this point. The original terminal stays as it is.
+Run `:ClaudeDeck fork` inside a terminal (in the author's setup, `<leader>cf`) to continue the same conversation in another terminal. Use it when you want to try a different approach from this point. The original terminal stays as it is.
 
 ## 5. Discussing code while looking at it (focus mode)
 
-Press `<leader>co` inside a terminal, and a new tab opens with file tree | editor | that terminal. The tab's current directory is the terminal's directory.
+Run `:ClaudeDeck focus` inside a terminal (in the author's setup, `<leader>co`), and a new tab opens with file tree | editor | that terminal. The tab's current directory is the terminal's directory.
 
-Press `<leader>co` again, and the tab closes and your previous layout comes back.
+Run `:ClaudeDeck focus` again, and the tab closes and your previous layout comes back.
 
 ### Send the file and line to Claude
 
-In the editor of focus mode, press `<leader>cp` to insert the current file and line into Claude's prompt input.
+In the editor of focus mode, run `:ClaudeDeck location` (in the author's setup, `<leader>cp`; in visual mode, `:'<,'>ClaudeDeck location`) to insert the current file and line into Claude's prompt input.
 
 - Normal mode: the cursor line, e.g. `app/services/example.rb:24`
 - Visual mode (select lines with `V`): the selected lines, e.g. `app/services/example.rb:24-58`
@@ -219,7 +219,7 @@ Only the path and line go into the prompt input, and focus moves to the terminal
 
 It also works in tabs other than focus mode, as long as exactly one terminal is visible.
 
-![In focus mode, select lines, press <leader>cp, then type the instruction](images/guide/en/focus-send-location.gif)
+![In focus mode, select lines, run `:ClaudeDeck location` (in the author's setup, `<leader>cp`), then type the instruction](images/guide/en/focus-send-location.gif)
 
 ![The focus mode screen after Claude carried out the instruction](images/guide/en/focus-result.webp)
 
@@ -278,19 +278,19 @@ On macOS, if `terminal-notifier` is installed, clicking a notification brings yo
 
 **All of these come from the example configuration in chapter 0 (the author's `init.lua`).** The plugin does not provide them: unless you add the same mappings to your own `init.lua`, they do not work. The same goes for `<Esc>`, `<C-h>` and so on.
 
-| Key | Action |
-|---|---|
-| `<leader>cc` | Open / move to / add to the right |
-| `<leader>cv` | Open in a split to the right |
-| `<leader>cs` | Open in a split below |
-| `<leader>cl` | List terminals |
-| `<leader>cd` | Pick a directory and open there |
-| `<leader>cf` | Fork the conversation |
-| `<leader>cr` | Rename the task |
-| `<leader>co` | Toggle focus mode |
-| `<leader>cp` | Send the file and line to Claude |
-| `<leader>cR` | Redraw the terminal (resume the session) |
-| `<C-q>` (in a terminal) | Leave terminal mode |
-| `<C-]>` (in a terminal) | Send Esc to Claude |
+| Key | Command | Action |
+|---|---|---|
+| `<leader>cc` | `:ClaudeDeck` | Open / move to / add to the right |
+| `<leader>cv` | `:ClaudeDeck new right` | Open in a split to the right |
+| `<leader>cs` | `:ClaudeDeck new below` | Open in a split below |
+| `<leader>cl` | `:ClaudeDeck list` | List terminals |
+| `<leader>cd` | `:ClaudeDeck dir` | Pick a directory and open there |
+| `<leader>cf` | `:ClaudeDeck fork` | Fork the conversation |
+| `<leader>cr` | `:ClaudeDeck rename` | Rename the task |
+| `<leader>co` | `:ClaudeDeck focus` | Toggle focus mode |
+| `<leader>cp` | `:ClaudeDeck location` (in visual mode, `:'<,'>ClaudeDeck location`) | Send the file and line to Claude |
+| `<leader>cR` | `:ClaudeDeck redraw` | Redraw the terminal (resume the session) |
+| `<C-q>` (in a terminal) | none (a plugin key) | Leave terminal mode |
+| `<C-]>` (in a terminal) | none (a plugin key) | Send Esc to Claude |
 
 To run them as commands, use `:ClaudeDeck` followed by a subcommand (`new`, `list`, `dir`, `fork`, `rename`, `focus`, `location`, `redraw`, `show`, `settings`).

@@ -106,19 +106,19 @@ Waiting は「Claude があなたの番だと言っている」状態です。�
 
 
 ![プロンプトを送った直後。Running で、仮の名前はプロンプトの先頭](images/guide/ja/running.webp)
-自分で付けたい場合は `<leader>cr` です。自分で付けた名前は、Claude が勝手に変えることはありません（「名前を変えて」と頼めば変えます）。
+自分で付けたい場合は `:ClaudeDeck rename` を実行します（作者の設定では `<leader>cr`）。自分で付けた名前は、Claude が勝手に変えることはありません（「名前を変えて」と頼めば変えます）。
 
 ## 3. 基本の流れ
 
 ### 開く
 
-ノーマルモードで `<leader>cc` を押すと、Claude Code のターミナルが開きます。
+`:ClaudeDeck` を実行すると（作者の設定ではノーマルモードで `<leader>cc`）、Claude Code のターミナルが開きます。
 
-- 空の画面で押すと、その場（全画面）に開きます
+- 空の画面で実行すると、その場（全画面）に開きます
 - ファイルを開いているときは、右端に開きます
 - すでにターミナルの中にいるときは、右隣にもう 1 つ開きます
 
-開いたときのディレクトリは、Neovim のカレントディレクトリです。別の場所で開きたいときは `<leader>cd` を使います（4 章）。
+開いたときのディレクトリは、Neovim のカレントディレクトリです。別の場所で開きたいときは `:ClaudeDeck dir` を使います（作者の設定では `<leader>cd`。4 章）。
 
 ### タスクを伝える
 
@@ -157,7 +157,7 @@ Waiting は「Claude があなたの番だと言っている」状態です。�
 
 ターミナルの window は `:q` で閉じられます。閉じても Claude は裏で動き続け、状態の更新と通知も続きます。
 
-呼び戻すには `<leader>cl` で一覧を開き、選びます。
+呼び戻すには `:ClaudeDeck list` で一覧を開き（作者の設定では `<leader>cl`）、選びます。
 
 | 一覧でのキー | 動作 |
 |---|---|
@@ -176,16 +176,16 @@ Claude を終了するには、Claude の入力欄で `/exit` を実行します
 
 ### 分割して増やす
 
-| キー | 動作 |
+| コマンド（作者の設定のキー） | 動作 |
 |---|---|
-| `<leader>cv` | 今の window の右に新しいターミナルを開く |
-| `<leader>cs` | 今の window の下に新しいターミナルを開く |
+| `:ClaudeDeck new right`（`<leader>cv`） | 今の window の右に新しいターミナルを開く |
+| `:ClaudeDeck new below`（`<leader>cs`） | 今の window の下に新しいターミナルを開く |
 
 新しいターミナルは、今いるターミナルと同じディレクトリで開きます。ほかの window の大きさは変わりません。
 
 ### 別のディレクトリで開く
 
-`<leader>cd` でディレクトリの一覧が開きます。候補は次の順です。
+`:ClaudeDeck dir` を実行すると（作者の設定では `<leader>cd`）、ディレクトリの一覧が開きます。候補は次の順です。
 
 1. 今のディレクトリ
 2. 今のディレクトリの直下
@@ -206,17 +206,17 @@ Claude を終了するには、Claude の入力欄で `/exit` を実行します
 
 ### 会話を分岐する
 
-ターミナルの中で `<leader>cf` を押すと、同じ会話の続きを別のターミナルで開きます。「ここから別の案も試したい」というときに使います。元のターミナルはそのまま残ります。
+ターミナルの中で `:ClaudeDeck fork` を実行すると（作者の設定では `<leader>cf`）、同じ会話の続きを別のターミナルで開きます。「ここから別の案も試したい」というときに使います。元のターミナルはそのまま残ります。
 
 ## 5. コードを見ながら相談する（集中モード）
 
-ターミナルの中で `<leader>co` を押すと、新しいタブに「ファイルツリー ｜ エディタ ｜ そのターミナル」が並びます。タブのカレントディレクトリは、そのターミナルのディレクトリになります。
+ターミナルの中で `:ClaudeDeck focus` を実行すると（作者の設定では `<leader>co`）、新しいタブに「ファイルツリー ｜ エディタ ｜ そのターミナル」が並びます。タブのカレントディレクトリは、そのターミナルのディレクトリになります。
 
-もう一度 `<leader>co` を押すと、タブが閉じて元の画面構成に戻ります。
+もう一度 `:ClaudeDeck focus` を実行すると、タブが閉じて元の画面構成に戻ります。
 
 ### ファイルと行を Claude に渡す
 
-集中モードのエディタ側で `<leader>cp` を押すと、今のファイルと行が Claude の入力欄に入ります。
+集中モードのエディタ側で `:ClaudeDeck location` を実行すると（作者の設定では `<leader>cp`。ビジュアルモードでは `:'<,'>ClaudeDeck location`）、今のファイルと行が Claude の入力欄に入ります。
 
 - ノーマルモード: カーソルの行。例: `app/services/example.rb:24`
 - ビジュアルモード（`V` で行を選ぶ）: 選んだ範囲。例: `app/services/example.rb:24-58`
@@ -225,7 +225,7 @@ Claude を終了するには、Claude の入力欄で `/exit` を実行します
 
 集中モード以外のタブでも、表示しているターミナルが 1 つだけなら使えます。
 
-![集中モードで行を選んで <leader>cp を押し、続けて指示を打つ](images/guide/ja/focus-send-location.gif)
+![集中モードで行を選んで `:ClaudeDeck location`（作者の設定では `<leader>cp`）を実行し、続けて指示を打つ](images/guide/ja/focus-send-location.gif)
 
 ![Claude が指示を実行したあとの集中モードの画面](images/guide/ja/focus-result.webp)
 
@@ -289,19 +289,19 @@ macOS では、`terminal-notifier` が入っていると、通知のクリック
 
 **これらはすべて、0 章の設定例（作者の `init.lua`）での割り当てです。** プラグインが用意しているキーではないので、ユーザー自身の `init.lua` に同じ設定を書かなければ使えません。`<Esc>` と `<C-h>` などの mapping も同様です。
 
-| キー | 動作 |
-|---|---|
-| `<leader>cc` | 開く / 移動 / 右に追加 |
-| `<leader>cv` | 右に分割して開く |
-| `<leader>cs` | 下に分割して開く |
-| `<leader>cl` | ターミナルの一覧 |
-| `<leader>cd` | ディレクトリを選んで開く |
-| `<leader>cf` | 会話を分岐する |
-| `<leader>cr` | タスク名を変える |
-| `<leader>co` | 集中モードの切り替え |
-| `<leader>cp` | ファイルと行を Claude に渡す |
-| `<leader>cR` | 表示を描き直す（同じセッションを開き直す） |
-| `<C-q>`（ターミナル内） | ターミナルモードを抜ける |
-| `<C-]>`（ターミナル内） | Claude に Esc を送る |
+| キー | コマンド | 動作 |
+|---|---|---|
+| `<leader>cc` | `:ClaudeDeck` | 開く / 移動 / 右に追加 |
+| `<leader>cv` | `:ClaudeDeck new right` | 右に分割して開く |
+| `<leader>cs` | `:ClaudeDeck new below` | 下に分割して開く |
+| `<leader>cl` | `:ClaudeDeck list` | ターミナルの一覧 |
+| `<leader>cd` | `:ClaudeDeck dir` | ディレクトリを選んで開く |
+| `<leader>cf` | `:ClaudeDeck fork` | 会話を分岐する |
+| `<leader>cr` | `:ClaudeDeck rename` | タスク名を変える |
+| `<leader>co` | `:ClaudeDeck focus` | 集中モードの切り替え |
+| `<leader>cp` | `:ClaudeDeck location`（ビジュアルモードでは `:'<,'>ClaudeDeck location`） | ファイルと行を Claude に渡す |
+| `<leader>cR` | `:ClaudeDeck redraw` | 表示を描き直す（同じセッションを開き直す） |
+| `<C-q>`（ターミナル内） | なし（プラグインのキー） | ターミナルモードを抜ける |
+| `<C-]>`（ターミナル内） | なし（プラグインのキー） | Claude に Esc を送る |
 
 コマンドで実行する場合は `:ClaudeDeck` に続けてサブコマンドを指定します（`new`、`list`、`dir`、`fork`、`rename`、`focus`、`location`、`redraw`、`show`、`settings`）。
