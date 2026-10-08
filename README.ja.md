@@ -20,6 +20,8 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
 
 ![4 つの Claude Code セッションを並べ、winbar の色で状態を表示している画面](docs/images/terminals.webp)
 
+はじめて使う場合は、[使い方ガイド](docs/guide.ja.md)を読んでください。ターミナルを開くところから、通知や集中モードまで、実際の作業の流れに沿って説明しています。
+
 ## 必要なもの
 
 必須:

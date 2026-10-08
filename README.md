@@ -20,6 +20,8 @@ Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions
 
 ![Four Claude Code sessions side by side, with status colors in the winbar](docs/images/terminals.webp)
 
+New here? Read the [user guide](docs/guide.md): it walks through a typical session, from opening a terminal to notifications and focus mode.
+
 ## Requirements
 
 Required:
