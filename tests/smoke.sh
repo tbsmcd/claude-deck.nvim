@@ -303,6 +303,68 @@ lua '(function() vim.cmd("tabclose!"); return "" end)()' >/dev/null
 check "auto_title = false leaves out the ct title paragraph" "$(lua '(function() require("claude-deck").setup(vim.tbl_extend("force", T_opts, { cli = { auto_title = false } })); require("claude-deck").new("below"); vim.cmd("stopinsert"); local id = vim.b.claude_deck_id; vim.cmd("close"); vim.wait(500); local args = table.concat(vim.fn.readfile(vim.env.TEST_OUT .. "/args." .. id), "\n"); return tostring(args:find("ct list", 1, true) ~= nil) .. " " .. tostring(args:find([[ct title "]], 1, true) ~= nil) end)()')" "true false"
 lua '(function() require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
 
+# ct open: Claude opens a file in the editor window of focus mode
+lua '(function() vim.cmd("tabnew"); _G.T_open_origin = vim.api.nvim_get_current_tabpage(); require("claude-deck").new(); _G.T_open_term = vim.b.claude_deck_id; return "" end)()' >/dev/null
+OT=$(lua '_G.T_open_term')
+sleep 0.3
+check "system prompt tells about ct open" "$(cat "$TEST_OUT/args.$OT")" 'ct open <path>[:line]'
+check "permissions allow ct open" "$(lua 'require("claude-deck.hooks").settings_json()')" '"Bash(ct open:*)"'
+OPEN_TABS=$(lua '#vim.api.nvim_list_tabpages()')
+editor_state() { # tabs, focus mode terminal, current file, cursor line, buftype and mode
+    lua '(function() return #vim.api.nvim_list_tabpages() .. " #" .. tostring(require("claude-deck.focus").term_id()) .. " " .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":t") .. ":" .. vim.fn.line(".") .. " [" .. vim.bo.buftype .. "] " .. vim.api.nvim_get_mode().mode end)()'
+}
+check "cli.open opens focus mode with the file at the line" "$(lua 'require("claude-deck.cli").open('"$OT"', "tests/fixtures/open/greeter.rb:24")')|$(editor_state)" "Opened tests/fixtures/open/greeter.rb:24 in the editor|$((OPEN_TABS + 1)) #$OT greeter.rb:24 [] n"
+check "the file is opened in the editor window made by focus mode (tree | editor | terminal)" "$(lua '(function() local wins = vim.api.nvim_tabpage_list_wins(0); local terms = #require("claude-deck.state").wins_in_tab(); return #wins .. " " .. terms .. " " .. vim.fn.winnr() end)()')" "3 1 2"
+lua '(function() _G.T_open_edit = vim.api.nvim_get_current_win(); vim.api.nvim_set_current_tabpage(_G.T_open_origin); return "" end)()' >/dev/null
+check "cli.open with focus mode open reuses its tab and editor window" "$(lua 'require("claude-deck.cli").open('"$OT"', "tests/fixtures/open/my notes.txt")')|$(editor_state)|$(lua 'tostring(vim.api.nvim_get_current_win() == _G.T_open_edit)')" "Opened tests/fixtures/open/my notes.txt in the editor|$((OPEN_TABS + 1)) #$OT my notes.txt:1 [] n|true"
+check "line past the end goes to the last line" "$(lua 'require("claude-deck.cli").open('"$OT"', "tests/fixtures/open/greeter.rb:999")')|$(editor_state)" "Opened tests/fixtures/open/greeter.rb:30 in the editor|$((OPEN_TABS + 1)) #$OT greeter.rb:30 [] n"
+check "path:line:col uses the line" "$(lua 'require("claude-deck.cli").open('"$OT"', "tests/fixtures/open/greeter.rb:7:3")')|$(editor_state)" "greeter.rb:7 in the editor|$((OPEN_TABS + 1)) #$OT greeter.rb:7 [] n"
+check "split_line" "$(lua '(function() local cli = require("claude-deck.cli"); local a, b = cli.split_line("a/b.rb:24"); local c, d = cli.split_line("a/b.rb"); local e, f = cli.split_line("x:2:5"); return a .. " " .. b .. "|" .. c .. " " .. tostring(d) .. "|" .. e .. " " .. f end)()')" "a/b.rb 24|a/b.rb nil|x 2"
+check "absolute and ~ paths" "$(lua 'require("claude-deck.cli").open('"$OT"', vim.fn.getcwd() .. "/README.md:2")')|$(lua 'require("claude-deck.cli").resolve_path("~/", "/") == vim.fs.normalize(vim.env.HOME)')" "Opened README.md:2 in the editor|true"
+check "missing file fails" "$(lua 'require("claude-deck.cli").open('"$OT"', "tests/fixtures/open/nope.rb:3")')|$(editor_state)" "ct: file not found: tests/fixtures/open/nope.rb|$((OPEN_TABS + 1)) #$OT README.md:2 [] n"
+check "a directory fails" "$(lua 'require("claude-deck.cli").open('"$OT"', "tests/fixtures/open")')|$(editor_state)" "ct: not a file: tests/fixtures/open|$((OPEN_TABS + 1)) #$OT README.md:2 [] n"
+check "relative paths use the given cwd (the shell's \$PWD)" "$(lua 'require("claude-deck.cli").open('"$OT"', "greeter.rb:6", vim.fn.getcwd() .. "/tests/fixtures/open")')|$(editor_state)" "Opened tests/fixtures/open/greeter.rb:6 in the editor|$((OPEN_TABS + 1)) #$OT greeter.rb:6 [] n"
+printf 'a\nb\nc\n' >"$TEST_OUT/foo"
+printf 'x\n' >"$TEST_OUT/foo:24"
+check "a file named foo:24 is opened as it is" "$(lua 'require("claude-deck.cli").open('"$OT"', "foo:24", vim.env.TEST_OUT)')|$(editor_state)" "foo:24 in the editor|$((OPEN_TABS + 1)) #$OT foo:24:1 [] n"
+check "foo:3 without such a file opens foo at line 3" "$(lua 'require("claude-deck.cli").open('"$OT"', "foo:3", vim.env.TEST_OUT)')|$(editor_state)" "foo:3 in the editor|$((OPEN_TABS + 1)) #$OT foo:3 [] n"
+printf 'swapped\n' >"$TEST_OUT/swapped.txt"
+nvim --headless --clean "$TEST_OUT/swapped.txt" </dev/null >/dev/null 2>&1 &
+SWAP_PID=$!
+sleep 0.5
+check "a file with a swap file opens read-only without a prompt" "$(lua '(function() local n = #vim.api.nvim_get_autocmds({ event = "SwapExists" }); local r = require("claude-deck.cli").open('"$OT"', vim.env.TEST_OUT .. "/swapped.txt"); return r .. "|" .. tostring(vim.bo.readonly) .. " " .. tostring(n == #vim.api.nvim_get_autocmds({ event = "SwapExists" })) end)()')|$(editor_state)" "swapped.txt in the editor|true true|$((OPEN_TABS + 1)) #$OT swapped.txt:1 [] n"
+kill $SWAP_PID 2>/dev/null
+lua '(function() vim.cmd("edit README.md | 2"); return "" end)()' >/dev/null
+check "closed editor window is made again" "$(lua '(function() vim.api.nvim_win_close(_G.T_open_edit, false); local r = require("claude-deck.cli").open('"$OT"', "tests/fixtures/open/greeter.rb:5"); return r .. " " .. #vim.api.nvim_tabpage_list_wins(0) .. " " .. #require("claude-deck.state").wins_in_tab() end)()')|$(editor_state)" "greeter.rb:5 in the editor 3 1|$((OPEN_TABS + 1)) #$OT greeter.rb:5 [] n"
+
+# bin/ct open from the terminal in Terminal mode
+ct_open() { # ct open in terminal $OT; prints the output and the exit status
+    out=$(NVIM="$SOCK" CLAUDE_DECK_ID="$OT" bin/ct open "$@" 2>&1)
+    printf '%s exit=%s' "$out" "$?"
+}
+lua '(function() vim.cmd("tabclose"); vim.api.nvim_set_current_tabpage(_G.T_open_origin); require("claude-deck").show('"$OT"'); return "" end)()' >/dev/null
+sleep 0.2
+check "the terminal is in Terminal mode before ct open" "$(lua 'vim.api.nvim_get_mode().mode')" "t"
+check "ct open opens focus mode from Terminal mode" "$(ct_open "tests/fixtures/open/greeter.rb:24")" "Opened tests/fixtures/open/greeter.rb:24 in the editor exit=0"
+sleep 0.2
+check "ct open leaves the editor window current in Normal mode" "$(editor_state)" "$((OPEN_TABS + 1)) #$OT greeter.rb:24 [] n"
+check "ct open with a space in the path" "$(ct_open "tests/fixtures/open/my notes.txt")|$(editor_state)" "Opened tests/fixtures/open/my notes.txt in the editor exit=0|$((OPEN_TABS + 1)) #$OT my notes.txt:1 [] n"
+check "ct open missing file fails" "$(ct_open nope.txt)" "ct: file not found: nope.txt exit=1"
+check "ct open resolves relative paths from the shell's current directory" "$(cd tests/fixtures/open && NVIM="$SOCK" CLAUDE_DECK_ID="$OT" "$ROOT/bin/ct" open greeter.rb:2; echo "exit=$?")|$(editor_state)" "Opened tests/fixtures/open/greeter.rb:2 in the editor
+exit=0|$((OPEN_TABS + 1)) #$OT greeter.rb:2 [] n"
+check "ct open without a path fails" "$(ct_open; echo)" "ct open <path>[:line]"
+check "ct open without an id fails" "$(NVIM="$SOCK" CLAUDE_DECK_ID= bin/ct open README.md 2>&1; echo "exit=$?")" "ct: run this inside a claude-deck terminal
+exit=1"
+
+# A hidden terminal is shown first; the API and the user command
+lua '(function() vim.cmd("tabclose"); vim.api.nvim_set_current_tabpage(_G.T_open_origin); vim.cmd("stopinsert | vnew"); local t = require("claude-deck.state").get('"$OT"'); for _, w in ipairs(vim.fn.win_findbuf(t.buf)) do vim.api.nvim_win_close(w, false) end; return "" end)()' >/dev/null
+check "ct open shows a hidden terminal and opens focus mode" "$(ct_open README.md:3)|$(editor_state)|$(lua '#require("claude-deck.state").wins_in_tab()')" "Opened README.md:3 in the editor exit=0|$((OPEN_TABS + 1)) #$OT README.md:3 [] n|1"
+check "open_file() uses the terminal of the focus mode tab" "$(lua '(function() require("claude-deck").open_file("tests/fixtures/open/greeter.rb", 12); return "" end)()')$(editor_state)" "$((OPEN_TABS + 1)) #$OT greeter.rb:12 [] n"
+check ":ClaudeDeck open path:line (relative to Neovim's cwd)" "$(lua '(function() local cwd = vim.fn.getcwd(); vim.cmd("tcd tests/fixtures/open"); vim.cmd("ClaudeDeck open greeter.rb:20"); vim.cmd("tcd " .. vim.fn.fnameescape(cwd)); return "" end)()')$(editor_state)" "$((OPEN_TABS + 1)) #$OT greeter.rb:20 [] n"
+check ":ClaudeDeck open missing file warns" "$(lua 'T_notify(function() vim.cmd("ClaudeDeck open nope.txt") end)')" "/nope.txt"
+check "open_file() outside a terminal warns" "$(lua '(function() vim.cmd("tabclose"); vim.api.nvim_set_current_tabpage(_G.T_open_origin); vim.cmd("stopinsert | 1wincmd w"); return T_notify(function() require("claude-deck").open_file("README.md") end) end)()')" "run this inside a terminal or its focus mode"
+lua '(function() vim.cmd("tabclose!"); return "" end)()' >/dev/null
+
 # Notification methods
 notify_methods='(function() local fn, n = vim.fn, require("claude-deck.notify"); local has, ex = fn.has, fn.executable; local r = {}; fn.has = function(f) return f == "mac" and 1 or has(f) end; for _, tn in ipairs({ 1, 0 }) do fn.executable = function(c) return c == "terminal-notifier" and tn or 1 end; table.insert(r, n.method()) end; fn.has = function() return 0 end; table.insert(r, n.method()); fn.has, fn.executable = has, ex; return table.concat(r, " ") end)()'
 check "auto method: terminal-notifier, osascript, notify-send" "$(lua "$notify_methods")" "terminal-notifier osascript notify-send"
@@ -434,6 +496,8 @@ lua '(function() vim.cmd("tabclose!"); return "" end)()' >/dev/null
 check "user command completion" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck f", "cmdline"), ",")')" "focus,fork"
 check "user command completion has redraw" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck re", "cmdline"), ",")')" "redraw,rename"
 check "user command completion has location" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck l", "cmdline"), ",")')" "list,location"
+check "user command completion has open" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck o", "cmdline"), ",")')" "open"
+check "ClaudeDeck open completes files" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck open tests/fixtures/open/g", "cmdline"), ",")')" "tests/fixtures/open/greeter.rb"
 
 messages=$(lua 'vim.api.nvim_exec2("messages", { output = true }).output')
 case "$messages" in

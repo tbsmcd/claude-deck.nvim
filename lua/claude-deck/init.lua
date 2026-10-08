@@ -505,6 +505,32 @@ function M.send_location()
     require("claude-deck.location").send()
 end
 
+-- Open `path` (absolute, "~/…" or relative to the terminal's cwd) in the editor window of the
+-- focus mode of terminal `term_id` (default: the current terminal, or the one of this focus
+-- mode tab), opening focus mode when needed, and go to `line` (optional).
+function M.open_file(path, line, term_id)
+    ensure_setup()
+    local term
+    if term_id then
+        term = state.get(term_id)
+    else
+        term = state.current() or state.get(require("claude-deck.focus").term_id())
+    end
+    if not term then
+        vim.notify(
+            term_id and ("claude-deck: no terminal #" .. tostring(term_id))
+                or "claude-deck: run this inside a terminal or its focus mode",
+            vim.log.levels.WARN
+        )
+        return
+    end
+
+    local result = require("claude-deck.cli").open(term.id, line and (path .. ":" .. line) or path)
+    if vim.startswith(result, "ct: ") then
+        vim.notify("claude-deck: " .. result:sub(5), vim.log.levels.WARN)
+    end
+end
+
 local SUBCOMMANDS = {
     toggle = function()
         M.toggle()
@@ -535,6 +561,25 @@ local SUBCOMMANDS = {
     end,
     show = function(args)
         M.show(tonumber(args[1]), args[2])
+    end,
+    -- `:ClaudeDeck open path[:line]`
+    open = function(args)
+        if #args == 0 then
+            vim.notify("claude-deck: usage: ClaudeDeck open <path>[:line]", vim.log.levels.WARN)
+            return
+        end
+        -- Relative to Neovim's cwd (as completed); `%` etc. are expanded
+        local function absolute(path)
+            return vim.fn.fnamemodify(vim.fn.expand(path), ":p")
+        end
+        local text = table.concat(args, " ")
+        local whole = absolute(text)
+        if vim.uv.fs_stat(whole) then
+            M.open_file(whole)
+            return
+        end
+        local path, line = require("claude-deck.cli").split_line(text)
+        M.open_file(absolute(path), line)
     end,
     -- With a range (e.g. `:'<,'>ClaudeDeck location`), the range is sent
     location = function(_, range)

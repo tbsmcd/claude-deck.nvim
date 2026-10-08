@@ -18,9 +18,10 @@ function M.settings_json()
 
     local settings = { hooks = hooks }
     if config.options.cli.enabled then
-        -- `ct list` / `ct read` only read state and `ct title` only names the terminal it runs
-        -- in, so allow them without a prompt
-        settings.permissions = { allow = { "Bash(ct list)", "Bash(ct read:*)", "Bash(ct title:*)" } }
+        -- `ct list` / `ct read` only read state, `ct title` only names the terminal it runs in
+        -- and `ct open` only shows a file in the editor, so allow them without a prompt
+        settings.permissions =
+            { allow = { "Bash(ct list)", "Bash(ct read:*)", "Bash(ct title:*)", "Bash(ct open:*)" } }
     end
     return vim.json.encode(settings)
 end

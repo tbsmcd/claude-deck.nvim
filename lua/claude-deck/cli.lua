@@ -112,4 +112,63 @@ function M.title(id, text, force)
     return string.format("Terminal #%d title: %s", term.id, title)
 end
 
+-- "path:line" (also "path:line:col") -> path, line; just a path -> path, nil
+function M.split_line(text)
+    local path, line = text:match("^(.-):(%d+):%d+$")
+    if not path then
+        path, line = text:match("^(.-):(%d+)$")
+    end
+    if not path or path == "" then
+        return text, nil
+    end
+    return path, tonumber(line)
+end
+
+-- Absolute path of `path` (absolute, "~/…" or relative to `cwd`), or nil when it does not exist
+function M.resolve_path(path, cwd)
+    if path == "~" or vim.startswith(path, "~/") then
+        path = vim.env.HOME .. path:sub(2)
+    elseif not vim.startswith(path, "/") then
+        path = cwd .. "/" .. path
+    end
+    path = vim.fs.normalize(vim.fn.simplify(path))
+    return vim.uv.fs_stat(path) and path or nil
+end
+
+-- `ct open <path>[:line]`: opens the file in the editor window of the focus mode of terminal
+-- `id` (opening focus mode when needed). Relative paths are relative to `cwd` (the shell's
+-- current directory; empty or nil: the terminal's cwd). A file whose whole name matches (e.g.
+-- "foo:24") is opened as it is; otherwise a trailing ":line" is the line.
+function M.open(id, text, cwd)
+    local term = state.get(id)
+    if not term then
+        return "ct: no terminal #" .. tostring(id)
+    end
+    text = vim.trim(text or "")
+    if text == "" then
+        return "ct: no path given"
+    end
+    local base = (cwd and cwd ~= "") and cwd or term.cwd
+
+    local path, line = text, nil
+    local resolved = M.resolve_path(path, base)
+    if not resolved then
+        path, line = M.split_line(text)
+        resolved = M.resolve_path(path, base)
+    end
+    if not resolved then
+        return "ct: file not found: " .. path
+    end
+    if vim.fn.isdirectory(resolved) == 1 then
+        return "ct: not a file: " .. path
+    end
+
+    local ok, result = pcall(require("claude-deck.focus").open_file, term, resolved, line)
+    if not ok then
+        pcall(vim.cmd, "stopinsert")
+        return "ct: " .. tostring(result)
+    end
+    return result
+end
+
 return M

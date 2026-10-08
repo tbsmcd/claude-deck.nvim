@@ -143,6 +143,18 @@ send_location()                                    *claude-deck.send_location()*
     Map it in both normal and Visual mode (see |claude-deck-setup|), or set
     `keymaps.send_location`.
 
+open_file({path}, {line}, {id})                      *claude-deck.open_file()*
+    Open {path} in the editor window of the focus mode of terminal {id}
+    and make that window current (in normal mode), with the cursor on
+    {line} if given (past the end: the last line). Without focus mode for
+    the terminal, open focus mode first (showing the terminal if it is
+    hidden). A relative {path} is relative to the terminal's cwd. Without
+    {id}: the current terminal, or the terminal of the focus mode tab.
+    Directories are refused. A file with a swap file is opened read-only.
+    `:ClaudeDeck open {path}[:{line}]` does the same, with a relative path
+    relative to Neovim's current directory. `ct open` runs this
+    (|claude-deck-ct|).
+
 show_settings()                                    *claude-deck.show_settings()*
     Show the Claude Code settings JSON (hooks and `ct` permissions) in a
     scratch buffer. Use it to add the hooks to your own settings when
@@ -288,6 +300,7 @@ Inside a terminal, `ct` is on PATH and Claude is told about it:
     ct title [title]        set the task title of this terminal; without a
                             title, show it
     ct title --force title  also replace a title set with rename()
+    ct open path[:line]     open a file in the editor of focus mode
 
 All of them are allowed without a permission prompt. `ct read` parses Claude
 Code's transcript files, whose format is internal and may change.
@@ -299,6 +312,15 @@ your prompt, and to rename it when the task changes. A title may be at most
 Claude picks a shorter one. A title set with |claude-deck.rename()| takes
 precedence: `ct title` refuses to change it, and Claude uses
 `ct title --force` only when you ask it to rename the terminal.
+
+`ct open` opens a file in the editor window of the terminal's focus mode
+(|claude-deck.open_file()|), opening focus mode first when needed. A
+relative path is relative to the current directory of Claude's shell, and
+`path:line:col` uses only the line. A file whose whole name matches (e.g.
+`foo:24`) is opened as it is. A file with a swap file is opened read-only.
+Claude is told to use it when you ask it to open or show a
+file, or to show you the code it is explaining: e.g. "open app/index.html"
+or "show me line 24 of greeter.rb".
 
 ==============================================================================
 6. CONFIGURATION                                           *claude-deck-config*

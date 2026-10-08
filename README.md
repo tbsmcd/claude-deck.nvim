@@ -92,6 +92,7 @@ opts = {
 | `show_settings()` | `:ClaudeDeck settings` | Show the Claude Code settings JSON (hooks, permissions) |
 | `focus()` | `:ClaudeDeck focus` | Toggle focus mode |
 | `send_location()` | `:ClaudeDeck location` | Insert the current file path and line (or selected lines) into Claude's prompt |
+| `open_file(path, line?, id?)` | `:ClaudeDeck open <path>[:line]` | Open a file in the editor of a terminal's focus mode (see [`ct open`](#ct-command-for-claude)) |
 | `show(id, where?)` | `:ClaudeDeck show <id>` | Show a terminal by id |
 
 Where a new terminal opens (without `where`):
@@ -251,11 +252,14 @@ ct list            # id, status, title, cwd, session_id and transcript path of e
 ct read 2 [count]  # recent messages of terminal #2 (default 20)
 ct title "Fix login bug"   # set the task title of this terminal (without a title: show it)
 ct title --force "…"       # also replace a title you set with rename()
+ct open app/greeter.rb:24  # open a file (at a line) in the editor of focus mode
 ```
 
 All of them are allowed without a permission prompt. So you can ask, for example, "check that this doesn't conflict with what #1 is doing".
 
 With `cli.auto_title` (default), Claude is told to name its terminal with `ct title` as soon as it understands the task, with a short title in the language of your prompt, and to rename it when the task changes. The title may be at most 40 cells wide (display width; a Japanese character takes 2); a longer one is refused rather than cut, so that Claude picks a shorter one. A title you set with `rename()` takes precedence: `ct title` refuses to change it, and Claude uses `ct title --force` only when you ask it to rename the terminal.
+
+`ct open <path>[:line]` opens a file in the editor window of the terminal's [focus mode](#focus-mode) and makes that window current (in normal mode), with the cursor on the line if one is given (past the end: the last line; `path:line:col` uses only the line). Without focus mode for the terminal, it opens focus mode first (showing the terminal if it is hidden). A relative path is relative to the current directory of Claude's shell; `~/` and absolute paths work too. A file whose whole name matches (e.g. `foo:24`) is opened as it is. Directories are refused. When the file has a swap file, it is opened read-only. Claude is told to use it when you ask it to open or show a file, or to show you the code it is explaining, so you can ask "open app/index.html" or "show me line 24 of greeter.rb". From Neovim, `open_file(path, line?, id?)` and `:ClaudeDeck open <path>[:line]` do the same for the current terminal (or the terminal of the focus mode tab); a relative path is relative to the terminal's cwd for `open_file()` and to Neovim's current directory for `:ClaudeDeck open`.
 
 ![Claude in terminal #5 listing the terminals and reading the conversation of terminal #4](docs/images/ct.webp)
 

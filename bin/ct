@@ -1,11 +1,13 @@
 #!/bin/sh
-# Inspect other claude-deck terminals and name this one. Works only inside a claude-deck terminal.
+# Inspect other claude-deck terminals, name this one and open files in the editor. Works only
+# inside a claude-deck terminal.
 #   ct list                      list terminals
 #   ct read <id> [count]         recent conversation of a terminal (default 20 messages)
 #   ct title [title]             set the task title of this terminal (show it without a title)
 #   ct title --force <title>     also replace a title set by the user (the title is required)
+#   ct open <path>[:line]        open a file in the editor of focus mode (path relative to the cwd)
 usage() {
-    sed -n '3,7p' "$0" | sed 's/^# //' >&2
+    sed -n '4,8p' "$0" | sed 's/^# //' >&2
     exit 1
 }
 
@@ -45,6 +47,18 @@ title)
         hex=$(printf '%s' "$*" | od -An -v -tx1 | tr -d ' \n' | sed 's/../\\x&/g')
         expr="v:lua.require'claude-deck.cli'.title($self,\"$hex\",$force)"
     fi
+    ;;
+open)
+    self="$CLAUDE_DECK_ID"
+    is_number "$self" || { echo "ct: run this inside a claude-deck terminal" >&2; exit 1; }
+    shift
+    [ "${1-}" = -- ] && shift
+    [ $# -gt 0 ] || usage
+    # Passed as "\xHH…" strings like the title. Relative paths are relative to $PWD (Claude's
+    # shell may have changed directory since the terminal started).
+    hex=$(printf '%s' "$*" | od -An -v -tx1 | tr -d ' \n' | sed 's/../\\x&/g')
+    pwd_hex=$(printf '%s' "${PWD-}" | od -An -v -tx1 | tr -d ' \n' | sed 's/../\\x&/g')
+    expr="v:lua.require'claude-deck.cli'.open($self,\"$hex\",\"$pwd_hex\")"
     ;;
 *)
     usage

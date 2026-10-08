@@ -143,6 +143,18 @@ send_location()                                  *claude-deck.send_location()*
     （|claude-deck-setup| を参照）、`keymaps.send_location` を設定して
     ください。
 
+open_file({path}, {line}, {id})                      *claude-deck.open_file()*
+    ターミナル {id} の集中モードのエディタのウィンドウで {path} を開き、
+    そのウィンドウに（ノーマルモードで）移動します。{line} を指定すると
+    その行にカーソルを置きます（行数を超えるときは最終行）。そのターミナ
+    ルの集中モードがなければ、先に集中モードを開きます（ターミナルが隠れ
+    ていれば表示します）。相対パスはターミナルの cwd からの相対です。{id}
+    を省くと、今のターミナル、または集中モードのタブならそのターミナルが
+    対象です。ディレクトリは開けません。スワップファイルがある場合は読み
+    取り専用で開きます。`:ClaudeDeck open {path}[:{line}]` でも同じです
+    （相対パスは Neovim の今のディレクトリからの相対）。`ct open` はこれを
+    実行します（|claude-deck-ct|）。
+
 show_settings()                                  *claude-deck.show_settings()*
     Claude Code に渡す設定の JSON（hook と `ct` の権限）をスクラッチバッファ
     に表示します。`claude_settings` が false のときに、自分の設定へ hook を
@@ -296,6 +308,7 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
     ct title [title]        このターミナルのタスク名を付ける。名前を
                             省くと今の名前を表示する
     ct title --force title  rename() で付けた名前も置き換える
+    ct open path[:line]     集中モードのエディタでファイルを開く
 
 いずれも許可の確認なしで実行できます。`ct read` は Claude Code の transcript
 ファイルを読み取ります。このファイルの形式は内部仕様のため、変わる可能性が
@@ -308,6 +321,15 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
 |claude-deck.rename()| で付けた名前が優先され、`ct title` では変更できませ
 ん。Claude が `ct title --force` を使うのは、名前を変えるよう頼んだときだけ
 です。
+
+`ct open` は、そのターミナルの集中モードのエディタでファイルを開きます
+（|claude-deck.open_file()|）。集中モードがなければ先に開きます。相対パス
+は Claude のシェルの今のディレクトリからの相対で、`パス:行:桁` は行だけを
+使います。`foo:24` のような名前のファイルがあれば、そのファイルを開きます。
+スワップファイルがある場合は読み取り専用で開きます。ファイルを開いて・見せ
+てと頼まれたときや、説明している箇所を見せたいときに使うよう Claude に伝え
+ているので、「app/index.html を開いて」「greeter.rb の 24 行目を開いて」の
+ように頼めます。
 
 ==============================================================================
 6. 設定                                                   *claude-deck-config*

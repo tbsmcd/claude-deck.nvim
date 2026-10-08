@@ -12,6 +12,10 @@ local function system_prompt(id)
         "- `ct list`: list terminals (id, status, task title, cwd, session_id, transcript path)",
         "- `ct read <id> [count]`: recent conversation of a terminal (default 20 messages)",
         "Use these when the user refers to another terminal or task, or when you need to check consistency with parallel work.",
+        "",
+        "`ct open <path>[:line]` opens a file in the editor of the Neovim next to this terminal (focus mode).",
+        "Use it when the user asks you to open or show a file, or when you want to show the user the part you are explaining.",
+        "The path may be relative to the current directory of your shell.",
     }
     if config.options.cli.auto_title then
         vim.list_extend(lines, {
