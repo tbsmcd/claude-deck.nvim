@@ -18,18 +18,20 @@ PR のレビューを Claude と一緒に進めているとき、「この PR �
 ct diff                         # 差分全体を開く
 ct diff <path>                  # そのファイルの箇所にカーソルを置く
 ct diff <path>:<line>           # 新しい側の <line> 行にカーソルを置く
+ct diff --pr <pr> ...           # そのプルリクエスト（番号・URL・ブランチ）の差分（gh pr diff <pr>）
 ct diff --base <ref> ...        # 作業ツリーと <ref> の差分（git diff <ref>）。プルリクエストは探さない
 ```
 
 - 引数のパスは `ct open` と同じ規則（絶対 / `~/` / Claude のシェルの cwd からの相対）。リポジトリの外のパスは拒否する。
 - 許可は `Bash(ct diff)` と `Bash(ct diff:*)` を確認なしで通す（読むだけ）。
-- Lua API: `require("claude-deck").open_diff({ path?, line?, base?, id? })`。コマンド: `:ClaudeDeck diff [path[:line]] [--base ref]`（相対パスは Neovim の今のディレクトリからの相対）。
+- Lua API: `require("claude-deck").open_diff({ path?, line?, pr?, base?, id? })`。コマンド: `:ClaudeDeck diff [path[:line]] [--pr pr] [--base ref]`（相対パスは Neovim の今のディレクトリからの相対）。
 
 ## 差分の出どころ
 
 1. `--base <ref>` があれば `git diff <ref>`。
-2. `gh` があり、`gh pr view --json number,title,baseRefName` が成功すれば（今のブランチにプルリクエストがあれば）`gh pr diff`。
-3. それ以外は `git diff HEAD`。
+2. `--pr <pr>` があれば `gh pr view <pr>` と `gh pr diff <pr>`（見つからなければエラー）。
+3. `gh` があり、`gh pr view --json number,title,baseRefName` が成功すれば（今のブランチにプルリクエストがあれば）`gh pr diff`。
+4. それ以外は `git diff HEAD`。
 
 バッファの 1 行目に出どころを表示する（例: `# PR #12 Greet twice (base: main)`、`# git diff HEAD (uncommitted changes)`）。`ct diff` の結果にも同じ内容とファイル数を返す（例: `Opened the diff in the editor (PR #12 Greet twice (base: main), 3 files, at app/one.txt:6)`）。
 

@@ -161,13 +161,14 @@ open_diff({opts})                                    *claude-deck.open_diff()*
     {opts.id} (default: the current terminal, or the terminal of the focus
     mode tab), opening focus mode first when needed: the diff of the pull
     request of the current branch (`gh pr diff`), otherwise the uncommitted
-    changes (`git diff HEAD`); with {opts.base}, the working tree compared
+    changes (`git diff HEAD`); with {opts.pr} (a number, URL or branch),
+    that pull request; with {opts.base}, the working tree compared
     with that ref (`git diff {base}`). With {opts.path} (relative to the
     terminal's cwd), the cursor goes to that file, and with {opts.line} to
     that line of the new side. See |claude-deck-ct| for the diff buffer.
-    `:ClaudeDeck diff [{path}[:{line}]] [--base {ref}]` does the same, with
-    a relative path relative to Neovim's current directory. `ct diff` runs
-    this.
+    `:ClaudeDeck diff [{path}[:{line}]] [--pr {pr}] [--base {ref}]` does
+    the same, with a relative path relative to Neovim's current directory.
+    `ct diff` runs this.
 
 show_settings()                                    *claude-deck.show_settings()*
     Show the Claude Code settings JSON (hooks and `ct` permissions) in a
@@ -315,7 +316,7 @@ Inside a terminal, `ct` is on PATH and Claude is told about it:
                             title, show it
     ct title --force title  also replace a title set with rename()
     ct open path[:line]     open a file in the editor of focus mode
-    ct diff [path[:line]] [--base ref]
+    ct diff [path[:line]] [--pr pr] [--base ref]
                             open the diff of the pull request (or of the
                             uncommitted changes) there
 
@@ -343,8 +344,10 @@ or "show me line 24 of greeter.rb".
 a read-only buffer with the `diff` filetype: the diff of the pull request of
 the current branch (`gh pr diff`; needs the GitHub CLI `gh` and a pull
 request), otherwise the uncommitted changes (`git diff HEAD`). With
-`--base ref`, the working tree is compared with that ref (`git diff ref`),
-without looking for a pull request. The first line of the buffer names the
+`--pr pr` (a number, URL or branch), that pull request is shown instead of
+the one of the current branch. With `--base ref`, the working tree is
+compared with that ref (`git diff ref`), without looking for a pull
+request. The first line of the buffer names the
 source. With a path, the cursor goes to that file's section, and with a
 line to that line of the new side (a line outside the hunks: the nearest
 hunk header); a file without changes is refused. Keys in the diff buffer:

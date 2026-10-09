@@ -43,6 +43,19 @@ function M.parse_args(args)
                 return nil, "ct: --base needs a ref"
             end
             i = i + 1
+        elseif arg == "--pr" then
+            local pr = args[i + 1]
+            if not pr or pr == "" then
+                return nil, "ct: --pr needs a pull request number, URL or branch"
+            end
+            opts.pr = pr
+            i = i + 2
+        elseif vim.startswith(arg, "--pr=") then
+            opts.pr = arg:sub(6)
+            if opts.pr == "" then
+                return nil, "ct: --pr needs a pull request number, URL or branch"
+            end
+            i = i + 1
         elseif arg == "--" then
             i = i + 1
         elseif vim.startswith(arg, "-") and arg ~= "-" then
@@ -177,8 +190,39 @@ local function repo_root(cwd)
     return vim.trim(out)
 end
 
+-- The diff of a pull request with gh. `selector`: number, URL or branch (nil: the current
+-- branch). Returns a result, or nil and an error ("" when there is no such pull request).
+local function fetch_pr(root, selector)
+    local view = { "gh", "pr", "view", "--json", "number,title,baseRefName" }
+    local diff = { "gh", "pr", "diff" }
+    if selector then
+        table.insert(view, 4, selector)
+        table.insert(diff, selector)
+    end
+    local json, err = run(view, root)
+    if not json then
+        return nil, err
+    end
+    local ok, pr = pcall(vim.json.decode, json)
+    if not ok or type(pr) ~= "table" or not pr.number then
+        return nil, ""
+    end
+    local out
+    out, err = run(diff, root)
+    if not out then
+        return nil, "gh pr diff: " .. err
+    end
+    return {
+        text = out,
+        title = string.format("PR #%d %s (base: %s)", pr.number, pr.title or "", pr.baseRefName or "?"),
+        source = "pr",
+        pr = pr,
+    }
+end
+
 -- The diff text and a description of its source. opts.base: compare the working tree with
--- this ref (git diff <ref>) instead of looking for a pull request.
+-- this ref (git diff <ref>) instead of looking for a pull request. opts.pr: this pull request
+-- (number, URL or branch) instead of the one of the current branch.
 -- Returns { text, title, source } or nil and a "ct: …" message.
 function M.fetch(root, opts)
     if opts.base then
@@ -189,22 +233,24 @@ function M.fetch(root, opts)
         return { text = out, title = "git diff " .. opts.base, source = "git" }
     end
 
+    if opts.pr then
+        if vim.fn.executable("gh") == 0 then
+            return nil, "ct: --pr needs the GitHub CLI (gh)"
+        end
+        local result, err = fetch_pr(root, opts.pr)
+        if not result then
+            return nil, "ct: pull request " .. opts.pr .. ": " .. (err ~= "" and err or "not found")
+        end
+        return result
+    end
+
     if vim.fn.executable("gh") == 1 then
-        local json = run({ "gh", "pr", "view", "--json", "number,title,baseRefName" }, root)
-        if json then
-            local ok, pr = pcall(vim.json.decode, json)
-            if ok and type(pr) == "table" and pr.number then
-                local out, err = run({ "gh", "pr", "diff" }, root)
-                if not out then
-                    return nil, "ct: gh pr diff: " .. err
-                end
-                return {
-                    text = out,
-                    title = string.format("PR #%d %s (base: %s)", pr.number, pr.title or "", pr.baseRefName or "?"),
-                    source = "pr",
-                    pr = pr,
-                }
-            end
+        local result, err = fetch_pr(root)
+        if result then
+            return result
+        end
+        if vim.startswith(err, "gh pr diff: ") then
+            return nil, "ct: " .. err
         end
     end
 

@@ -519,7 +519,7 @@ mkdir -p "$REPO/app"
 lua '(function() vim.cmd("tabnew"); _G.T_diff_origin = vim.api.nvim_get_current_tabpage(); require("claude-deck.terminal").open_new("'"$REPO"'"); _G.T_diff_term = vim.b.claude_deck_id; return "" end)()' >/dev/null
 DT=$(lua '_G.T_diff_term')
 sleep 0.3
-check "system prompt tells about ct diff" "$(cat "$TEST_OUT/args.$DT")" 'ct diff [<path>[:line]] [--base <ref>]'
+check "system prompt tells about ct diff" "$(cat "$TEST_OUT/args.$DT")" 'ct diff [<path>[:line]] [--pr <number>] [--base <ref>]'
 check "permissions allow ct diff" "$(lua 'require("claude-deck.hooks").settings_json()')" '"Bash(ct diff)","Bash(ct diff:*)"'
 DIFF_TABS=$(lua '#vim.api.nvim_list_tabpages()')
 diff_state() { # tabs, focus terminal, buffer name tail, cursor line text, filetype, modifiable, mode
@@ -546,6 +546,7 @@ check "an unchanged file fails" "$(ct_diff same.txt)" "ct: no changes in same.tx
 check "a path outside the repository fails" "$(ct_diff /tmp/x.txt)" "ct: not in the repository: /tmp/x.txt exit=1"
 check "an unknown option fails" "$(ct_diff --nope)" "ct: unknown option --nope exit=1"
 check "--base without a ref fails" "$(ct_diff --base)" "ct: --base needs a ref exit=1"
+check "--pr without gh fails" "$(ct_diff --pr 34)" "ct: --pr needs the GitHub CLI (gh) exit=1"
 check "--base compares the working tree with the ref" "$(ct_diff --base HEAD app/one.txt:6; diff_state)" "Opened the diff in the editor (git diff HEAD, 3 files, at app/one.txt:6) exit=0
 $((DIFF_TABS + 1)) #$DT diff/$DT [+line 6 new] diff false n"
 check "--base with a bad ref fails" "$(ct_diff --base nope)" "ct: git diff nope: fatal: "
@@ -571,6 +572,9 @@ cat >"$TEST_OUT/ghbin/gh" <<'GH'
 case "$*" in
 "pr view --json number,title,baseRefName") printf '{"number":12,"title":"Greet twice","baseRefName":"main"}\n' ;;
 "pr diff") printf 'diff --git a/app/one.txt b/app/one.txt\nindex 1..2 100644\n--- a/app/one.txt\n+++ b/app/one.txt\n@@ -1,3 +1,3 @@\n line 1\n-line 2\n+line 2 from the PR\n line 3\n' ;;
+"pr view 34 --json number,title,baseRefName") printf '{"number":34,"title":"Other PR","baseRefName":"develop"}\n' ;;
+"pr diff 34") printf 'diff --git a/same.txt b/same.txt\nindex 1..2 100644\n--- a/same.txt\n+++ b/same.txt\n@@ -1 +1 @@\n-same\n+same, from PR 34\n' ;;
+"pr view 99 --json number,title,baseRefName") echo "GraphQL: Could not resolve to a PullRequest with the number of 99." >&2; exit 1 ;;
 *) echo "gh: unexpected $*" >&2; exit 1 ;;
 esac
 GH
@@ -580,6 +584,10 @@ check "ct diff with a pull request opens gh pr diff" "$(ct_diff app/one.txt:2; d
 $((DIFF_TABS + 1)) #$DT diff/$DT [+line 2 from the PR] diff false n"
 check "the header line names the PR" "$(lua 'vim.fn.getline(1)')" "# PR #12 Greet twice (base: main)"
 check "--base skips the pull request" "$(ct_diff --base HEAD)" "git diff HEAD, 3 files) exit=0"
+check "--pr opens another pull request" "$(ct_diff --pr 34 same.txt:1; diff_state)" "Opened the diff in the editor (PR #34 Other PR (base: develop), 1 file, at same.txt:1) exit=0
+$((DIFF_TABS + 1)) #$DT diff/$DT [+same, from PR 34] diff false n"
+check "--pr with an unknown pull request fails" "$(ct_diff --pr 99)" "ct: pull request 99: GraphQL: Could not resolve to a PullRequest with the number of 99. exit=1"
+check "--pr without a value fails" "$(ct_diff --pr)" "ct: --pr needs a pull request number, URL or branch exit=1"
 check "the diff buffer is reused" "$(lua '(function() local n = 0; for _, b in ipairs(vim.api.nvim_list_bufs()) do if vim.api.nvim_buf_get_name(b):find("claude%-deck://diff/") then n = n + 1 end end; return n end)()')" "1"
 check "open_diff() uses the terminal of the focus mode tab" "$(lua '(function() require("claude-deck").open_diff({ path = "app/one.txt", line = 2 }); return "" end)()')$(diff_state)" "[+line 2 from the PR] diff false n"
 check ":ClaudeDeck diff --base ref path:line" "$(lua '(function() local cwd = vim.fn.getcwd(); vim.cmd("tcd '"$REPO"'"); vim.cmd("ClaudeDeck diff --base HEAD app/one.txt:6"); vim.cmd("tcd " .. vim.fn.fnameescape(cwd)); return "" end)()')$(diff_state)" "[+line 6 new] diff false n"

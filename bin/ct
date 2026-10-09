@@ -6,7 +6,7 @@
 #   ct title [title]             set the task title of this terminal (show it without a title)
 #   ct title --force <title>     also replace a title set by the user (the title is required)
 #   ct open <path>[:line]        open a file in the editor of focus mode (path relative to the cwd)
-#   ct diff [<path>[:line]] [--base <ref>]
+#   ct diff [<path>[:line]] [--pr <number>] [--base <ref>]
 #                                open the diff of the pull request (or the uncommitted changes) there
 usage() {
     sed -n '4,10p' "$0" | sed 's/^# //' >&2

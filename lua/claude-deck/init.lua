@@ -541,9 +541,9 @@ end
 
 -- Open the diff of the pull request of the current branch (`gh pr diff`), or of the uncommitted
 -- changes, in the editor window of the focus mode of terminal `opts.id` (default: the current
--- terminal, or the one of this focus mode tab). opts: { path, line, base, id }; `path` is
+-- terminal, or the one of this focus mode tab). opts: { path, line, base, pr, id }; `path` is
 -- absolute, "~/…" or relative to the terminal's cwd; `base`: compare the working tree with
--- this ref instead.
+-- this ref instead; `pr`: this pull request (number, URL or branch) instead.
 function M.open_diff(opts)
     ensure_setup()
     opts = opts or {}
@@ -551,7 +551,8 @@ function M.open_diff(opts)
     if not term then
         return
     end
-    local result = require("claude-deck.diff").open(term, term.cwd, { path = opts.path, line = opts.line, base = opts.base })
+    local result = require("claude-deck.diff")
+        .open(term, term.cwd, { path = opts.path, line = opts.line, base = opts.base, pr = opts.pr })
     if vim.startswith(result, "ct: ") then
         vim.notify("claude-deck: " .. result:sub(5), vim.log.levels.WARN)
     end
@@ -607,7 +608,7 @@ local SUBCOMMANDS = {
         local path, line = require("claude-deck.cli").split_line(text)
         M.open_file(absolute(path), line)
     end,
-    -- `:ClaudeDeck diff [path[:line]] [--base ref]` (paths relative to Neovim's cwd)
+    -- `:ClaudeDeck diff [path[:line]] [--base ref] [--pr pr]` (paths relative to Neovim's cwd)
     diff = function(args)
         local opts, err = require("claude-deck.diff").parse_args(args)
         if not opts then

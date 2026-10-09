@@ -161,14 +161,15 @@ open_diff({opts})                                    *claude-deck.open_diff()*
     ならそのターミナル）の集中モードのエディタのウィンドウに差分を開きま
     す。集中モードがなければ先に開きます。内容は、今のブランチのプルリク
     エストの差分（`gh pr diff`）、それがなければ未コミットの変更
-    （`git diff HEAD`）です。{opts.base} を指定すると、作業ツリーとその
-    ref を比較します（`git diff {base}`）。{opts.path}（ターミナルの cwd
+    （`git diff HEAD`）です。{opts.pr}（番号・URL・ブランチ）を指定すると
+    そのプルリクエストを、{opts.base} を指定すると作業ツリーとその ref の
+    比較（`git diff {base}`）を表示します。{opts.path}（ターミナルの cwd
     からの相対）を指定するとそのファイルの箇所に、{opts.line} も指定する
     と新しい側のその行にカーソルを置きます。差分のバッファについては
     |claude-deck-ct| を参照してください。
-    `:ClaudeDeck diff [{path}[:{line}]] [--base {ref}]` でも同じです（相対
-    パスは Neovim の今のディレクトリからの相対）。`ct diff` はこれを実行
-    します。
+    `:ClaudeDeck diff [{path}[:{line}]] [--pr {pr}] [--base {ref}]` でも同
+    じです（相対パスは Neovim の今のディレクトリからの相対）。`ct diff` は
+    これを実行します。
 
 show_settings()                                  *claude-deck.show_settings()*
     Claude Code に渡す設定の JSON（hook と `ct` の権限）をスクラッチバッファ
@@ -324,7 +325,7 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
                             省くと今の名前を表示する
     ct title --force title  rename() で付けた名前も置き換える
     ct open path[:line]     集中モードのエディタでファイルを開く
-    ct diff [path[:line]] [--base ref]
+    ct diff [path[:line]] [--pr pr] [--base ref]
                             プルリクエストの差分（または未コミットの変更）
                             をそこに開く
 
@@ -353,8 +354,9 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
 （filetype は `diff`）で開きます（|claude-deck.open_diff()|）。内容は、今
 のブランチのプルリクエストの差分（`gh pr diff`。GitHub CLI の `gh` とプル
 リクエストが必要）、それがなければ未コミットの変更（`git diff HEAD`）です。
-`--base ref` を付けると、プルリクエストは探さず、作業ツリーとその ref を比
-較します（`git diff ref`）。バッファの 1 行目に差分の出どころを表示します。
+`--pr pr`（番号・URL・ブランチ）を付けると、今のブランチのものではなくその
+プルリクエストを表示します。`--base ref` を付けると、プルリクエストは探さず、
+作業ツリーとその ref を比較します（`git diff ref`）。バッファの 1 行目に差分の出どころを表示します。
 パスを指定するとそのファイルの箇所に、行も指定すると新しい側のその行にカー
 ソルを置きます（どのハンクにもない行なら、いちばん近いハンクの見出し）。変
 更のないファイルは拒否します。差分のバッファのキー:
