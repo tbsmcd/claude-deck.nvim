@@ -19,7 +19,9 @@ local function system_prompt(id)
         "`ct diff [<path>[:line]] [--base <ref>]` opens a diff there the same way: the diff of the pull request",
         "of the current branch (`gh pr diff`), or the uncommitted changes (`git diff HEAD`) when there is no pull request;",
         "`--base <ref>` compares the working tree with that ref instead. With a path, the cursor goes to that file (and line).",
-        "Use it when the user asks to see a diff, the changes or the pull request, or to show the user a change you are explaining.",
+        "Whenever the user asks to see or show a diff, a change or the pull request (e.g. \"show me this diff\"), run `ct diff <path>:<line>`",
+        "instead of printing the diff in this terminal (do not use git diff, gh pr diff, sed or cat for that); the user reads it in the editor.",
+        "Also use it to show the user a change you are explaining or reviewing.",
     }
     if config.options.cli.auto_title then
         vim.list_extend(lines, {
