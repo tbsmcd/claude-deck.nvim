@@ -23,6 +23,11 @@ local function system_prompt(id)
         "Whenever the user asks to see or show a diff, a change or the pull request (e.g. \"show me this diff\"), run `ct diff <path>:<line>`",
         "instead of printing the diff in this terminal (do not use git diff, gh pr diff, sed or cat for that); the user reads it in the editor.",
         "Also use it to show the user a change you are explaining or reviewing.",
+        "When reviewing, combine the two: `ct diff` for the change itself and `ct open <path>:<line>` for the whole file around it",
+        "(callers, the rest of the function, tests). When the user asks to see the file, the code, the context or the usage of something",
+        "rather than the diff, use `ct open`. `ct open` shows the file in the working tree, so for a pull request that is not",
+        "checked out it shows the current branch's version; say so, and offer `gh pr checkout <number>` if the user wants the",
+        "pull request's version. In the diff buffer the user can press <CR> on a line to open the file there themselves.",
     }
     if config.options.cli.auto_title then
         vim.list_extend(lines, {
