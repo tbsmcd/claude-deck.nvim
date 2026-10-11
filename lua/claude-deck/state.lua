@@ -88,6 +88,14 @@ function M.set_title(term, title, source)
     require("claude-deck.ui").redraw()
 end
 
+-- A prompt as compared between `ct send` / `ct spawn` and the UserPromptSubmit hook: Claude Code
+-- wraps a long paste in <pasted_content id="…">…</pasted_content>; CRLF becomes LF; trimmed.
+function M.normalize_prompt(text)
+    text = text:gsub("\r\n", "\n")
+    text = text:gsub("</?pasted_content[^>]*>", "")
+    return vim.trim(text)
+end
+
 function M.add(term)
     M.terminals[term.id] = term
 end

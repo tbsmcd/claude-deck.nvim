@@ -35,7 +35,11 @@ local function system_prompt(id)
         "each spawn asks the user for permission.",
         "`ct send <id> --prompt-file <file>` hands a task to an existing idle or waiting terminal (asks the user for permission) and",
         "prints a request id; `ct wait <id>... [--timeout s]` waits until those requests have finished (or the terminal needs the user",
-        "or has exited). Finished means the turn ended, not that it succeeded: read the result the worker wrote.",
+        "or has exited). Finished means the turn ended, not that it succeeded: read the result the worker wrote, and check each",
+        "terminal's `status` in the output (exit status 0 does not mean `done`).",
+        "Keep prompts for `ct send` / `ct spawn` short, one or two lines that point to a task file (for example",
+        "`Read /abs/task.md and do what it says. Write your report to /abs/result.md.`): Claude Code treats a long pasted prompt",
+        "as pasted content, and the worker may take it as data rather than as the user's instruction.",
     }
     if config.options.cli.auto_title then
         vim.list_extend(lines, {
@@ -150,9 +154,8 @@ function M.start(win, cwd, extra_args, start_opts)
     end
     local prompt = start_opts and start_opts.prompt
     if prompt then
-        if vim.startswith(prompt, "-") then
-            table.insert(cmd, "--")
-        end
+        -- "--" always, so that a variadic option at the end of `cmd` cannot take the prompt
+        table.insert(cmd, "--")
         table.insert(cmd, prompt)
     end
     -- The requested model (nothing confirms what Claude Code actually uses)
@@ -294,15 +297,21 @@ end
 function M.start_detached(cwd, opts)
     local saved_ei = vim.o.eventignore
     vim.o.eventignore = "BufEnter,BufLeave,WinEnter,WinLeave,BufWinEnter"
+    local id_before = state.next_id
+    local win
     local ok, result = pcall(function()
         local buf = vim.api.nvim_get_current_buf()
-        local win
         if opts.show then
             local caller = opts.caller_win
-            win = vim.api.nvim_open_win(buf, false, {
-                split = "right",
-                win = (caller and vim.api.nvim_win_is_valid(caller)) and caller or -1,
-            })
+            if caller and vim.api.nvim_win_is_valid(caller) then
+                win = vim.api.nvim_open_win(buf, false, { split = "right", win = caller })
+            else
+                -- At the far right of the tab (other windows may be resized); the focus stays
+                local current = vim.api.nvim_get_current_win()
+                vim.cmd("vertical botright split")
+                win = vim.api.nvim_get_current_win()
+                vim.api.nvim_set_current_win(current)
+            end
         else
             win = vim.api.nvim_open_win(buf, false, {
                 relative = "editor",
@@ -322,6 +331,22 @@ function M.start_detached(cwd, opts)
         end
         return term
     end)
+    if not ok then
+        -- Nothing is left behind: no window, no terminal record, no buffer
+        if win and vim.api.nvim_win_is_valid(win) and #vim.api.nvim_tabpage_list_wins(0) > 1 then
+            pcall(vim.api.nvim_win_close, win, true)
+        end
+        local term = state.get(id_before)
+        if term then
+            state.remove(id_before)
+            if vim.api.nvim_buf_is_valid(term.buf) then
+                pcall(vim.api.nvim_buf_delete, term.buf, { force = true })
+            end
+        end
+        if state.next_id == id_before + 1 then
+            state.next_id = id_before
+        end
+    end
     vim.o.eventignore = saved_ei
     if not ok then
         error(result)

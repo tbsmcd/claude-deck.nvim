@@ -412,12 +412,15 @@ was requested when the terminal was started; Claude Code may use another.
 (|claude-deck.spawn()|) and prints `{"id": 4, "cwd": "...", "model": null,
 "title": "..."}` on one line. Give exactly one of `--prompt text` and
 `--prompt-file path` (read by Neovim; a relative path is relative to
-Claude's shell); it is passed to Claude Code as its first argument, not
-typed into it. `--cwd` defaults to the cwd of the calling terminal and
+Claude's shell); it is passed to Claude Code as its first argument (after
+`--`), not typed into it, and registered as the terminal's first request
+(see `ct send`), so `ct wait` can follow it. `--cwd` defaults to the cwd of the calling terminal and
 must be an existing directory; `--title` follows the rules of `ct title`.
 The terminal is created hidden, so your tab, window, cursor and mode do
 not change. With `--show` it opens to the right of the calling terminal
-instead and the focus stays. `cli.spawn_limit` limits the spawned
+instead (at the far right of the tab when the caller is not shown in it;
+other windows may be resized) and the focus stays. If Claude Code cannot
+be started, nothing is left behind and the error is printed. `cli.spawn_limit` limits the spawned
 terminals that have not exited. `ct spawn` is not allowed in advance:
 Claude Code asks you for permission each time, and Claude is told to use it
 only when you asked it to delegate work to other sessions.
@@ -429,26 +432,40 @@ only when you asked it to delegate work to other sessions.
 typed into the target as one bracketed paste, so a multi-line prompt stays
 one message, and submitted with a carriage return shortly after. It is
 refused (`ct: ...`, exit status 1) for a running, attention or exited
-target, a missing terminal or process, and a prompt that is missing, empty,
+target, a missing terminal or process, a terminal that is still starting
+(`ct: terminal #3 is still starting`), one with a request not received yet
+(`ct: terminal #3 has a pending request r2 (not received yet)`), and a prompt that is missing, empty,
 unreadable or contains a NUL byte. Success means only that the input was
 written. Each send gets a request id (`r1`, `r2`, ...) recorded on the
-target: it is received when Claude Code reports a submitted prompt with the
-same text (hook `UserPromptSubmit`) and completed at the next `Stop` (or
-when the terminal exits). `ct list --json` shows the latest as
-`"last_request": {"id", "from", "received", "completed", "sent_at"}` (null
-when none). `ct send` is not allowed in advance: Claude Code asks you each
+target: it is received when Claude Code reports a submitted prompt (hook
+`UserPromptSubmit`) with the same text or one that contains it (CRLF is
+read as LF, `<pasted_content ...>` tags around a long paste are ignored),
+and completed at the next `Stop` (or when the terminal exits). A `Stop`
+while it is not received marks it `lost`; sending is allowed again.
+`ct list --json` shows the latest as `"last_request": {"id", "from",
+"received", "completed", "lost", "sent_at"}` (null when none).
+
+Keep prompts for `ct send` and `ct spawn --prompt-file` short: Claude Code
+treats a long pasted prompt as pasted content, and the worker may weigh it
+as data rather than as your instruction. Give one or two lines that point
+to a task file, e.g. `Read /abs/task.md and do what it says. Write your
+report to /abs/result.md.` `ct send` is not allowed in advance: Claude Code asks you each
 time.
 
 `ct wait id... [--timeout seconds]` (default 600) waits until, for every
 id, the last request is completed, or the terminal needs you (`attention`),
 has exited or does not exist; a terminal that never got a request counts as
-finished at once. `waiting` alone is never enough: the request must have
+finished at once unless it is `running` (then `pending`); a spawned terminal
+has its first prompt as a request. `waiting` alone is never enough: the request must have
 been received and then stopped. The loop runs in the `ct` script and polls
 Neovim once a second, so Neovim is not blocked. It prints `{"timed_out":
 false, "terminals": {"3": {"status": "done", "request": "r1", "state":
 "waiting"}}}`; `status` is `done`, `attention`, `exited`, `missing`, `none`
-(no request was sent) or `pending` (only after a timeout). Exit status: 0
-when finished, 2 on timeout, 1 on a usage error. `ct wait` is allowed
+(no request, not running), `lost` (a turn ended without the request being
+received) or `pending` (only after a timeout). Exit status 0 only means
+that the wait finished (2 on timeout, 1 on a usage error): read each
+terminal's `status`, as `attention`, `exited`, `missing`, `none` and `lost`
+also exit with 0. `ct wait` is allowed
 without a prompt. Finished means the turn ended, not that the work
 succeeded.
 

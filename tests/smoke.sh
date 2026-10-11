@@ -681,9 +681,10 @@ check "ct spawn: the terminal is hidden" "$(lua '#vim.fn.win_findbuf(require("cl
 check "ct spawn creates no floating window" "$(lua '#vim.tbl_filter(function(w) return vim.api.nvim_win_get_config(w).relative ~= "" end, vim.api.nvim_list_wins())')" "0"
 sleep 0.5
 check "ct spawn: the prompt is the last argument" "$(tail -n 2 "$TEST_OUT/args.$SID" | tr '\n' '|')" 'in "parser" $HOME|'
-check "ct spawn: the prompt follows the model" "$(tail -n 4 "$TEST_OUT/args.$SID" | head -3 | tr '\n' '|')" '--model|haiku|Fix the bug|'
+check "ct spawn: the prompt follows the model and --" "$(tail -n 5 "$TEST_OUT/args.$SID" | head -3 | tr '\n' '|')" '--model|haiku|--|'
 check "ct spawn: record" "$(lua '(function() local t = require("claude-deck.state").get('"$SID"'); return t.cwd .. "|" .. t.model .. "|" .. t.title .. "|" .. t.title_source .. "|" .. tostring(t.spawned) .. "|" .. t.spawned_by .. "|" .. t.state end)()')" "$ROOT/tests/fixtures|haiku|Worker one|claude|true|$MT|idle"
 check "ct spawn: ct list --json has spawned_by" "$(NVIM="$SOCK" bin/ct list --json | grep -o '"id":'"$SID"',[^}]*')" '"spawned_by":'"$MT"
+check "ct spawn registers the prompt as a request" "$(lua '(function() local r = require("claude-deck.state").get('"$SID"').last_request; return tostring(r.received) .. " " .. r.from .. " " .. r.text end)()')" "false $MT Fix the bug"
 check "ct spawn: the system prompt belongs to the new id" "$(cat "$TEST_OUT/args.$SID")" "terminal #$SID of claude-deck"
 check "ct spawn: a later show displays it and fits the pty" "$(lua '(function() local calls = {}; local jr = vim.fn.jobresize; vim.fn.jobresize = function(j, w, h) table.insert(calls, w .. "x" .. h); return jr(j, w, h) end; require("claude-deck").show('"$SID"'); vim.cmd("stopinsert"); vim.fn.jobresize = jr; local w = vim.api.nvim_get_current_win(); return vim.b.claude_deck_id .. " " .. tostring(calls[#calls] == vim.api.nvim_win_get_width(w) .. "x" .. vim.api.nvim_win_get_height(w) - 1) end)()')" "$SID true"
 lua '(function() vim.cmd("close"); vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$MT"').buf); vim.cmd("startinsert"); return "" end)()' >/dev/null
@@ -722,8 +723,26 @@ SID3=$(echo "$OUT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
 check "ct spawn --show succeeds" "$OUT" "exit=0"
 check "ct spawn --show opens a window to the right and keeps the focus" "$(spawn_state)|$(lua '(function() local b = require("claude-deck.state").get('"$SID3"').buf; local w = vim.fn.win_findbuf(b)[1]; return tostring(w ~= nil and vim.api.nvim_win_get_position(w)[2] > vim.api.nvim_win_get_position(0)[2]) end)()')" "$(echo "$BEFORE" | sed 's/ [0-9]* #/ 2 #/')|true"
 sleep 0.5
-check "ct spawn --show passes the model and prompt" "$(tail -n 4 "$TEST_OUT/args.$SID3" | tr '\n' ' ')" "--model sonnet shown"
+check "ct spawn --show passes the model and prompt" "$(tail -n 4 "$TEST_OUT/args.$SID3" | tr '\n' ' ')" "--model sonnet -- shown"
 lua '(function() local b = require("claude-deck.state").get('"$SID3"').buf; vim.api.nvim_win_close(vim.fn.win_findbuf(b)[1], true); return "" end)()' >/dev/null
+# --show without a window of the caller in the tab: at the far right, the focus stays
+lua '(function() vim.cmd("tabnew"); _G.T_tabw = vim.api.nvim_get_current_win(); return "" end)()' >/dev/null
+OUT=$(ct_spawn --show --prompt "far right")
+check "ct spawn --show without a caller window succeeds" "$OUT" "exit=0"
+check "ct spawn --show without a caller window opens at the far right" "$(lua '(function() local wins = vim.api.nvim_tabpage_list_wins(0); local other = vim.tbl_filter(function(w) return w ~= _G.T_tabw end, wins)[1]; return #wins .. " " .. tostring(vim.api.nvim_get_current_win() == _G.T_tabw) .. " " .. tostring(other ~= nil and vim.api.nvim_win_get_position(other)[2] > vim.api.nvim_win_get_position(_G.T_tabw)[2]) end)()')" "2 true true"
+lua '(function() vim.cmd("tabclose!"); return "" end)()' >/dev/null
+# A failing start leaves nothing behind
+FAIL_TERMS=$(NVIM="$SOCK" bin/ct list --json | grep -o '"spawned_by"' | wc -l | tr -d ' ')
+FAIL_WINS=$(lua '#vim.api.nvim_list_wins()')
+FAIL_EI=$(lua 'vim.o.eventignore')
+lua '(function() local o = vim.deepcopy(T_opts); o.cmd = { "/nonexistent/claude" }; o.cli = { spawn_limit = 10 }; require("claude-deck").setup(o); return "" end)()' >/dev/null
+OUT=$(ct_spawn --prompt "will fail")
+lua '(function() local o = vim.deepcopy(T_opts); o.cli = { spawn_limit = 10 }; require("claude-deck").setup(o); return "" end)()' >/dev/null
+check "ct spawn with a bad cmd returns an error" "$OUT" "ct: "
+check "ct spawn with a bad cmd names the command" "$OUT" "nonexistent"
+check "ct spawn with a bad cmd opens no window" "$(lua '#vim.api.nvim_list_wins()')" "$FAIL_WINS"
+check "ct spawn with a bad cmd adds no terminal" "$(NVIM="$SOCK" bin/ct list --json | grep -o '"spawned_by"' | wc -l | tr -d ' ')" "$FAIL_TERMS"
+check "ct spawn with a bad cmd restores eventignore" "$(lua 'vim.o.eventignore')" "$FAIL_EI"
 # Lua API
 check "spawn() returns the id" "$(lua '(function() local id = require("claude-deck").spawn({ prompt = "api", title = "Api", model = "haiku" }); local t = require("claude-deck.state").get(id); return t.title .. " " .. t.model .. " " .. t.spawned_by end)()')" "Api haiku $MT"
 check "spawn() without a prompt returns nil and a message" "$(lua '(function() local id, err = require("claude-deck").spawn({}); return tostring(id) .. " " .. err end)()')" "nil no prompt given"
@@ -740,8 +759,14 @@ stdin_of() { # id: what has been typed into terminal $1, escapes visible
     lua 'vim.inspect(table.concat(vim.fn.readfile(vim.env.TEST_OUT .. "/stdin.'"$1"'", "b"), "\n"))' | sed 's/\\\\/\\/g'
 }
 lua '(function() vim.cmd("only"); vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$MT"').buf); return "" end)()' >/dev/null
+# ct wait right after ct spawn follows the first prompt
+check "ct wait right after ct spawn is pending" "$(ct_as "$MT" wait "$SID" --timeout 0)" '"status":"pending"'
 hook "$SID" SessionStart '{"cwd":"'"$ROOT"'","session_id":"sess-send"}'
+hook "$SID" UserPromptSubmit "$(lua 'vim.json.encode({ prompt = require("claude-deck.state").get('"$SID"').last_request.text })')"
+check "the spawn prompt marks its request received" "$(lua 'tostring(require("claude-deck.state").get('"$SID"').last_request.received)')" "true"
 hook "$SID" Stop '{}'
+check "ct wait after ct spawn: done" "$(ct_as "$MT" wait "$SID" --timeout 5)" '"status":"done"'
+lua '(function() local t = require("claude-deck.state").get('"$SID"'); t.requests, t.last_request = {}, nil; require("claude-deck.state").next_request = 1; return "" end)()' >/dev/null
 check "send: target is waiting" "$(lua 'require("claude-deck.state").get('"$SID"').state')" "waiting"
 check "permissions do not allow ct send" "$(lua 'tostring(require("claude-deck.hooks").settings_json():find("ct send", 1, true))')" "nil"
 check "permissions allow ct wait" "$(lua 'require("claude-deck.hooks").settings_json()')" '"Bash(ct wait:*)"'
@@ -758,11 +783,12 @@ check "ct wait times out while pending" "$(ct_as "$MT" wait "$SID" --timeout 1)"
 check "ct wait: exit 2 on timeout" "$(ct_as "$MT" wait "$SID" --timeout 1)" 'exit=2'
 check "ct wait: pending status" "$(ct_as "$MT" wait "$SID" --timeout 0)" '"status":"pending","request":"r1"'
 hook "$SID" Stop '{}'
-check "a Stop before the prompt arrived does not complete" "$(LR "$SID")" '"received":false,"completed":false'
+check "a Stop before the prompt arrived does not complete" "$(LR "$SID")" '"received":false,"completed":false,"lost":true'
+check "ct wait: a lost request is finished" "$(ct_as "$MT" wait "$SID" --timeout 5)" '"status":"lost","request":"r1","state":"waiting"}}} exit=0'
 hook "$SID" UserPromptSubmit '{"prompt":"something else"}'
 check "another prompt is not the request" "$(LR "$SID")" '"received":false'
 hook "$SID" UserPromptSubmit '{"prompt":"  Do the thing\n"}'
-check "the submitted prompt marks the request received" "$(LR "$SID")" '"received":true,"completed":false'
+check "the submitted prompt marks the request received" "$(LR "$SID")" '"received":true,"completed":false,"lost":false'
 check "ct wait: still pending while running" "$(ct_as "$MT" wait "$SID" --timeout 0)" 'exit=2'
 (sleep 1.5; hook "$SID" Stop '{}') &
 STOP_PID=$!
@@ -794,11 +820,14 @@ check "the exited terminal completes its request with exited" "$(lua '(function(
 lua '(function() require("claude-deck").new("below"); vim.cmd("stopinsert"); _G.T_vis = vim.b.claude_deck_id; return "" end)()' >/dev/null
 VT=$(lua '_G.T_vis')
 sleep 0.4
+check "ct send before SessionStart is refused" "$(ct_as "$MT" send "$VT" --prompt x)" "ct: terminal #$VT is still starting exit=1"
 hook "$VT" SessionStart '{"cwd":"'"$ROOT"'","session_id":"sess-vis"}'
 printf 'line one\n\nline "three" $HOME\n\n' >"$TEST_OUT/multi.md"
 OUT=$(cd "$TEST_OUT" && NVIM="$SOCK" CLAUDE_DECK_ID="$MT" "$ROOT/bin/ct" send "$VT" --prompt-file multi.md 2>&1; echo "exit=$?")
 check "ct send --prompt-file relative to \$PWD" "$OUT" '"request":"r2"}'
 sleep 0.4
+check "ct send while a request is not received is refused" "$(ct_as "$MT" send "$VT" --prompt dup)" "ct: terminal #$VT has a pending request r2 (not received yet) exit=1"
+check "the refused send typed nothing" "$(lua '(function() local s = table.concat(vim.fn.readfile(vim.env.TEST_OUT .. "/stdin.'"$VT"'", "b"), "\n"); return tostring(s:find("dup", 1, true)) end)()')" "nil"
 check "multi-line prompt is one paste" "$(lua '(function() local s = table.concat(vim.fn.readfile(vim.env.TEST_OUT .. "/stdin.'"$VT"'", "b"), "\n"); return s == "\27[200~line one\n\nline \"three\" $HOME\27[201~\r" end)()')" "true"
 check "multi-line prompt: only one CR, at the end" "$(od -An -c "$TEST_OUT/stdin.$VT" | tr -d ' \n' | grep -o '\\r' | wc -l | tr -d ' ')|$(od -An -c "$TEST_OUT/stdin.$VT" | tr -d ' \n' | tail -c 2)" '1|\r'
 hook "$VT" UserPromptSubmit '{"prompt":"line one\n\nline \"three\" $HOME"}'
@@ -810,6 +839,9 @@ check "ct wait returns early on attention" "$(ct_as "$MT" wait "$VT" --timeout 2
 check "ct wait: missing terminal" "$(ct_as "$MT" wait 999 --timeout 5)" '"999":{"status":"missing","request":null,"state":null}}} exit=0'
 check "ct wait: exited terminal" "$(ct_as "$MT" wait "$SID" --timeout 5)" '"status":"exited"'
 check "ct wait: no request counts as finished" "$(ct_as "$MT" wait "$MT" --timeout 5)" '"status":"none","request":null,"state":"waiting"'
+hook "$MT" UserPromptSubmit '{"prompt":"busy work"}'
+check "ct wait: no request but running is pending" "$(ct_as "$MT" wait "$MT" --timeout 0)" '"status":"pending","request":null,"state":"running"}}} exit=2'
+hook "$MT" Stop '{}'
 check "ct wait: several ids" "$(ct_as "$MT" wait "$VT" "$SID" 999 --timeout 5)" '"timed_out":false'
 check "ct wait without ids shows the usage" "$(ct_as "$MT" wait)" "exit=1"
 check "ct wait with a non-numeric id shows the usage" "$(ct_as "$MT" wait abc)" "exit=1"
@@ -819,6 +851,32 @@ check "ct wait does not block Neovim" "$( (NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin
 # Lua API
 check "send() returns the request id" "$(lua '(function() vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$MT"').buf); local r, e = require("claude-deck").send('"$VT"', "api task"); return tostring(r) .. tostring(e) end)()')" "r3"
 check "send() to yourself returns nil and a message" "$(lua '(function() local r, e = require("claude-deck").send('"$MT"', "x"); return tostring(r) .. " " .. e end)()')" "nil cannot send to yourself"
+# A Stop without the prompt marks the request lost; sending is allowed again
+hook "$VT" Stop '{}'
+check "a Stop without the prompt marks the request lost" "$(LR "$VT")" '"id":"r3"'
+check "a lost request has lost true" "$(LR "$VT")" '"received":false,"completed":false,"lost":true'
+check "ct wait: lost" "$(ct_as "$MT" wait "$VT" --timeout 5)" '"status":"lost","request":"r3"'
+# A long prompt arrives wrapped in <pasted_content>; the draft case; CRLF
+sendrecv() { # text, hook prompt (JSON string body): sends, submits, prints the request flags
+    out=$(ct_as "$MT" send "$VT" --prompt "$1")
+    sleep 0.3
+    hook "$VT" UserPromptSubmit '{"prompt":"'"$2"'"}'
+    LR "$VT" | grep -o '"id":"r[0-9]*"\|"received":[a-z]*'| tr '\n' ' '
+    hook "$VT" Stop '{}'
+}
+check "ct send after a lost request is allowed" "$(sendrecv "long text" "\n\n<pasted_content id=\\\"6343\\\">\nlong text\n</pasted_content>")" '"id":"r4" "received":true'
+check "a draft in the input before the request still matches" "$(sendrecv "needle" "my draft needle")" '"id":"r5" "received":true'
+check "a different prompt does not match a wrapped request" "$(sendrecv "alpha" "\n\n<pasted_content id=\\\"1\\\">\nbeta\n</pasted_content>")" '"id":"r6" "received":false'
+hook "$VT" UserPromptSubmit '{"prompt":"alpha"}'
+hook "$VT" Stop '{}'
+printf 'a\r\nb\r\n' >"$TEST_OUT/crlf.md"
+OUT=$(NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin/ct send "$VT" --prompt-file "$TEST_OUT/crlf.md" 2>&1)
+sleep 0.4
+check "a CRLF prompt file is sent with LF" "$(lua '(function() local s = table.concat(vim.fn.readfile(vim.env.TEST_OUT .. "/stdin.'"$VT"'", "b"), "\n"); return tostring(s:sub(-16) == "\27[200~a\nb\27[201~\r") end)()')" "true"
+hook "$VT" UserPromptSubmit '{"prompt":"a\r\nb"}'
+check "a CRLF prompt in the hook matches" "$(LR "$VT")" '"received":true'
+hook "$VT" Stop '{}'
+check "the request text is stored normalized" "$(lua 'vim.inspect(require("claude-deck.state").get('"$VT"').last_request.text)')" '"a\nb"'
 lua '(function() vim.cmd("only"); return "" end)()' >/dev/null
 
 messages=$(lua 'vim.api.nvim_exec2("messages", { output = true }).output')

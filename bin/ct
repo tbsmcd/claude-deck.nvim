@@ -12,11 +12,13 @@
 #   ct send <id> (--prompt <text> | --prompt-file <path>)
 #                                type a task into an idle or waiting terminal; prints {"id", "request"}
 #   ct wait <id>... [--timeout <seconds>]
-#                                wait until the requests sent to those terminals have finished (default 600 s)
+#                                wait until the requests sent to those terminals have finished (default 600 s);
+#                                exit 0 only means the wait finished (2 = timed out): read each terminal's
+#                                "status" (done, attention, exited, missing, none, lost; pending after a timeout)
 #   ct diff [<path>[:line]] [--pr <number>] [--base <ref>]
 #                                open the diff of the pull request (or the uncommitted changes) there
 usage() {
-    sed -n '4,17p' "$0" | sed 's/^# //' >&2
+    sed -n '4,19p' "$0" | sed 's/^# //' >&2
     exit 1
 }
 

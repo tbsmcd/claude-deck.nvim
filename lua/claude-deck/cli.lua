@@ -47,6 +47,7 @@ local function json_list(self_id)
                                     { "from", request.from or vim.NIL },
                                     { "received", request.received },
                                     { "completed", request.completed },
+                                    { "lost", request.lost or false },
                                     { "sent_at", request.sent_at },
                                 }),
                             }
@@ -272,6 +273,23 @@ local function title_error(title)
     end
 end
 
+local function new_request(term, caller, text)
+    local request = {
+        id = "r" .. state.next_request,
+        from = caller and caller.id or nil,
+        text = text,
+        sent_at = os.time(),
+        received = false,
+        completed = false,
+        lost = false,
+    }
+    state.next_request = state.next_request + 1
+    term.requests = term.requests or {}
+    table.insert(term.requests, request)
+    term.last_request = request
+    return request
+end
+
 -- Starts a new terminal for `ct spawn` / spawn(). `caller`: the terminal that asks (or nil).
 -- opts: { prompt, cwd (relative to opts.base, default: the caller's cwd), base, model, title,
 -- show }. Returns the terminal, or nil and a "ct: …" message. Nothing is created on an error.
@@ -325,6 +343,9 @@ function M.spawn_term(caller, opts)
         return nil, string.format("ct: spawn limit reached (%d)", limit)
     end
 
+    -- CRLF (e.g. a prompt file) becomes LF, as for `ct send`
+    prompt = prompt:gsub("\r\n", "\n")
+
     local caller_win = caller and vim.fn.bufwinid(caller.buf)
     local ok, term = pcall(require("claude-deck.terminal").start_detached, cwd, {
         model = model,
@@ -337,6 +358,8 @@ function M.spawn_term(caller, opts)
     end
     term.spawned = true
     term.spawned_by = caller and caller.id or nil
+    -- The first prompt is a request too, so that `ct wait` can follow the first turn
+    new_request(term, caller, prompt)
     if title then
         state.set_title(term, title, "claude")
     end
@@ -402,7 +425,7 @@ function M.spawn(id, args, pwd)
         if not prompt or vim.fn.isdirectory(path) == 1 then
             return "ct: cannot read the prompt file: " .. opts.prompt_file
         end
-        prompt = prompt:gsub("\n+$", "")
+        prompt = prompt:gsub("[\r\n]+$", "")
     end
     if prompt == nil then
         return "ct: no prompt given (use --prompt or --prompt-file)"
@@ -451,6 +474,15 @@ function M.send_term(caller, id, prompt)
     if not running or not vim.api.nvim_buf_is_valid(term.buf) then
         return nil, string.format("ct: terminal #%d is not running", term.id)
     end
+    -- The TUI may not be ready before the SessionStart hook has arrived
+    if not term.session_id then
+        return nil, string.format("ct: terminal #%d is still starting", term.id)
+    end
+    -- Two pastes must not land in one input
+    local last = term.last_request
+    if last and not last.received and not last.lost then
+        return nil, string.format("ct: terminal #%d has a pending request %s (not received yet)", term.id, last.id)
+    end
     if type(prompt) ~= "string" or vim.trim(prompt) == "" then
         return nil, "ct: no prompt given (use --prompt or --prompt-file)"
     end
@@ -458,25 +490,15 @@ function M.send_term(caller, id, prompt)
         return nil, "ct: the prompt contains a NUL byte"
     end
 
-    local request = {
-        id = "r" .. state.next_request,
-        from = caller and caller.id or nil,
-        text = prompt,
-        sent_at = os.time(),
-        received = false,
-        completed = false,
-    }
-    state.next_request = state.next_request + 1
-    term.requests = term.requests or {}
-    table.insert(term.requests, request)
-    term.last_request = request
+    -- The end marker of a paste inside the text would end the paste early; CRLF becomes LF
+    local text = prompt:gsub("\27%[201~", "")
+    text = text:gsub("\r\n", "\n")
+    local request = new_request(term, caller, text)
 
     local win = vim.fn.bufwinid(term.buf)
     if win > 0 then
         require("claude-deck.terminal").fit_pty(win)
     end
-    -- The end marker of a paste inside the text would end the paste early
-    local text = prompt:gsub("\27%[201~", "")
     local buf = term.buf
     -- Scheduled so that the pty size is updated first (as in location.lua)
     vim.schedule(function()
@@ -539,7 +561,7 @@ function M.send(self_id, target, args, pwd)
         if not prompt then
             return "ct: cannot read the prompt file: " .. opts.prompt_file
         end
-        prompt = prompt:gsub("\n+$", "")
+        prompt = prompt:gsub("[\r\n]+$", "")
     end
 
     local request, err = M.send_term(caller, target, prompt)
@@ -550,8 +572,9 @@ function M.send(self_id, target, args, pwd)
 end
 
 -- One entry per distinct id: { id, status, request, state }. status: "missing", "exited",
--- "done" (the last request has been received and its turn has ended), "attention", "none" (no
--- request was ever sent: counts as finished) or "pending".
+-- "done" (the last request has been received and its turn has ended), "lost" (a turn ended
+-- without the request having been received), "attention", "none" (no request, and the terminal
+-- is not running: counts as finished) or "pending".
 local function wait_entries(ids)
     local entries, seen = {}, {}
     for _, id in ipairs(ids) do
@@ -567,10 +590,13 @@ local function wait_entries(ids)
                 status = "exited"
             elseif request and request.completed then
                 status = "done"
+            elseif request and request.lost then
+                status = "lost"
             elseif term.state == "attention" then
                 status = "attention"
             elseif not request then
-                status = "none"
+                -- Finished only when not working (a running terminal without a request is busy)
+                status = term.state == "running" and "pending" or "none"
             else
                 status = "pending"
             end

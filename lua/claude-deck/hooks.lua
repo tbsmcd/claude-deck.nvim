@@ -50,14 +50,20 @@ local function handle(term, event, data)
         end
         state.set_state(term, "idle")
     elseif event == "UserPromptSubmit" then
-        local prompt = type(data.prompt) == "string" and data.prompt or ""
+        local prompt = type(data.prompt) == "string" and state.normalize_prompt(data.prompt) or ""
         if term.title == "" and prompt ~= "" and not prompt:match("^%s*/") then
             state.set_title(term, state.make_title(prompt), "auto")
         end
-        -- The task sent with `ct send` has arrived when the submitted prompt is its text
+        -- The task sent with `ct send` (or the first prompt of `ct spawn`) has arrived when the
+        -- submitted prompt is its text, or contains it (a draft was in the input). A request
+        -- marked lost is revived when its prompt turns up after all.
         local request = term.last_request
-        if request and not request.received and vim.trim(prompt) == vim.trim(request.text) then
-            request.received = true
+        if request and not request.received then
+            local text = state.normalize_prompt(request.text)
+            if text ~= "" and (prompt == text or prompt:find(text, 1, true)) then
+                request.received = true
+                request.lost = false
+            end
         end
         state.set_state(term, "running")
     elseif event == "PostToolUse" then
@@ -69,6 +75,9 @@ local function handle(term, event, data)
         local request = term.last_request
         if request and request.received and not request.completed then
             request.completed = true
+        elseif request and not request.received and not request.completed then
+            -- The turn ended without our prompt: it will not be received any more
+            request.lost = true
         end
         state.set_state(term, "waiting")
     elseif event == "Notification" then

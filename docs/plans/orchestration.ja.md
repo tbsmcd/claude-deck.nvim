@@ -41,3 +41,13 @@
   - `Bash(ct wait:*)` を許可リストに入れた（読み取りのみ）。
 - システムプロンプト: `ct send` と `ct wait` を `ct spawn` の段落に足した。終了はターンの終わりであって成功ではないので、作業者が書いた結果を読むよう書いた。
 - Lua API: `require("claude-deck").send(id, prompt)` がリクエスト番号（失敗時は nil とメッセージ）を返す。`wait` は呼び出しをブロックするため、Lua API にはない。
+
+## 修正（レビュー後）
+
+- 長いプロンプトの照合: Claude Code は長いペースト（実測で約 40 行）を `\n\n<pasted_content id="…">\n…\n</pasted_content>` で包んで `UserPromptSubmit` に渡す。`state.normalize_prompt`（`<pasted_content …>` タグの除去、CRLF→LF、trim）を両側に適用し、等しいか、hook 側が依頼テキストを含めば `received`。依頼テキストは送信時と同じ正規化（`\27[201~` の除去、CRLF→LF）後に保存する。長いペーストは作業者に「指示ではなくデータ」と見なされることがあるため、`ct send` / `--prompt-file` のプロンプトはタスクファイルを指す 1〜2 行にする（ドキュメントとシステムプロンプトに記載）。
+- `ct spawn` は最初のプロンプトを `received = false`・`from = 呼び出し元` のリクエストとして登録する。`none` は `idle|waiting|attention|exited` のときだけ終了扱いで、`running` なら `pending`。
+- `start_detached` が失敗したら、ウィンドウを閉じ、`state.remove` でレコードを消し、バッファを wipe し、`next_id` を戻し、`eventignore` を復元してからエラーを再送出する。
+- `ct send` の競合: 最新のリクエストが未受信（`lost` でない）なら `ct: terminal #3 has a pending request r2 (not received yet)`、`session_id` がなければ `ct: terminal #3 is still starting` で拒否する。未受信のまま `Stop` が届いたらリクエストを `lost = true` にし、`ct wait` は `lost` を終了扱いにする（再び送れる）。後から該当プロンプトが届けば `received` に戻す。`ct list --json` の `last_request` に `lost` を追加（`completed` の次）。
+- `ct wait` の終了コード 0 は「待ちが終わった」だけを意味する。呼び出し側は各ターミナルの `status`（`done|attention|exited|missing|none|lost`）を読む。
+- `ct spawn --show` で呼び出し元がタブに表示されていないときは `vertical botright split` でタブの右端に開く（フォーカスは動かさない。ほかの window の大きさが変わることがある）。
+- claude に渡す引数では、位置引数のプロンプトの前に常に `--` を置く（`cmd` の末尾の可変長オプションに飲まれないため。Commander 標準）。
