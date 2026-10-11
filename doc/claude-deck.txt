@@ -189,6 +189,13 @@ spawn({opts})                                            *claude-deck.spawn()*
     `cli.spawn_limit` spawned terminals that have not exited can exist.
     `ct spawn` runs this (|claude-deck-ct|).
 
+send({id}, {prompt})                                       *claude-deck.send()*
+    Type {prompt} into the input of terminal {id} (idle or waiting, not the
+    current terminal) as one bracketed paste and submit it with a carriage
+    return shortly after. Returns the request id ("r1") or nil and a
+    message. Success means only that the input was written. `ct send` runs
+    this (|claude-deck-ct|).
+
 show_settings()                                    *claude-deck.show_settings()*
     Show the Claude Code settings JSON (hooks and `ct` permissions) in a
     scratch buffer. Use it to add the hooks to your own settings when
@@ -343,8 +350,12 @@ Inside a terminal, `ct` is on PATH and Claude is told about it:
     ct spawn [--title title] [--cwd dir] [--model model]
              (--prompt text | --prompt-file path) [--show]
                             start a new session in a hidden terminal
+    ct send id (--prompt text | --prompt-file path)
+                            type a task into an idle or waiting terminal
+    ct wait id... [--timeout seconds]
+                            wait until the tasks sent to them have finished
 
-All of them except `ct spawn` are allowed without a permission prompt. `ct read` parses Claude
+All of them except `ct spawn` and `ct send` are allowed without a permission prompt. `ct read` parses Claude
 Code's transcript files, whose format is internal and may change.
 
 With `cli.auto_title`, Claude is told to name its terminal with `ct title`
@@ -411,6 +422,36 @@ terminals that have not exited. `ct spawn` is not allowed in advance:
 Claude Code asks you for permission each time, and Claude is told to use it
 only when you asked it to delegate work to other sessions.
 
+`ct send` hands a task to an existing terminal that is `idle` or `waiting`
+(not the calling one) and prints `{"id": 3, "request": "r1"}` on one line
+(|claude-deck.send()|). Give exactly one of `--prompt text` and
+`--prompt-file path` (a relative path is relative to Claude's shell). It is
+typed into the target as one bracketed paste, so a multi-line prompt stays
+one message, and submitted with a carriage return shortly after. It is
+refused (`ct: ...`, exit status 1) for a running, attention or exited
+target, a missing terminal or process, and a prompt that is missing, empty,
+unreadable or contains a NUL byte. Success means only that the input was
+written. Each send gets a request id (`r1`, `r2`, ...) recorded on the
+target: it is received when Claude Code reports a submitted prompt with the
+same text (hook `UserPromptSubmit`) and completed at the next `Stop` (or
+when the terminal exits). `ct list --json` shows the latest as
+`"last_request": {"id", "from", "received", "completed", "sent_at"}` (null
+when none). `ct send` is not allowed in advance: Claude Code asks you each
+time.
+
+`ct wait id... [--timeout seconds]` (default 600) waits until, for every
+id, the last request is completed, or the terminal needs you (`attention`),
+has exited or does not exist; a terminal that never got a request counts as
+finished at once. `waiting` alone is never enough: the request must have
+been received and then stopped. The loop runs in the `ct` script and polls
+Neovim once a second, so Neovim is not blocked. It prints `{"timed_out":
+false, "terminals": {"3": {"status": "done", "request": "r1", "state":
+"waiting"}}}`; `status` is `done`, `attention`, `exited`, `missing`, `none`
+(no request was sent) or `pending` (only after a timeout). Exit status: 0
+when finished, 2 on timeout, 1 on a usage error. `ct wait` is allowed
+without a prompt. Finished means the turn ended, not that the work
+succeeded.
+
 ==============================================================================
 6. CONFIGURATION                                           *claude-deck-config*
 
@@ -456,7 +497,8 @@ only when you asked it to delegate work to other sessions.
                           instead of quitting Neovim  (default: true)
     picker                "auto", "fzf-lua" or "select"
     focus.tree            "auto", false or function(cwd)
-    cli.enabled           put `ct` on PATH and allow it  (default: true)
+    cli.enabled           put `ct` on PATH and allow it, except `ct spawn`
+                          and `ct send`  (default: true)
     cli.system_prompt     tell Claude about `ct`  (default: true)
     cli.auto_title        tell Claude to name its terminal with `ct title`;
                           `ct title` works either way  (default: true)

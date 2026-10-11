@@ -190,6 +190,13 @@ spawn({opts})                                           *claude-deck.spawn()*
     `cli.spawn_limit` 個までです。`ct spawn` はこれを実行します
     （|claude-deck-ct|）。
 
+send({id}, {prompt})                                       *claude-deck.send()*
+    ターミナル {id}（idle または waiting で、今のターミナル以外）の入力欄に
+    {prompt} を 1 回のブラケットペーストとして打ち込み、その少し後に改行
+    （キャリッジリターン）で送信します。リクエスト番号（"r1"）を返します（失敗
+    したときは nil とメッセージ）。成功は入力を書き込んだことを意味するだけ
+    です。`ct send` はこれを実行します（|claude-deck-ct|）。
+
 show_settings()                                  *claude-deck.show_settings()*
     Claude Code に渡す設定の JSON（hook と `ct` の権限）をスクラッチバッファ
     に表示します。`claude_settings` が false のときに、自分の設定へ hook を
@@ -352,8 +359,12 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
     ct spawn [--title title] [--cwd dir] [--model model]
              (--prompt text | --prompt-file path) [--show]
                             非表示のターミナルに新しいセッションを起動する
+    ct send id (--prompt text | --prompt-file path)
+                            idle または waiting のターミナルに作業を打ち込む
+    ct wait id... [--timeout seconds]
+                            渡した作業が終わるまで待つ
 
-`ct spawn` 以外は、許可の確認なしで実行できます。`ct read` は Claude Code の transcript
+`ct spawn` と `ct send` 以外は、許可の確認なしで実行できます。`ct read` は Claude Code の transcript
 ファイルを読み取ります。このファイルの形式は内部仕様のため、変わる可能性が
 あります。
 
@@ -420,6 +431,35 @@ Claude のシェルのカレントディレクトリからの相対です）。�
 許可を求め、Claude には、他のセッションに作業を任せるよう頼まれたときだけ
 使うよう伝えています。
 
+`ct send` は、`idle` または `waiting` の既存のターミナル（呼び出し元自身は
+不可）に作業を渡し、`{"id": 3, "request": "r1"}` を 1 行で出力します
+（|claude-deck.send()|）。`--prompt text` と `--prompt-file path` のどちらか
+一方だけを指定します（相対パスは Claude のシェルからの相対です）。対象に
+1 回のブラケットペーストとして打ち込まれるので複数行でも 1 つのメッセージ
+になり、その少し後に改行で送信されます。対象が running・attention・exited
+のとき、存在しないとき、プロセスが生きていないとき、プロンプトが未指定・
+空・読めない・NUL バイトを含むときは拒否されます（`ct: ...`、終了コード 1）。
+成功は入力を書き込んだことを意味するだけです。送るたびにリクエスト番号
+（`r1`、`r2`、...）が付いて対象に記録され、Claude Code が同じテキストの
+プロンプトの送信を通知（hook の `UserPromptSubmit`）すると受信済み、次の
+`Stop`（またはターミナルの終了）で完了になります。`ct list --json` には最新
+のものが `"last_request": {"id", "from", "received", "completed",
+"sent_at"}` として載ります（なければ null）。`ct send` は事前に許可されて
+おらず、そのつど Claude Code があなたに確認します。
+
+`ct wait id... [--timeout seconds]`（既定 600）は、すべての番号について、
+最新のリクエストが完了する、ターミナルが対応待ち（`attention`）になる、終了
+する、または存在しない、のいずれかになるまで待ちます。リクエストを一度も
+送っていないターミナルはすぐに終了扱いです。`waiting` だけでは完了になりま
+せん。リクエストが受信され、そのうえで停止する必要があります。待つ処理は
+`ct` スクリプトのループで、Neovim を 1 秒おきに確認するので Neovim は止まり
+ません。`{"timed_out": false, "terminals": {"3": {"status": "done",
+"request": "r1", "state": "waiting"}}}` を出力します。`status` は `done`・
+`attention`・`exited`・`missing`・`none`（リクエストなし）・`pending`（タイ
+ムアウト時のみ）です。終了コードは、完了で 0、タイムアウトで 2、使い方の誤
+りで 1 です。`ct wait` は許可の確認なしで実行できます。完了はターンが終わっ
+たことを意味し、作業の成功ではありません。
+
 ==============================================================================
 6. 設定                                                   *claude-deck-config*
 
@@ -469,7 +509,8 @@ Claude のシェルのカレントディレクトリからの相対です）。�
     picker                "auto"、"fzf-lua"、"select" のいずれか
     focus.tree            "auto"、false、function(cwd) のいずれか
     cli.enabled           `ct` を PATH に入れ、許可の確認なしで実行できる
-                          ようにする（既定: true）
+                          ようにする（`ct spawn` と `ct send` を除く）
+                          （既定: true）
     cli.system_prompt     `ct` のことを Claude に伝える（既定: true）
     cli.auto_title        `ct title` でターミナルに名前を付けるよう Claude
                           に伝える。`ct title` 自体はどちらでも使える

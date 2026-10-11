@@ -98,6 +98,7 @@ opts = {
 | `open_file(path, line?, id?)` | `:ClaudeDeck open <path>[:line]` | ターミナルの集中モードのエディタでファイルを開きます（[`ct open`](#claude-用の-ct-コマンド) を参照） |
 | `open_diff(opts?)` | `:ClaudeDeck diff [<パス>[:行]] [--pr <pr>] [--base <ref>]` | プルリクエストの差分（または未コミットの変更）をそこに開きます（[`ct diff`](#claude-用の-ct-コマンド) を参照） |
 | `spawn(opts)` | | 画面を変えずに、非表示のターミナルに新しいセッションを起動し、その番号を返します（[`ct spawn`](#claude-用の-ct-コマンド) を参照） |
+| `send(id, prompt)` | | idle または waiting のターミナルに作業を打ち込み、リクエスト番号を返します（[`ct send`](#claude-用の-ct-コマンド) を参照） |
 | `show(id, where?)` | `:ClaudeDeck show <番号>` | 番号を指定してターミナルを表示します |
 
 `where` を指定しない場合、新しいターミナルは次の場所に開きます。
@@ -265,9 +266,11 @@ ct diff                           # プルリクエストの差分（または�
 ct diff app/greeter.rb:24         # … そのファイル（と行）の位置にカーソルを置いて
 ct diff --pr 5559 app/greeter.rb:24  # 別のプルリクエストの差分
 ct spawn --title "ログイン修正" --prompt-file task.md  # 非表示のターミナルに新しいセッションを起動する
+ct send 3 --prompt-file task.md  # idle または waiting のターミナル #3 に作業を渡す
+ct wait 3 4 --timeout 300  # #3 と #4 に渡した作業が終わるまで待つ
 ```
 
-`ct spawn` 以外は、許可の確認なしで実行できます。たとえば「#1 でやっている作業と矛盾しないか確認して」のように頼めます。
+`ct spawn` と `ct send` 以外は、許可の確認なしで実行できます。たとえば「#1 でやっている作業と矛盾しないか確認して」のように頼めます。
 
 `cli.auto_title`（既定で有効）のときは、タスクを把握したらすぐに `ct title` でターミナルに名前を付け、タスクが変わったら付け直すよう Claude に伝えます。名前は、プロンプトと同じ言語の短いものにするよう指示しています。名前の上限は表示幅で 40 桁（日本語は 1 文字 2 桁）です。超えた名前は切り詰めずに拒否し、Claude に短くさせます。`rename()` で自分で付けた名前が優先され、`ct title` では変更できません。Claude が `ct title --force` を使うのは、名前を変えるよう頼んだときだけです。
 
@@ -278,6 +281,10 @@ ct spawn --title "ログイン修正" --prompt-file task.md  # 非表示のタ�
 `ct list --json` は、`{"self": <番号または null>, "terminals": [ … ]}` という 1 つの JSON オブジェクトを出力します。ターミナルごとに 1 件、番号順に並び、`id`、`state`（設定で変えられる表示名ではなく内部名: `idle`・`running`・`waiting`・`attention`・`exited`）、`title`、`title_source`（`"claude"`・`"user"`・`"auto"`、または null）、`cwd`、`session_id`、`transcript_path`、`model`、`spawned_by` を持ちます（不明な値は null）。`model` はターミナルの起動時に要求したモデル（`--model`）で、Claude Code が実際に使うモデルとは限りません。
 
 `ct spawn [--title <名前>] [--cwd <ディレクトリ>] [--model <model>] (--prompt <テキスト> | --prompt-file <パス>) [--show]` は、新しいターミナルに Claude Code のセッションを起動し、`{"id": 4, "cwd": "…", "model": null, "title": "…"}` を 1 行で出力します。プロンプトは `--prompt` と `--prompt-file` のどちらか一方だけを指定します（ファイルは Neovim が読み込み、相対パスは Claude のシェルのカレントディレクトリからの相対です）。プロンプトは入力欄に打ち込まれるのではなく、Claude Code の最初の引数として渡されます。`--cwd` を省くと呼び出し元のターミナルの cwd になり、存在するディレクトリでなければなりません。名前の規則は `ct title` と同じです（40 セルまで）。ターミナルは非表示で作られ、今のタブ・window・カーソル・モードは変わりません。ほかの非表示のターミナルと同じく、`show()` や `list()` で表示できます。`--show` を付けると、代わりに呼び出し元のターミナルの右に開き、フォーカスは元の場所に残ります。起動できる、終了していない `ct spawn` のターミナルは `cli.spawn_limit`（3）個までです。ほかの `ct` コマンドと違い、`ct spawn` は事前に許可されていません。そのつど Claude Code があなたに許可を求め、Claude には、他のセッションに作業を任せるよう頼まれたときだけ使うよう伝えています。Neovim からは `spawn({ prompt, cwd?, model?, title?, show? })` で同じことができ、新しい番号を返します（失敗したときは nil とメッセージ）。
+
+`ct send <番号> (--prompt <テキスト> | --prompt-file <パス>)` は、`idle` または `waiting` の既存のターミナル（呼び出し元自身は不可）に作業を渡し、`{"id": 3, "request": "r1"}` を 1 行で出力します。プロンプトはどちらか一方だけを指定し（`--prompt-file` の相対パスは Claude のシェルからの相対です）、対象の入力欄に 1 回のブラケットペーストとして打ち込まれるので、複数行でも 1 つのメッセージになります。その少し後に改行（キャリッジリターン）で送信されます。対象が running・attention・exited のターミナルのとき、存在しないとき、プロセスが生きていないとき、プロンプトが未指定・空・読めない・NUL バイトを含むときは拒否されます（`ct: …`、終了コード 1）。成功は入力を書き込んだことを意味するだけで、Claude が受け付けたことまでは保証しません。送るたびにリクエスト番号（`r1`、`r2`、…）が付き、対象に記録されます。Claude Code が同じテキストのプロンプトの送信を通知（hook の `UserPromptSubmit`）すると受信済み、次の `Stop`（またはターミナルの終了）で完了になります。`ct list --json` には最新のものが `"last_request": {"id", "from", "received", "completed", "sent_at"}` として載ります（送っていなければ null）。`ct spawn` と同様、`ct send` も事前に許可されておらず、そのつど Claude Code があなたに確認します。Neovim からは `send(id, prompt)` で同じことができ、リクエスト番号を返します（失敗したときは nil とメッセージ）。
+
+`ct wait <番号>... [--timeout <秒>]`（既定 600）は、すべての番号について、最新のリクエストが完了する、ターミナルがあなたの対応待ち（`attention`）になる、終了する、または存在しない、のいずれかになるまで待ちます。リクエストを一度も送っていないターミナルはすぐに終了扱いです。`waiting` だけでは完了になりません。リクエストが受信され、そのうえで停止する必要があります。待つ処理は `ct` スクリプトの中のループで、Neovim を 1 秒おきに確認するだけなので、Neovim は止まりません。最後に `{"timed_out": false, "terminals": {"3": {"status": "done", "request": "r1", "state": "waiting"}}}` を 1 行で出力します。`status` は `done`・`attention`・`exited`・`missing`・`none`（リクエストなし）・`pending`（タイムアウト時のみ）です。終了コードは、完了で 0、タイムアウトで 2、使い方の誤りで 1 です。`ct wait` は読み取るだけなので、許可の確認なしで実行できます。リクエストの完了はターンが終わったことを意味し、作業の成功ではありません。Claude には、作業者が書いた結果を読むよう伝えています。
 
 ![ターミナル #4 の Claude が、ターミナルの一覧を表示し、ターミナル #1 の会話を読んでいる画面](docs/images/ja/ct.webp)
 
@@ -330,7 +337,7 @@ require("claude-deck").setup({
         tree = "auto", -- "auto" | false | function(cwd)
     },
     cli = {
-        enabled = true, -- `ct` を PATH に入れ、許可の確認なしで実行できるようにする（`ct spawn` を除く）
+        enabled = true, -- `ct` を PATH に入れ、許可の確認なしで実行できるようにする（`ct spawn` と `ct send` を除く）
         system_prompt = true, -- `ct` のことを Claude に伝える
         auto_title = true, -- `ct title` でターミナルに名前を付けるよう Claude に伝える（`ct title` 自体はどちらでも使える）
         spawn_limit = 3, -- `ct spawn` で起動した、終了していないターミナルの最大数

@@ -18,7 +18,7 @@ function M.settings_json()
 
     local settings = { hooks = hooks }
     if config.options.cli.enabled then
-        -- `ct list` / `ct read` only read state, `ct title` only names the terminal it runs in
+        -- `ct list` / `ct read` / `ct wait` only read state, `ct title` only names the terminal it runs in
         -- and `ct open` / `ct diff` only show things in the editor, so allow them without a prompt
         settings.permissions = {
             allow = {
@@ -29,6 +29,7 @@ function M.settings_json()
                 "Bash(ct open:*)",
                 "Bash(ct diff)",
                 "Bash(ct diff:*)",
+                "Bash(ct wait:*)",
             },
         }
     end
@@ -53,6 +54,11 @@ local function handle(term, event, data)
         if term.title == "" and prompt ~= "" and not prompt:match("^%s*/") then
             state.set_title(term, state.make_title(prompt), "auto")
         end
+        -- The task sent with `ct send` has arrived when the submitted prompt is its text
+        local request = term.last_request
+        if request and not request.received and vim.trim(prompt) == vim.trim(request.text) then
+            request.received = true
+        end
         state.set_state(term, "running")
     elseif event == "PostToolUse" then
         -- Work resumed after a permission prompt
@@ -60,6 +66,10 @@ local function handle(term, event, data)
             state.set_state(term, "running")
         end
     elseif event == "Stop" then
+        local request = term.last_request
+        if request and request.received and not request.completed then
+            request.completed = true
+        end
         state.set_state(term, "waiting")
     elseif event == "Notification" then
         -- idle_prompt is a reminder after Stop; stay in "waiting"

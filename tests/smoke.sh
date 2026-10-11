@@ -642,7 +642,7 @@ check "ct list shows the model" "$(NVIM="$SOCK" bin/ct list)" "model: haiku"
 check "ct list shows (default) without a model" "$(NVIM="$SOCK" bin/ct list)" "model: (default)"
 hook "$MT" Stop '{}'
 JS=$(NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin/ct list --json)
-rec() { echo "$JS" | grep -o '{"[^{}]*"id":'"$1"',[^{}]*}' | head -1; }
+rec() { echo "$JS" | sed 's/},{"id"/}\n{"id"/g' | grep '^{"id":'"$1"',\|"terminals":\[{"id":'"$1"',' | head -1; }
 check "ct list --json: self" "$JS" '"self":'"$MT"
 check "ct list --json: internal state" "$(rec "$MT")" '"state":"waiting"'
 check "ct list --json: model" "$(rec "$MT")" '"model":"haiku"'
@@ -728,6 +728,98 @@ lua '(function() local b = require("claude-deck.state").get('"$SID3"').buf; vim.
 check "spawn() returns the id" "$(lua '(function() local id = require("claude-deck").spawn({ prompt = "api", title = "Api", model = "haiku" }); local t = require("claude-deck.state").get(id); return t.title .. " " .. t.model .. " " .. t.spawned_by end)()')" "Api haiku $MT"
 check "spawn() without a prompt returns nil and a message" "$(lua '(function() local id, err = require("claude-deck").spawn({}); return tostring(id) .. " " .. err end)()')" "nil no prompt given"
 lua '(function() require("claude-deck").setup(T_opts); vim.cmd("only"); return "" end)()' >/dev/null
+
+# ct send / ct wait
+ct_as() { # id, args...: runs bin/ct as terminal $1; prints output and exit status
+    cid=$1
+    shift
+    out=$(NVIM="$SOCK" CLAUDE_DECK_ID="$cid" bin/ct "$@" 2>&1)
+    echo "$out exit=$?"
+}
+stdin_of() { # id: what has been typed into terminal $1, escapes visible
+    lua 'vim.inspect(table.concat(vim.fn.readfile(vim.env.TEST_OUT .. "/stdin.'"$1"'", "b"), "\n"))' | sed 's/\\\\/\\/g'
+}
+lua '(function() vim.cmd("only"); vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$MT"').buf); return "" end)()' >/dev/null
+hook "$SID" SessionStart '{"cwd":"'"$ROOT"'","session_id":"sess-send"}'
+hook "$SID" Stop '{}'
+check "send: target is waiting" "$(lua 'require("claude-deck.state").get('"$SID"').state')" "waiting"
+check "permissions do not allow ct send" "$(lua 'tostring(require("claude-deck.hooks").settings_json():find("ct send", 1, true))')" "nil"
+check "permissions allow ct wait" "$(lua 'require("claude-deck.hooks").settings_json()')" '"Bash(ct wait:*)"'
+check "system prompt tells about ct send and ct wait" "$(cat "$TEST_OUT/args.$MT")" '`ct wait <id>... [--timeout s]`'
+OUT=$(ct_as "$MT" send "$SID" --prompt "Do the thing")
+check "ct send prints JSON" "$OUT" '{"id":'"$SID"',"request":"r1"} exit=0'
+sleep 0.4
+check "ct send: bracketed paste, then a carriage return" "$(lua 'vim.inspect(table.concat(vim.fn.readfile(vim.env.TEST_OUT .. "/stdin.'"$SID"'", "b"), "\n"))')" '\27[200~Do the thing\27[201~'
+check "ct send: the paste is followed by a CR" "$(printf '%s' "$(od -An -c "$TEST_OUT/stdin.$SID" | tr -d ' \n')")" '201~\r'
+LR() { NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin/ct list --json | sed 's/},{"id"/}\n{"id"/g' | grep '^{"id":'"$1"','; }
+check "ct list --json: request not received yet" "$(LR "$SID")" '"last_request":{"id":"r1","from":'"$MT"',"received":false,"completed":false,'
+check "ct list --json: no request is null" "$(LR "$MT")" '"last_request":null'
+check "ct wait times out while pending" "$(ct_as "$MT" wait "$SID" --timeout 1)" '"timed_out":true'
+check "ct wait: exit 2 on timeout" "$(ct_as "$MT" wait "$SID" --timeout 1)" 'exit=2'
+check "ct wait: pending status" "$(ct_as "$MT" wait "$SID" --timeout 0)" '"status":"pending","request":"r1"'
+hook "$SID" Stop '{}'
+check "a Stop before the prompt arrived does not complete" "$(LR "$SID")" '"received":false,"completed":false'
+hook "$SID" UserPromptSubmit '{"prompt":"something else"}'
+check "another prompt is not the request" "$(LR "$SID")" '"received":false'
+hook "$SID" UserPromptSubmit '{"prompt":"  Do the thing\n"}'
+check "the submitted prompt marks the request received" "$(LR "$SID")" '"received":true,"completed":false'
+check "ct wait: still pending while running" "$(ct_as "$MT" wait "$SID" --timeout 0)" 'exit=2'
+(sleep 1.5; hook "$SID" Stop '{}') &
+STOP_PID=$!
+WAIT_OUT=$(ct_as "$MT" wait "$SID" --timeout 20)
+wait $STOP_PID
+check "ct wait returns after the Stop hook" "$WAIT_OUT" '"timed_out":false,"terminals":{"'"$SID"'":{"status":"done","request":"r1","state":"waiting"}}} exit=0'
+check "request is completed" "$(LR "$SID")" '"received":true,"completed":true'
+check "send: the request is recorded on the target" "$(lua '(function() local t = require("claude-deck.state").get('"$SID"'); return #t.requests .. " " .. t.requests[1].text .. " " .. t.last_request.from end)()')" "1 Do the thing $MT"
+# Refusals
+check "ct send to yourself fails" "$(ct_as "$MT" send "$MT" --prompt x)" "ct: cannot send to yourself exit=1"
+check "ct send to a missing terminal fails" "$(ct_as "$MT" send 999 --prompt x)" "ct: no terminal #999 exit=1"
+hook "$SID" UserPromptSubmit '{"prompt":"busy"}'
+check "ct send to a running terminal fails" "$(ct_as "$MT" send "$SID" --prompt x)" "ct: terminal #$SID is running (send only to idle or waiting terminals) exit=1"
+hook "$SID" Notification '{"notification_type":"permission_prompt","message":"m"}'
+check "ct send to an attention terminal fails" "$(ct_as "$MT" send "$SID" --prompt x)" "is attention (send only to idle or waiting terminals)"
+check "ct wait: a completed request is done even in attention" "$(ct_as "$MT" wait "$SID" --timeout 20)" '"status":"done"'
+hook "$SID" Stop '{}'
+check "ct send to an exited terminal fails" "$(ct_as "$MT" send "$SID2" --prompt x)" "ct: terminal #$SID2 is exited (send only to idle or waiting terminals)"
+check "ct send without a prompt fails" "$(ct_as "$MT" send "$SID")" "ct: no prompt given (use --prompt or --prompt-file) exit=1"
+check "ct send with an empty prompt fails" "$(ct_as "$MT" send "$SID" --prompt "  ")" "ct: no prompt given"
+check "ct send with both prompts fails" "$(ct_as "$MT" send "$SID" --prompt a --prompt-file "$SP")" "ct: use either --prompt or --prompt-file, not both exit=1"
+check "ct send with a missing prompt file fails" "$(ct_as "$MT" send "$SID" --prompt-file /nonexistent/x.md)" "ct: cannot read the prompt file: /nonexistent/x.md exit=1"
+check "ct send with a non-numeric id shows the usage" "$(ct_as "$MT" send abc --prompt x)" "exit=1"
+check "ct send with an unknown argument fails" "$(ct_as "$MT" send "$SID" --nope)" "ct: unknown argument --nope exit=1"
+check "ct send outside a terminal fails" "$(NVIM="$SOCK" CLAUDE_DECK_ID= bin/ct send "$SID" --prompt a 2>&1; echo "exit=$?")" "ct: run this inside a claude-deck terminal"
+check "ct send to a terminal with a dead job fails" "$(lua '(function() local t = require("claude-deck.state").get('"$SID"'); local job = t.job; vim.fn.jobstop(job); vim.fn.jobwait({ job }, 2000); local r, e = require("claude-deck.cli").send_term(nil, t.id, "x"); return tostring(r) .. " " .. e end)()')" "nil ct: terminal #$SID is not running"
+check "the exited terminal completes its request with exited" "$(lua '(function() local t = require("claude-deck.state").get('"$SID"'); vim.wait(3000, function() return t.state == "exited" end); return t.state .. " " .. tostring(t.last_request.completed) .. " " .. tostring(t.last_request.exited) end)()')" "exited true true"
+# Multi-line prompts, a prompt file relative to $PWD, a visible target
+lua '(function() require("claude-deck").new("below"); vim.cmd("stopinsert"); _G.T_vis = vim.b.claude_deck_id; return "" end)()' >/dev/null
+VT=$(lua '_G.T_vis')
+sleep 0.4
+hook "$VT" SessionStart '{"cwd":"'"$ROOT"'","session_id":"sess-vis"}'
+printf 'line one\n\nline "three" $HOME\n\n' >"$TEST_OUT/multi.md"
+OUT=$(cd "$TEST_OUT" && NVIM="$SOCK" CLAUDE_DECK_ID="$MT" "$ROOT/bin/ct" send "$VT" --prompt-file multi.md 2>&1; echo "exit=$?")
+check "ct send --prompt-file relative to \$PWD" "$OUT" '"request":"r2"}'
+sleep 0.4
+check "multi-line prompt is one paste" "$(lua '(function() local s = table.concat(vim.fn.readfile(vim.env.TEST_OUT .. "/stdin.'"$VT"'", "b"), "\n"); return s == "\27[200~line one\n\nline \"three\" $HOME\27[201~\r" end)()')" "true"
+check "multi-line prompt: only one CR, at the end" "$(od -An -c "$TEST_OUT/stdin.$VT" | tr -d ' \n' | grep -o '\\r' | wc -l | tr -d ' ')|$(od -An -c "$TEST_OUT/stdin.$VT" | tr -d ' \n' | tail -c 2)" '1|\r'
+hook "$VT" UserPromptSubmit '{"prompt":"line one\n\nline \"three\" $HOME"}'
+check "multi-line request is received" "$(LR "$VT")" '"id":"r2"'
+check "multi-line request is received (flag)" "$(LR "$VT")" '"received":true'
+# ct wait: attention, missing, several ids, usage
+hook "$VT" Notification '{"notification_type":"permission_prompt","message":"m"}'
+check "ct wait returns early on attention" "$(ct_as "$MT" wait "$VT" --timeout 20)" '"status":"attention","request":"r2","state":"attention"}}} exit=0'
+check "ct wait: missing terminal" "$(ct_as "$MT" wait 999 --timeout 5)" '"999":{"status":"missing","request":null,"state":null}}} exit=0'
+check "ct wait: exited terminal" "$(ct_as "$MT" wait "$SID" --timeout 5)" '"status":"exited"'
+check "ct wait: no request counts as finished" "$(ct_as "$MT" wait "$MT" --timeout 5)" '"status":"none","request":null,"state":"waiting"'
+check "ct wait: several ids" "$(ct_as "$MT" wait "$VT" "$SID" 999 --timeout 5)" '"timed_out":false'
+check "ct wait without ids shows the usage" "$(ct_as "$MT" wait)" "exit=1"
+check "ct wait with a non-numeric id shows the usage" "$(ct_as "$MT" wait abc)" "exit=1"
+check "ct wait with a bad timeout shows the usage" "$(ct_as "$MT" wait "$VT" --timeout soon)" "exit=1"
+check "ct wait with --timeout without a value shows the usage" "$(ct_as "$MT" wait "$VT" --timeout)" "exit=1"
+check "ct wait does not block Neovim" "$( (NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin/ct wait "$VT" 999 --timeout 3 >/dev/null 2>&1 &) ; hook "$VT" Stop '{}'; lua '"alive"')" "alive"
+# Lua API
+check "send() returns the request id" "$(lua '(function() vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$MT"').buf); local r, e = require("claude-deck").send('"$VT"', "api task"); return tostring(r) .. tostring(e) end)()')" "r3"
+check "send() to yourself returns nil and a message" "$(lua '(function() local r, e = require("claude-deck").send('"$MT"', "x"); return tostring(r) .. " " .. e end)()')" "nil cannot send to yourself"
+lua '(function() vim.cmd("only"); return "" end)()' >/dev/null
 
 messages=$(lua 'vim.api.nvim_exec2("messages", { output = true }).output')
 case "$messages" in

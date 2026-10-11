@@ -8,26 +8,59 @@ local MAX_MESSAGE_LENGTH = 2000
 -- cut, so that Claude picks a shorter one.
 local MAX_TITLE_WIDTH = 40
 
+-- JSON object with the keys in the given order: { { key, value }, … } (vim.json.encode()
+-- orders keys arbitrarily, which makes the output of `ct` hard to match with grep)
+local function ordered_object(pairs_list)
+    local parts = {}
+    for _, pair in ipairs(pairs_list) do
+        local value = pair[2]
+        -- { raw = "<json>" }: already encoded
+        value = type(value) == "table" and value.raw or vim.json.encode(value)
+        table.insert(parts, vim.json.encode(pair[1]) .. ":" .. value)
+    end
+    return "{" .. table.concat(parts, ",") .. "}"
+end
+
 local function json_list(self_id)
     local terminals = {}
     for _, term in ipairs(state.sorted()) do
-        table.insert(terminals, {
-            id = term.id,
-            state = term.state,
-            title = term.title,
-            title_source = term.title_source or vim.NIL,
-            cwd = term.cwd,
-            session_id = term.session_id or vim.NIL,
-            transcript_path = term.transcript_path or vim.NIL,
-            -- The model requested when the terminal was started (not confirmed by Claude Code)
-            model = term.model or vim.NIL,
-            spawned_by = term.spawned_by or vim.NIL,
-        })
+        local request = term.last_request
+        table.insert(
+            terminals,
+            ordered_object({
+                { "id", term.id },
+                { "state", term.state },
+                { "title", term.title },
+                { "title_source", term.title_source or vim.NIL },
+                { "cwd", term.cwd },
+                { "session_id", term.session_id or vim.NIL },
+                { "transcript_path", term.transcript_path or vim.NIL },
+                -- The model requested when the terminal was started (not confirmed by Claude Code)
+                { "model", term.model or vim.NIL },
+                { "spawned_by", term.spawned_by or vim.NIL },
+                {
+                    "last_request",
+                    request
+                            and {
+                                raw = ordered_object({
+                                    { "id", request.id },
+                                    { "from", request.from or vim.NIL },
+                                    { "received", request.received },
+                                    { "completed", request.completed },
+                                    { "sent_at", request.sent_at },
+                                }),
+                            }
+                        or vim.NIL,
+                },
+            })
+        )
     end
-    return vim.json.encode({
-        self = (tonumber(self_id) and tonumber(self_id) > 0) and tonumber(self_id) or vim.NIL,
-        terminals = #terminals > 0 and terminals or vim.empty_dict(),
-    })
+    local self = tonumber(self_id)
+    return '{"self":'
+        .. vim.json.encode((self and self > 0) and self or vim.NIL)
+        .. ',"terminals":['
+        .. table.concat(terminals, ",")
+        .. "]}"
 end
 
 -- `ct list`; with `json`, one JSON object (internal state names, null for missing values)
@@ -391,6 +424,203 @@ function M.spawn(id, args, pwd)
         cwd = term.cwd,
         model = term.model or vim.NIL,
         title = term.title ~= "" and term.title or vim.NIL,
+    })
+end
+
+-- Delivers a task to terminal `id` for `ct send` / send(): one bracketed paste, then (after the
+-- TUI has processed it) a carriage return to submit. `caller`: the terminal that asks (or nil).
+-- Returns the request id, or nil and a "ct: …" message. Success means only that the input was
+-- written; whether Claude took it up is seen from the hooks (term.last_request.received).
+function M.send_term(caller, id, prompt)
+    local term = state.get(id)
+    if not term then
+        return nil, "ct: no terminal #" .. tostring(id)
+    end
+    if caller and caller.id == term.id then
+        return nil, "ct: cannot send to yourself"
+    end
+    if term.state ~= "idle" and term.state ~= "waiting" then
+        return nil,
+            string.format(
+                "ct: terminal #%d is %s (send only to idle or waiting terminals)",
+                term.id,
+                term.state
+            )
+    end
+    local running = term.job and vim.fn.jobwait({ term.job }, 0)[1] == -1
+    if not running or not vim.api.nvim_buf_is_valid(term.buf) then
+        return nil, string.format("ct: terminal #%d is not running", term.id)
+    end
+    if type(prompt) ~= "string" or vim.trim(prompt) == "" then
+        return nil, "ct: no prompt given (use --prompt or --prompt-file)"
+    end
+    if prompt:find("\0", 1, true) then
+        return nil, "ct: the prompt contains a NUL byte"
+    end
+
+    local request = {
+        id = "r" .. state.next_request,
+        from = caller and caller.id or nil,
+        text = prompt,
+        sent_at = os.time(),
+        received = false,
+        completed = false,
+    }
+    state.next_request = state.next_request + 1
+    term.requests = term.requests or {}
+    table.insert(term.requests, request)
+    term.last_request = request
+
+    local win = vim.fn.bufwinid(term.buf)
+    if win > 0 then
+        require("claude-deck.terminal").fit_pty(win)
+    end
+    -- The end marker of a paste inside the text would end the paste early
+    local text = prompt:gsub("\27%[201~", "")
+    local buf = term.buf
+    -- Scheduled so that the pty size is updated first (as in location.lua)
+    vim.schedule(function()
+        if not vim.api.nvim_buf_is_valid(buf) then
+            return
+        end
+        local channel = vim.bo[buf].channel
+        if not pcall(vim.api.nvim_chan_send, channel, "\27[200~" .. text .. "\27[201~") then
+            return
+        end
+        vim.defer_fn(function()
+            if vim.api.nvim_buf_is_valid(buf) then
+                pcall(vim.api.nvim_chan_send, vim.bo[buf].channel, "\r")
+            end
+        end, 50)
+    end)
+    return request.id
+end
+
+-- `ct send <id> (--prompt <text> | --prompt-file <path>)`: `args` after the id, as a list;
+-- relative paths are relative to `pwd`. Returns {"id": 3, "request": "r1"} as one line.
+function M.send(self_id, target, args, pwd)
+    local caller = state.get(self_id)
+    if not caller then
+        return "ct: no terminal #" .. tostring(self_id)
+    end
+
+    local opts, i = {}, 1
+    while i <= #args do
+        local arg = args[i]
+        local name, value = arg:match("^(%-%-[%w-]+)=(.*)$")
+        name = name or arg
+        if name == "--prompt" or name == "--prompt-file" then
+            if value == nil then
+                i = i + 1
+                value = args[i]
+            end
+            if value == nil then
+                return "ct: " .. name .. " needs a value"
+            end
+            opts[name:sub(3):gsub("-", "_")] = value
+        else
+            return "ct: unknown argument " .. arg
+        end
+        i = i + 1
+    end
+
+    if opts.prompt and opts.prompt_file then
+        return "ct: use either --prompt or --prompt-file, not both"
+    end
+    local prompt = opts.prompt
+    if opts.prompt_file then
+        local path = opts.prompt_file
+        if path == "~" or vim.startswith(path, "~/") then
+            path = vim.env.HOME .. path:sub(2)
+        elseif not vim.startswith(path, "/") then
+            path = ((pwd and pwd ~= "") and pwd or caller.cwd) .. "/" .. path
+        end
+        prompt = vim.fn.isdirectory(path) == 0 and read_file(path) or nil
+        if not prompt then
+            return "ct: cannot read the prompt file: " .. opts.prompt_file
+        end
+        prompt = prompt:gsub("\n+$", "")
+    end
+
+    local request, err = M.send_term(caller, target, prompt)
+    if not request then
+        return err
+    end
+    return ordered_object({ { "id", state.get(target).id }, { "request", request } })
+end
+
+-- One entry per distinct id: { id, status, request, state }. status: "missing", "exited",
+-- "done" (the last request has been received and its turn has ended), "attention", "none" (no
+-- request was ever sent: counts as finished) or "pending".
+local function wait_entries(ids)
+    local entries, seen = {}, {}
+    for _, id in ipairs(ids) do
+        id = tonumber(id)
+        if id and not seen[id] then
+            seen[id] = true
+            local term = state.get(id)
+            local request = term and term.last_request
+            local status
+            if not term then
+                status = "missing"
+            elseif term.state == "exited" then
+                status = "exited"
+            elseif request and request.completed then
+                status = "done"
+            elseif term.state == "attention" then
+                status = "attention"
+            elseif not request then
+                status = "none"
+            else
+                status = "pending"
+            end
+            table.insert(entries, {
+                id = id,
+                status = status,
+                request = request and request.id or nil,
+                state = term and term.state or nil,
+            })
+        end
+    end
+    return entries
+end
+
+-- `ct wait`, polled by bin/ct: one line per id, "<id> <status> [<request>] [<state>]"
+-- (pending lines end with the state; the status words are those of wait_entries()). The wait
+-- itself is a loop in the shell so that Neovim is never blocked.
+function M.wait_status(ids)
+    local lines = {}
+    for _, entry in ipairs(wait_entries(ids)) do
+        local parts = { entry.id, entry.status }
+        if entry.request then
+            table.insert(parts, entry.request)
+        end
+        if entry.status == "pending" then
+            table.insert(parts, entry.state)
+        end
+        table.insert(lines, table.concat(parts, " "))
+    end
+    return table.concat(lines, "\n")
+end
+
+-- The final output of `ct wait`: {"timed_out": false, "terminals": {"3": {"status", "request", "state"}}}
+function M.wait_result(ids, timed_out)
+    local terminals = {}
+    for _, entry in ipairs(wait_entries(ids)) do
+        table.insert(terminals, {
+            tostring(entry.id),
+            {
+                raw = ordered_object({
+                    { "status", entry.status },
+                    { "request", entry.request or vim.NIL },
+                    { "state", entry.state or vim.NIL },
+                }),
+            },
+        })
+    end
+    return ordered_object({
+        { "timed_out", timed_out and true or false },
+        { "terminals", { raw = ordered_object(terminals) } },
     })
 end
 

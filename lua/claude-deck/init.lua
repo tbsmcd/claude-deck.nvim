@@ -481,6 +481,15 @@ function M.spawn(opts)
     return term.id
 end
 
+-- Types a task into the prompt of terminal `id` (an idle or waiting terminal other than the
+-- current one), as `ct send` does. Returns the request id ("r1"), or nil and a message.
+-- Success means only that the input was written, not that Claude accepted it.
+function M.send(id, prompt)
+    ensure_setup()
+    local request, err = require("claude-deck.cli").send_term(state.current(), id, prompt)
+    return request, err and (err:gsub("^ct: ", ""))
+end
+
 -- Show the Claude Code settings JSON (hooks and `ct` permissions) in a scratch buffer,
 -- for adding to your own settings when `claude_settings` is false.
 function M.show_settings()

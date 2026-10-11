@@ -9,6 +9,8 @@ local M = {}
 -- A fork's "↳…" title is "auto" even if the parent's is "user", so the child Claude can rename it.
 M.terminals = {}
 M.next_id = 1
+-- Counter of the request ids ("r<N>") of `ct send`
+M.next_request = 1
 -- Updated by FocusGained / FocusLost
 M.nvim_focused = true
 

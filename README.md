@@ -98,6 +98,7 @@ opts = {
 | `open_file(path, line?, id?)` | `:ClaudeDeck open <path>[:line]` | Open a file in the editor of a terminal's focus mode (see [`ct open`](#ct-command-for-claude)) |
 | `open_diff(opts?)` | `:ClaudeDeck diff [<path>[:line]] [--pr <pr>] [--base <ref>]` | Open the diff of the pull request (or the uncommitted changes) there (see [`ct diff`](#ct-command-for-claude)) |
 | `spawn(opts)` | | Start a new session in a hidden terminal without changing your screen and return its id (see [`ct spawn`](#ct-command-for-claude)) |
+| `send(id, prompt)` | | Type a task into an idle or waiting terminal and return the request id (see [`ct send`](#ct-command-for-claude)) |
 | `show(id, where?)` | `:ClaudeDeck show <id>` | Show a terminal by id |
 
 Where a new terminal opens (without `where`):
@@ -263,9 +264,11 @@ ct diff                    # open the diff of the pull request (or the uncommitt
 ct diff app/greeter.rb:24  # … with the cursor on that file (and line)
 ct diff --pr 5559 app/greeter.rb:24  # the diff of another pull request
 ct spawn --title "Fix login" --prompt-file task.md  # start a new session in a hidden terminal
+ct send 3 --prompt-file task.md  # hand a task to the idle or waiting terminal #3
+ct wait 3 4 --timeout 300  # wait until the tasks sent to #3 and #4 have finished
 ```
 
-All of them except `ct spawn` are allowed without a permission prompt. So you can ask, for example, "check that this doesn't conflict with what #1 is doing".
+All of them except `ct spawn` and `ct send` are allowed without a permission prompt. So you can ask, for example, "check that this doesn't conflict with what #1 is doing".
 
 With `cli.auto_title` (default), Claude is told to name its terminal with `ct title` as soon as it understands the task, with a short title in the language of your prompt, and to rename it when the task changes. The title may be at most 40 cells wide (display width; a Japanese character takes 2); a longer one is refused rather than cut, so that Claude picks a shorter one. A title you set with `rename()` takes precedence: `ct title` refuses to change it, and Claude uses `ct title --force` only when you ask it to rename the terminal.
 
@@ -276,6 +279,10 @@ With `cli.auto_title` (default), Claude is told to name its terminal with `ct ti
 `ct list --json` prints one JSON object, `{"self": <id or null>, "terminals": [ … ]}`, with one entry per terminal sorted by id: `id`, `state` (the internal name: `idle`, `running`, `waiting`, `attention` or `exited`, not the configurable label), `title`, `title_source` (`"claude"`, `"user"`, `"auto"` or null), `cwd`, `session_id`, `transcript_path`, `model` and `spawned_by` (null when not known). `model` is the model that was requested when the terminal was started (`--model`); Claude Code may use another one.
 
 `ct spawn [--title <title>] [--cwd <dir>] [--model <model>] (--prompt <text> | --prompt-file <path>) [--show]` starts a new Claude Code session in a new terminal and prints `{"id": 4, "cwd": "…", "model": null, "title": "…"}` on one line. The prompt (exactly one of `--prompt` and `--prompt-file`; the file is read by Neovim, a relative path is relative to Claude's shell) is passed to Claude Code as its first argument, not typed into it. `--cwd` defaults to the cwd of the calling terminal and must be an existing directory. The title follows the rules of `ct title` (at most 40 cells). The terminal is created hidden: your tab, window, cursor and mode do not change, and you bring it up with `show()` / `list()` like any hidden terminal. With `--show` it opens to the right of the calling terminal instead, and the focus stays where it is. At most `cli.spawn_limit` (3) spawned terminals that have not exited can exist at a time. Unlike the other `ct` commands, `ct spawn` is not allowed in advance: Claude Code asks you for permission each time, and Claude is told to use it only when you asked it to delegate work to other sessions. From Neovim, `spawn({ prompt, cwd?, model?, title?, show? })` does the same and returns the new id (or nil and a message).
+
+`ct send <id> (--prompt <text> | --prompt-file <path>)` hands a task to an existing terminal that is `idle` or `waiting` (not the calling terminal itself) and prints `{"id": 3, "request": "r1"}` on one line. The prompt (exactly one of the two forms; a relative `--prompt-file` is relative to Claude's shell) is typed into the target's input as one bracketed paste, so a multi-line prompt stays one message, and submitted with a carriage return shortly after. It is refused (`ct: …`, exit status 1) when the target is a running, attention or exited terminal, does not exist or has no live process, or the prompt is missing, empty, unreadable or contains a NUL byte. Success means only that the input was written, not that Claude took it up. Each send gets a request id (`r1`, `r2`, …), recorded on the target: the request counts as received when Claude Code reports a submitted prompt with the same text (hook `UserPromptSubmit`), and as completed at the next `Stop` (or when the terminal exits). `ct list --json` shows the latest one as `"last_request": {"id", "from", "received", "completed", "sent_at"}` (null when none was sent). Like `ct spawn`, `ct send` is not allowed in advance: Claude Code asks you each time. From Neovim, `send(id, prompt)` does the same and returns the request id (or nil and a message).
+
+`ct wait <id>... [--timeout <seconds>]` (default 600) waits until, for every id, the last request is completed, or the terminal needs you (`attention`), has exited or does not exist; a terminal that never got a request counts as finished at once. `waiting` alone is never enough: the request must have been received and then stopped. The loop runs in the `ct` script, polling Neovim once a second, so Neovim is not blocked. It prints one line, `{"timed_out": false, "terminals": {"3": {"status": "done", "request": "r1", "state": "waiting"}}}`, where `status` is `done`, `attention`, `exited`, `missing`, `none` (no request was sent) or `pending` (only after a timeout). Exit status 0 when finished, 2 on timeout, 1 on a usage error. `ct wait` only reads, so it is allowed without a prompt. A finished request means the turn ended, not that the work succeeded: Claude is told to read the result the worker wrote.
 
 ![Claude in terminal #5 listing the terminals and reading the conversation of terminal #4](docs/images/ct.webp)
 
@@ -328,7 +335,7 @@ require("claude-deck").setup({
         tree = "auto", -- "auto" | false | function(cwd)
     },
     cli = {
-        enabled = true, -- `ct` on PATH and allowed without a prompt (except `ct spawn`)
+        enabled = true, -- `ct` on PATH and allowed without a prompt (except `ct spawn` and `ct send`)
         system_prompt = true, -- tell Claude about `ct`
         auto_title = true, -- tell Claude to name its terminal with `ct title` (`ct title` works either way)
         spawn_limit = 3, -- max number of terminals started by `ct spawn` that have not exited

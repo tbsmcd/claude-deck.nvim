@@ -252,8 +252,10 @@ Claude in a terminal can check on the other terminals with the `ct` command. Cla
 | `ct open greeter.rb:24` | Open a file (at a line) in the editor of focus mode |
 | `ct diff greeter.rb:24` | Open the diff of the pull request (or of the uncommitted changes) there, at that file and line |
 | `ct spawn --prompt-file task.md` | Start a new session in a hidden terminal (only when you ask Claude to delegate work) |
+| `ct send 3 --prompt-file task.md` | Hand a task to the idle or waiting terminal #3 (asks you each time) |
+| `ct wait 3` | Wait until the task sent to #3 has finished (or it needs you / exited) |
 
-All of them except `ct spawn` run without a permission prompt; Claude Code asks you each time for `ct spawn`. `ct read` only reads the conversation that has been recorded, so you cannot see what the other side is in the middle of writing until that message is finished.
+All of them except `ct spawn` and `ct send` run without a permission prompt; Claude Code asks you each time for those two. `ct read` only reads the conversation that has been recorded, so you cannot see what the other side is in the middle of writing until that message is finished.
 
 With `ct open`, Claude opens a file in the editor of focus mode for you: just ask "open app/index.html" or "show me line 24 of greeter.rb". With `ct diff`, it opens the diff of the pull request there (it needs the GitHub CLI `gh`; `ct diff --pr 5559` shows another pull request, and without a pull request the uncommitted changes are shown): ask "show me the diff of this PR" or "show me the change in greeter.rb" while reviewing. In the diff, `<CR>` opens the file under the cursor beside it, `]f` / `[f` and `]c` / `[c` move between files and hunks, and `q` closes it. `:ClaudeDeck location` works there too, sending the file and line under the cursor.
 

@@ -9,10 +9,14 @@
 #   ct list --json               the same as JSON (one object)
 #   ct spawn [--title <title>] [--cwd <dir>] [--model <model>] (--prompt <text> | --prompt-file <path>) [--show]
 #                                start a new Claude Code session in a hidden terminal; prints its id as JSON
+#   ct send <id> (--prompt <text> | --prompt-file <path>)
+#                                type a task into an idle or waiting terminal; prints {"id", "request"}
+#   ct wait <id>... [--timeout <seconds>]
+#                                wait until the requests sent to those terminals have finished (default 600 s)
 #   ct diff [<path>[:line]] [--pr <number>] [--base <ref>]
 #                                open the diff of the pull request (or the uncommitted changes) there
 usage() {
-    sed -n '4,13p' "$0" | sed 's/^# //' >&2
+    sed -n '4,17p' "$0" | sed 's/^# //' >&2
     exit 1
 }
 
@@ -93,6 +97,63 @@ spawn)
     done
     pwd_hex=$(printf '%s' "${PWD-}" | od -An -v -tx1 | tr -d ' \n' | sed 's/../\\x&/g')
     expr="v:lua.require'claude-deck.cli'.spawn($self,[$list],\"$pwd_hex\")"
+    ;;
+send)
+    self="$CLAUDE_DECK_ID"
+    is_number "$self" || { echo "ct: run this inside a claude-deck terminal" >&2; exit 1; }
+    shift
+    target="${1#\#}"
+    is_number "$target" || usage
+    shift
+    list=""
+    for arg in "$@"; do
+        hex=$(printf '%s' "$arg" | od -An -v -tx1 | tr -d ' \n' | sed 's/../\\x&/g')
+        list="$list\"$hex\","
+    done
+    pwd_hex=$(printf '%s' "${PWD-}" | od -An -v -tx1 | tr -d ' \n' | sed 's/../\\x&/g')
+    expr="v:lua.require'claude-deck.cli'.send($self,$target,[$list],\"$pwd_hex\")"
+    ;;
+wait)
+    shift
+    timeout=600
+    ids=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --timeout)
+            [ $# -ge 2 ] || usage
+            timeout="$2"
+            shift 2
+            ;;
+        --timeout=*)
+            timeout="${1#--timeout=}"
+            shift
+            ;;
+        *)
+            id="${1#\#}"
+            is_number "$id" || usage
+            ids="$ids${ids:+,}$id"
+            shift
+            ;;
+        esac
+    done
+    [ -n "$ids" ] || usage
+    is_number "$timeout" || usage
+    deadline=$(($(date +%s) + timeout))
+    timed_out=v:false
+    while :; do
+        status=$(nvim --server "$NVIM" --remote-expr "v:lua.require'claude-deck.cli'.wait_status([$ids])") || exit 1
+        case "$status" in "ct: "*) printf '%s\n' "$status"; exit 1 ;; esac
+        echo "$status" | grep -q ' pending' || break
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            timed_out=v:true
+            break
+        fi
+        sleep 1
+    done
+    out=$(nvim --server "$NVIM" --remote-expr "v:lua.require'claude-deck.cli'.wait_result([$ids],$timed_out)") || exit 1
+    printf '%s\n' "$out"
+    [ "$timed_out" = v:false ] || exit 2
+    exit 0
     ;;
 *)
     usage

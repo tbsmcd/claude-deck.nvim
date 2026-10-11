@@ -33,6 +33,9 @@ local function system_prompt(id)
         "terminal (hidden until the user shows it) with that file as its first prompt and prints its id as JSON; `ct list --json` gives",
         "machine-readable states. Use them only when the user asked you to delegate work to other sessions (e.g. with /orchestrate);",
         "each spawn asks the user for permission.",
+        "`ct send <id> --prompt-file <file>` hands a task to an existing idle or waiting terminal (asks the user for permission) and",
+        "prints a request id; `ct wait <id>... [--timeout s]` waits until those requests have finished (or the terminal needs the user",
+        "or has exited). Finished means the turn ended, not that it succeeded: read the result the worker wrote.",
     }
     if config.options.cli.auto_title then
         vim.list_extend(lines, {
@@ -174,6 +177,11 @@ function M.start(win, cwd, extra_args, start_opts)
                     -- Not when the terminal has been started again with a new job (redraw())
                     if state.get(id) == term and term.job == job then
                         term.state = "exited"
+                        local request = term.last_request
+                        if request then
+                            request.completed = true
+                            request.exited = true
+                        end
                         ui.redraw()
                     end
                 end)
