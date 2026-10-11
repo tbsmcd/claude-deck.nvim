@@ -596,6 +596,139 @@ check "open_diff() outside a terminal warns" "$(lua '(function() vim.cmd("tabclo
 lua '(function() vim.env.PATH = _G.T_path; vim.cmd("tabclose!"); return "" end)()' >/dev/null
 check "ClaudeDeck diff completes files" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck diff tests/fixtures/open/g", "cmdline"), ",")')" "tests/fixtures/open/greeter.rb"
 
+# Per-terminal model, ct list --json, ct spawn
+model_args() { # id: the arguments of terminal $1 on one line
+    sleep 0.4
+    tr '\n' ' ' <"$TEST_OUT/args.$1"
+}
+lua '(function() vim.cmd("tabnew"); return "" end)()' >/dev/null
+MT=$(lua '(function() require("claude-deck").new(nil, { model = "haiku" }); vim.cmd("stopinsert"); return vim.b.claude_deck_id end)()')
+check "new(opts.model) passes --model as separate arguments" "$(sleep 0.4; grep -x -A1 -e '--model' "$TEST_OUT/args.$MT" | tr '\n' ' ')" "--model haiku"
+check "new() without a model passes no --model" "$(lua '(function() require("claude-deck").new("below"); vim.cmd("stopinsert"); local id = vim.b.claude_deck_id; vim.wait(500); local n = #vim.tbl_filter(function(l) return l == "--model" end, vim.fn.readfile(vim.env.TEST_OUT .. "/args." .. id)); vim.cmd("close"); return "models=" .. n end)()')" "models=0"
+check "the requested model is recorded" "$(lua 'tostring(require("claude-deck.state").get('"$MT"').model)')" "haiku"
+hook "$MT" SessionStart '{"cwd":"'"$ROOT"'","session_id":"sess-model"}'
+lua '(function() require("claude-deck").fork(); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+MF=$(lua 'vim.b.claude_deck_id')
+check "fork inherits the model" "$(model_args "$MF")" "--fork-session --model haiku"
+lua '(function() vim.cmd("close"); require("claude-deck").fork("below", { model = "sonnet" }); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+MF2=$(lua 'vim.b.claude_deck_id')
+check "fork with an explicit model overrides" "$(model_args "$MF2")" "--fork-session --model sonnet"
+lua '(function() vim.cmd("close"); vim.cmd("ClaudeDeck new below --model sonnet"); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+check ":ClaudeDeck new below --model sonnet" "$(model_args "$(lua 'vim.b.claude_deck_id')")" "--model sonnet"
+lua '(function() vim.cmd("close"); vim.cmd("ClaudeDeck new --model=opus below"); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+check ":ClaudeDeck new accepts the arguments in any order" "$(lua 'require("claude-deck.state").get(vim.b.claude_deck_id).model .. " " .. #vim.api.nvim_tabpage_list_wins(0)')" "opus 2"
+lua '(function() vim.cmd("close"); vim.cmd("ClaudeDeck fork below --model haiku"); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+check ":ClaudeDeck fork --model" "$(model_args "$(lua 'vim.b.claude_deck_id')")" "--fork-session --model haiku"
+check ":ClaudeDeck new with a bad argument warns" "$(lua 'T_notify(function() vim.cmd("ClaudeDeck new right below") end)')" "usage: ClaudeDeck new|fork"
+lua '(function() vim.cmd("close"); return "" end)()' >/dev/null
+# redraw keeps the model
+lua '(function() vim.cmd("only"); vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$MT"').buf); return "" end)()' >/dev/null
+hook "$MT" Stop '{}'
+lua '(function() require("claude-deck").redraw(); return "" end)()' >/dev/null
+sleep 1.5
+check "redraw keeps the model" "$(model_args "$MT")" "--resume sess-model --model haiku"
+lua '(function() vim.cmd("stopinsert"); return "" end)()' >/dev/null
+# An explicit model replaces --model in cmd; otherwise cmd is untouched
+lua '(function() local o = vim.deepcopy(T_opts); vim.list_extend(o.cmd, { "--model", "opus" }); require("claude-deck").setup(o); require("claude-deck").new("below"); vim.cmd("stopinsert"); _G.T_id1 = vim.b.claude_deck_id; vim.cmd("close"); require("claude-deck").new("below", { model = "haiku" }); vim.cmd("stopinsert"); _G.T_id2 = vim.b.claude_deck_id; vim.cmd("close"); local o2 = vim.deepcopy(T_opts); vim.list_extend(o2.cmd, { "--model=opus" }); require("claude-deck").setup(o2); require("claude-deck").new("below", { model = "haiku" }); vim.cmd("stopinsert"); _G.T_id3 = vim.b.claude_deck_id; vim.cmd("close"); require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
+sleep 0.5
+M1=$(lua '_G.T_id1') M2=$(lua '_G.T_id2') M3=$(lua '_G.T_id3')
+check "cmd with --model is kept without an explicit model" "$(model_args "$M1")" "--model opus"
+check "an explicit model replaces --model in cmd" "$(model_args "$M2")" "--model haiku"
+check "the replaced --model is not duplicated" "$(grep -c -x -e '--model' "$TEST_OUT/args.$M2")|$(grep -c opus "$TEST_OUT/args.$M2")" "1|0"
+check "an explicit model replaces --model=X in cmd" "$(grep -c -x -e '--model' "$TEST_OUT/args.$M3")|$(grep -c -x -e '--model=opus' "$TEST_OUT/args.$M3")" "1|0"
+
+# ct list shows the model; ct list --json
+check "ct list shows the model" "$(NVIM="$SOCK" bin/ct list)" "model: haiku"
+check "ct list shows (default) without a model" "$(NVIM="$SOCK" bin/ct list)" "model: (default)"
+hook "$MT" Stop '{}'
+JS=$(NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin/ct list --json)
+rec() { echo "$JS" | grep -o '{"[^{}]*"id":'"$1"',[^{}]*}' | head -1; }
+check "ct list --json: self" "$JS" '"self":'"$MT"
+check "ct list --json: internal state" "$(rec "$MT")" '"state":"waiting"'
+check "ct list --json: model" "$(rec "$MT")" '"model":"haiku"'
+check "ct list --json: session_id" "$(rec "$MT")" '"session_id":"sess-model"'
+check "ct list --json: missing values are null" "$(rec 1)" '"model":null'
+check "ct list --json: missing spawned_by is null" "$(rec 1)" '"spawned_by":null'
+check "ct list --json outside a terminal has a null self" "$(NVIM="$SOCK" CLAUDE_DECK_ID= bin/ct list --json)" '"self":null'
+check "ct list --json is sorted by id" "$(ids=$(echo "$JS" | grep -o '"id":[0-9]*' | cut -d: -f2); [ "$ids" = "$(echo "$ids" | sort -n)" ] && echo sorted)" "sorted"
+check "permissions allow ct list with arguments" "$(lua 'require("claude-deck.hooks").settings_json()')" '"Bash(ct list:*)"'
+check "permissions do not allow ct spawn" "$(lua 'tostring(require("claude-deck.hooks").settings_json():find("ct spawn", 1, true))')" "nil"
+check "system prompt tells about ct spawn" "$(cat "$TEST_OUT/args.$MT")" '`ct spawn --title <title>'
+
+# ct spawn
+SP="$TEST_OUT/prompt.txt"
+printf 'Fix the bug\nin "parser" $HOME\n' >"$SP"
+lua '(function() vim.cmd("only"); vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$MT"').buf); vim.cmd("startinsert"); return "" end)()' >/dev/null
+sleep 0.3
+spawn_state() { # current tab, number of windows, terminal id, mode
+    lua 'vim.api.nvim_get_current_tabpage() .. " " .. #vim.api.nvim_tabpage_list_wins(0) .. " #" .. vim.b.claude_deck_id .. " " .. vim.api.nvim_get_mode().mode'
+}
+ct_spawn() { # runs ct spawn in terminal $MT; prints output and exit status
+    out=$(NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin/ct spawn "$@" 2>&1)
+    echo "$out exit=$?"
+}
+BEFORE=$(spawn_state)
+TABS_BEFORE=$(lua '#vim.api.nvim_list_tabpages()')
+OUT=$(NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin/ct spawn --title "Worker one" --cwd tests/fixtures --model haiku --prompt-file "$SP" 2>&1; echo "exit=$?")
+SID=$(echo "$OUT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+check "ct spawn prints JSON with cwd" "$OUT" '"cwd":"'"$ROOT"'/tests/fixtures"'
+check "ct spawn prints the title" "$OUT" '"title":"Worker one"'
+check "ct spawn prints the model" "$OUT" '"model":"haiku"'
+check "ct spawn: exit status 0" "$OUT" "exit=0"
+check "ct spawn leaves tab, window, buffer and mode alone" "$(spawn_state)" "$BEFORE"
+check "ct spawn creates no tab" "$(lua '#vim.api.nvim_list_tabpages()')" "$TABS_BEFORE"
+check "ct spawn: the terminal is hidden" "$(lua '#vim.fn.win_findbuf(require("claude-deck.state").get('"$SID"').buf)')" "0"
+check "ct spawn creates no floating window" "$(lua '#vim.tbl_filter(function(w) return vim.api.nvim_win_get_config(w).relative ~= "" end, vim.api.nvim_list_wins())')" "0"
+sleep 0.5
+check "ct spawn: the prompt is the last argument" "$(tail -n 2 "$TEST_OUT/args.$SID" | tr '\n' '|')" 'in "parser" $HOME|'
+check "ct spawn: the prompt follows the model" "$(tail -n 4 "$TEST_OUT/args.$SID" | head -3 | tr '\n' '|')" '--model|haiku|Fix the bug|'
+check "ct spawn: record" "$(lua '(function() local t = require("claude-deck.state").get('"$SID"'); return t.cwd .. "|" .. t.model .. "|" .. t.title .. "|" .. t.title_source .. "|" .. tostring(t.spawned) .. "|" .. t.spawned_by .. "|" .. t.state end)()')" "$ROOT/tests/fixtures|haiku|Worker one|claude|true|$MT|idle"
+check "ct spawn: ct list --json has spawned_by" "$(NVIM="$SOCK" bin/ct list --json | grep -o '"id":'"$SID"',[^}]*')" '"spawned_by":'"$MT"
+check "ct spawn: the system prompt belongs to the new id" "$(cat "$TEST_OUT/args.$SID")" "terminal #$SID of claude-deck"
+check "ct spawn: a later show displays it and fits the pty" "$(lua '(function() local calls = {}; local jr = vim.fn.jobresize; vim.fn.jobresize = function(j, w, h) table.insert(calls, w .. "x" .. h); return jr(j, w, h) end; require("claude-deck").show('"$SID"'); vim.cmd("stopinsert"); vim.fn.jobresize = jr; local w = vim.api.nvim_get_current_win(); return vim.b.claude_deck_id .. " " .. tostring(calls[#calls] == vim.api.nvim_win_get_width(w) .. "x" .. vim.api.nvim_win_get_height(w) - 1) end)()')" "$SID true"
+lua '(function() vim.cmd("close"); vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$MT"').buf); vim.cmd("startinsert"); return "" end)()' >/dev/null
+# A prompt starting with "-" goes after --; relative --cwd is relative to the shell's $PWD
+OUT=$(cd tests/fixtures && NVIM="$SOCK" CLAUDE_DECK_ID="$MT" "$ROOT/bin/ct" spawn --prompt "-x: a dash" --cwd open 2>&1; echo "exit=$?")
+SID2=$(echo "$OUT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+sleep 0.5
+check "ct spawn --prompt with a leading dash uses --" "$(tail -n 3 "$TEST_OUT/args.$SID2" | tr '\n' '|')" '--|-x: a dash|'
+check "ct spawn: relative --cwd is relative to \$PWD" "$OUT" '"cwd":"'"$ROOT"'/tests/fixtures/open"'
+check "ct spawn without a title or model has nulls" "$OUT" '"model":null'
+check "ct spawn without a title has a null title" "$OUT" '"title":null'
+OUT=$(cd tests/fixtures && NVIM="$SOCK" CLAUDE_DECK_ID="$MT" "$ROOT/bin/ct" spawn --prompt-file ../../tests/minimal_init.lua 2>&1; echo "exit=$?")
+SID4=$(echo "$OUT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+sleep 0.5
+check "ct spawn: relative --prompt-file is relative to \$PWD" "$(grep -c '^-- Minimal config for tests/smoke.sh' "$TEST_OUT/args.$SID4")|$OUT" "1|{"
+# errors
+check "ct spawn without a prompt fails" "$(ct_spawn --title x)" "ct: no prompt given (use --prompt or --prompt-file) exit=1"
+check "ct spawn with both prompts fails" "$(ct_spawn --prompt a --prompt-file "$SP")" "ct: use either --prompt or --prompt-file, not both exit=1"
+check "ct spawn with a missing prompt file fails" "$(ct_spawn --prompt-file /nonexistent/x.md)" "ct: cannot read the prompt file: /nonexistent/x.md exit=1"
+check "ct spawn with a bad cwd fails" "$(ct_spawn --prompt a --cwd /nonexistent)" "ct: not a directory: /nonexistent exit=1"
+check "ct spawn with a file as cwd fails" "$(ct_spawn --prompt a --cwd "$SP")" "ct: not a directory"
+check "ct spawn refuses a title over 40 cells" "$(ct_spawn --prompt a --title あいうえおかきくけこさしすせそたちつてとな)" "ct: title is too long (42 cells, max 40) exit=1"
+check "ct spawn with an unknown argument fails" "$(ct_spawn --prompt a --nope)" "ct: unknown argument --nope exit=1"
+check "ct spawn with an option without a value fails" "$(ct_spawn --prompt)" "ct: --prompt needs a value exit=1"
+check "ct spawn outside a terminal fails" "$(NVIM="$SOCK" CLAUDE_DECK_ID= bin/ct spawn --prompt a 2>&1; echo "exit=$?")" "ct: run this inside a claude-deck terminal"
+check "failed spawns created no terminals" "$(lua '#vim.tbl_filter(function(t) return t.spawned end, require("claude-deck.state").sorted())')" "3"
+# The limit (3) is reached by the three spawned terminals so far
+check "ct spawn stops at the limit" "$(ct_spawn --prompt a)" "ct: spawn limit reached (3) exit=1"
+lua '(function() local t = require("claude-deck.state").get('"$SID2"'); vim.fn.jobstop(t.job); vim.wait(3000, function() return t.state == "exited" end); return "" end)()' >/dev/null
+check "an exited spawned terminal frees a slot" "$(ct_spawn --prompt a)" '"id":'
+# --show: to the right of the caller, the focus stays
+lua '(function() local o = vim.deepcopy(T_opts); o.cli = { spawn_limit = 10 }; require("claude-deck").setup(o); return "" end)()' >/dev/null
+BEFORE=$(spawn_state)
+OUT=$(NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin/ct spawn --show --prompt "shown" --model sonnet 2>&1; echo "exit=$?")
+SID3=$(echo "$OUT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+check "ct spawn --show succeeds" "$OUT" "exit=0"
+check "ct spawn --show opens a window to the right and keeps the focus" "$(spawn_state)|$(lua '(function() local b = require("claude-deck.state").get('"$SID3"').buf; local w = vim.fn.win_findbuf(b)[1]; return tostring(w ~= nil and vim.api.nvim_win_get_position(w)[2] > vim.api.nvim_win_get_position(0)[2]) end)()')" "$(echo "$BEFORE" | sed 's/ [0-9]* #/ 2 #/')|true"
+sleep 0.5
+check "ct spawn --show passes the model and prompt" "$(tail -n 4 "$TEST_OUT/args.$SID3" | tr '\n' ' ')" "--model sonnet shown"
+lua '(function() local b = require("claude-deck.state").get('"$SID3"').buf; vim.api.nvim_win_close(vim.fn.win_findbuf(b)[1], true); return "" end)()' >/dev/null
+# Lua API
+check "spawn() returns the id" "$(lua '(function() local id = require("claude-deck").spawn({ prompt = "api", title = "Api", model = "haiku" }); local t = require("claude-deck.state").get(id); return t.title .. " " .. t.model .. " " .. t.spawned_by end)()')" "Api haiku $MT"
+check "spawn() without a prompt returns nil and a message" "$(lua '(function() local id, err = require("claude-deck").spawn({}); return tostring(id) .. " " .. err end)()')" "nil no prompt given"
+lua '(function() require("claude-deck").setup(T_opts); vim.cmd("only"); return "" end)()' >/dev/null
+
 messages=$(lua 'vim.api.nvim_exec2("messages", { output = true }).output')
 case "$messages" in
 *rror* | *E[0-9]*) echo "FAIL - no errors in :messages"; echo "$messages"; failures=$((failures + 1)) ;;

@@ -23,6 +23,7 @@ function M.settings_json()
         settings.permissions = {
             allow = {
                 "Bash(ct list)",
+                "Bash(ct list:*)",
                 "Bash(ct read:*)",
                 "Bash(ct title:*)",
                 "Bash(ct open:*)",

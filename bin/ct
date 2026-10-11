@@ -6,10 +6,13 @@
 #   ct title [title]             set the task title of this terminal (show it without a title)
 #   ct title --force <title>     also replace a title set by the user (the title is required)
 #   ct open <path>[:line]        open a file in the editor of focus mode (path relative to the cwd)
+#   ct list --json               the same as JSON (one object)
+#   ct spawn [--title <title>] [--cwd <dir>] [--model <model>] (--prompt <text> | --prompt-file <path>) [--show]
+#                                start a new Claude Code session in a hidden terminal; prints its id as JSON
 #   ct diff [<path>[:line]] [--pr <number>] [--base <ref>]
 #                                open the diff of the pull request (or the uncommitted changes) there
 usage() {
-    sed -n '4,10p' "$0" | sed 's/^# //' >&2
+    sed -n '4,13p' "$0" | sed 's/^# //' >&2
     exit 1
 }
 
@@ -23,7 +26,11 @@ case "$1" in
 list)
     self="${CLAUDE_DECK_ID:-0}"
     is_number "$self" || self=0
-    expr="v:lua.require'claude-deck.cli'.list($self)"
+    json=v:false
+    if [ "${2-}" = --json ]; then
+        json=v:true
+    fi
+    expr="v:lua.require'claude-deck.cli'.list($self,$json)"
     ;;
 read)
     id="${2#\#}"
@@ -74,6 +81,18 @@ diff)
     done
     pwd_hex=$(printf '%s' "${PWD-}" | od -An -v -tx1 | tr -d ' \n' | sed 's/../\\x&/g')
     expr="v:lua.require'claude-deck.cli'.diff($self,[$list],\"$pwd_hex\")"
+    ;;
+spawn)
+    self="$CLAUDE_DECK_ID"
+    is_number "$self" || { echo "ct: run this inside a claude-deck terminal" >&2; exit 1; }
+    shift
+    list=""
+    for arg in "$@"; do
+        hex=$(printf '%s' "$arg" | od -An -v -tx1 | tr -d ' \n' | sed 's/../\\x&/g')
+        list="$list\"$hex\","
+    done
+    pwd_hex=$(printf '%s' "${PWD-}" | od -An -v -tx1 | tr -d ' \n' | sed 's/../\\x&/g')
+    expr="v:lua.require'claude-deck.cli'.spawn($self,[$list],\"$pwd_hex\")"
     ;;
 *)
     usage

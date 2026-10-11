@@ -69,13 +69,18 @@ toggle()                                                *claude-deck.toggle()*
     ターミナルの外では、表示中のターミナルへ移動するか、新しく開きます。
     ターミナルの中では、右に新しく開きます。
 
-new({where})                                               *claude-deck.new()*
+new({where}, {opts})                                      *claude-deck.new()*
     新しいターミナルを開きます。{where} には、今の window を分割する
     "right" か "below"、または既定の場所に開く nil を指定します。既定の場所:
     - ターミナルの中: 右
     - 空の無名バッファ: その場
     - それ以外: 右端
     新しいターミナルの cwd は、今のターミナルの cwd か |getcwd()| です。
+    {opts.model}（省略可）は Claude Code のモデルで、`--model <model>` として
+    渡します。"haiku" のような別名か、完全なモデル ID を指定します。`cmd`
+    オプションに `--model` があるときは置き換えます。省略すると、モデルは
+    `cmd` と Claude Code の設定で決まります。
+    `:ClaudeDeck new [right|below] [--model <model>]` でも指定できます。
 
 list({opts})                                              *claude-deck.list()*
     ターミナルを選んで表示します（非表示のものも含む）。fzf-lua では、<CR>
@@ -97,9 +102,11 @@ pick_dir({opts})                                      *claude-deck.pick_dir()*
     何も一致しないときに <Tab> を押すと、同じ一覧を表示し直します。
     |vim.ui.select| では最初の一覧だけを表示します。
 
-fork({where})                                             *claude-deck.fork()*
+fork({where}, {opts})                                    *claude-deck.fork()*
     今のターミナルのセッションを分岐させた新しいターミナルを開きます。
-    `claude --resume <session> --fork-session` を実行します。
+    `claude --resume <session> --fork-session` を実行します。{opts.model} を
+    省くと、今のターミナルのモデルを引き継ぎます（|claude-deck.new()| を参照）。
+    `:ClaudeDeck fork [right|below] [--model <model>]` でも指定できます。
 
 rename()                                                *claude-deck.rename()*
     今のターミナルのタスク名を変更します。ここで付けた名前は、Claude が
@@ -170,6 +177,18 @@ open_diff({opts})                                    *claude-deck.open_diff()*
     `:ClaudeDeck diff [{path}[:{line}]] [--pr {pr}] [--base {ref}]` でも同
     じです（相対パスは Neovim の今のディレクトリからの相対）。`ct diff` は
     これを実行します。
+
+spawn({opts})                                           *claude-deck.spawn()*
+    今のタブ・window・カーソル・モードを変えずに、別のターミナルに新しい
+    Claude Code のセッションを起動し、その番号を返します（失敗したときは nil
+    とメッセージ）。{opts}: { prompt, cwd, model, title, show }。{prompt} は
+    必須で、Claude Code の最初の引数として渡します。{cwd} を省くと今の
+    ターミナルの cwd になり、存在するディレクトリでなければなりません。
+    {title} は 40 セルまでです。{show} が true でなければターミナルは非表示
+    で作られます（|claude-deck.list()| で表示できます）。true のときは今の
+    ターミナルの右に開きます。終了していない起動済みのターミナルは
+    `cli.spawn_limit` 個までです。`ct spawn` はこれを実行します
+    （|claude-deck-ct|）。
 
 show_settings()                                  *claude-deck.show_settings()*
     Claude Code に渡す設定の JSON（hook と `ct` の権限）をスクラッチバッファ
@@ -319,7 +338,9 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
 ターミナルの中では `ct` が PATH に入っており、そのことを Claude に伝えて
 います。
 
-    ct list                 ターミナルの一覧
+    ct list                 ターミナルの一覧（番号・状態・タスク名・cwd・
+                            session_id・transcript・モデル）
+    ct list --json          同じ内容を 1 つの JSON オブジェクトで出力する
     ct read <id> [count]    ターミナルの直近の会話（既定 20 件）
     ct title [title]        このターミナルのタスク名を付ける。名前を
                             省くと今の名前を表示する
@@ -328,8 +349,11 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
     ct diff [path[:line]] [--pr pr] [--base ref]
                             プルリクエストの差分（または未コミットの変更）
                             をそこに開く
+    ct spawn [--title title] [--cwd dir] [--model model]
+             (--prompt text | --prompt-file path) [--show]
+                            非表示のターミナルに新しいセッションを起動する
 
-いずれも許可の確認なしで実行できます。`ct read` は Claude Code の transcript
+`ct spawn` 以外は、許可の確認なしで実行できます。`ct read` は Claude Code の transcript
 ファイルを読み取ります。このファイルの形式は内部仕様のため、変わる可能性が
 あります。
 
@@ -372,6 +396,29 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
 ファイルと行を送ります。差分・変更・プルリクエストを見せてと頼まれたときや、
 説明している変更を見せたいときに `ct diff` を使うよう Claude に伝えているの
 で、「この PR の差分を見せて」「greeter.rb の変更を見せて」のように頼めます。
+
+`ct list --json` は、`{"self": 番号または null, "terminals": [...]}` という
+1 つの JSON オブジェクトを出力します。ターミナルごとに 1 件、番号順に並び、
+`id`、`state`（設定で変えられる表示名ではなく内部名: idle・running・
+waiting・attention・exited）、`title`、`title_source`（"claude"・"user"・
+"auto"、または null）、`cwd`、`session_id`、`transcript_path`、`model`、
+`spawned_by` を持ちます（不明な値は null）。`model` はターミナルの起動時に
+要求したモデルで、Claude Code が実際に使うモデルとは限りません。
+
+`ct spawn` は、新しいターミナルに Claude Code のセッションを起動し
+（|claude-deck.spawn()|）、`{"id": 4, "cwd": "...", "model": null,
+"title": "..."}` を 1 行で出力します。`--prompt text` と `--prompt-file path`
+のどちらか一方だけを指定します（ファイルは Neovim が読み込み、相対パスは
+Claude のシェルのカレントディレクトリからの相対です）。プロンプトは入力欄に
+打ち込まれるのではなく、Claude Code の最初の引数として渡されます。`--cwd`
+を省くと呼び出し元のターミナルの cwd になり、存在するディレクトリでなければ
+なりません。`--title` の規則は `ct title` と同じです。ターミナルは非表示で
+作られるので、今のタブ・window・カーソル・モードは変わりません。`--show`
+を付けると、代わりに呼び出し元のターミナルの右に開き、フォーカスは元の場所
+に残ります。終了していない起動済みのターミナルは `cli.spawn_limit` 個まで
+です。`ct spawn` は事前に許可されていません。そのつど Claude Code があなたに
+許可を求め、Claude には、他のセッションに作業を任せるよう頼まれたときだけ
+使うよう伝えています。
 
 ==============================================================================
 6. 設定                                                   *claude-deck-config*
@@ -427,6 +474,8 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
     cli.auto_title        `ct title` でターミナルに名前を付けるよう Claude
                           に伝える。`ct title` 自体はどちらでも使える
                           （既定: true）
+    cli.spawn_limit       `ct spawn` で起動した、終了していないターミナルの
+                          最大数（既定: 3）
 
 ==============================================================================
 7. ハイライト                                         *claude-deck-highlights*

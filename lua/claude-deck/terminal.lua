@@ -28,6 +28,11 @@ local function system_prompt(id)
         "rather than the diff, use `ct open`. `ct open` shows the file in the working tree, so for a pull request that is not",
         "checked out it shows the current branch's version; say so, and offer `gh pr checkout <number>` if the user wants the",
         "pull request's version. In the diff buffer the user can press <CR> on a line to open the file there themselves.",
+        "",
+        "`ct spawn --title <title> [--cwd <dir>] [--model <model>] --prompt-file <file>` starts a new Claude Code session in another",
+        "terminal (hidden until the user shows it) with that file as its first prompt and prints its id as JSON; `ct list --json` gives",
+        "machine-readable states. Use them only when the user asked you to delegate work to other sessions (e.g. with /orchestrate);",
+        "each spawn asks the user for permission.",
     }
     if config.options.cli.auto_title then
         vim.list_extend(lines, {
@@ -77,7 +82,24 @@ function M.fit_pty(win)
     pcall(vim.fn.jobresize, job, width, height)
 end
 
+-- Removes `--model X` / `--model=X` from a command (a copy is returned)
+local function without_model(cmd)
+    local result, skip = {}, false
+    for _, item in ipairs(cmd) do
+        if skip then
+            skip = false
+        elseif item == "--model" then
+            skip = true
+        elseif not vim.startswith(item, "--model=") then
+            table.insert(result, item)
+        end
+    end
+    return result
+end
+
 -- Starts Claude Code in `win`. `extra_args` are appended to the command.
+-- opts.model: the model requested with `--model` (replaces one in `cmd`); opts.prompt: the
+-- first prompt, given as the positional argument.
 -- opts.reuse: an exited terminal to start again in a new buffer, keeping its id, title and cwd
 -- (redraw()). Its old buffer is deleted.
 function M.start(win, cwd, extra_args, start_opts)
@@ -108,7 +130,11 @@ function M.start(win, cwd, extra_args, start_opts)
         state.add(term)
     end
 
+    local model = start_opts and start_opts.model
     local cmd = vim.deepcopy(opts.cmd)
+    if model then
+        cmd = without_model(cmd)
+    end
     if opts.claude_settings then
         vim.list_extend(cmd, { "--settings", require("claude-deck.hooks").settings_json() })
     end
@@ -116,6 +142,18 @@ function M.start(win, cwd, extra_args, start_opts)
         vim.list_extend(cmd, { "--append-system-prompt", system_prompt(id) })
     end
     vim.list_extend(cmd, extra_args or {})
+    if model then
+        vim.list_extend(cmd, { "--model", model })
+    end
+    local prompt = start_opts and start_opts.prompt
+    if prompt then
+        if vim.startswith(prompt, "-") then
+            table.insert(cmd, "--")
+        end
+        table.insert(cmd, prompt)
+    end
+    -- The requested model (nothing confirms what Claude Code actually uses)
+    term.model = model
 
     local env = { CLAUDE_DECK_ID = tostring(id) }
     if opts.cli.enabled then
@@ -223,21 +261,64 @@ end
 
 -- Opens a new terminal in `cwd`. Without `where`: to the right when inside a terminal,
 -- in place when the current buffer is empty (e.g. right after startup), otherwise at the far right.
-function M.open_new(cwd, where, extra_args)
+function M.open_new(cwd, where, extra_args, start_opts)
     if where or state.current() then
-        return M.start(M.open_window(where or "right"), cwd, extra_args)
+        return M.start(M.open_window(where or "right"), cwd, extra_args, start_opts)
     end
 
     local buf = vim.api.nvim_get_current_buf()
     if M.is_empty_buffer(buf) then
-        local term = M.start(vim.api.nvim_get_current_win(), cwd, extra_args)
+        local term = M.start(vim.api.nvim_get_current_win(), cwd, extra_args, start_opts)
         if vim.api.nvim_buf_is_valid(buf) and #vim.fn.win_findbuf(buf) == 0 then
             vim.api.nvim_buf_delete(buf, {})
         end
         return term
     end
 
-    return M.start(M.open_window("far_right"), cwd, extra_args)
+    return M.start(M.open_window("far_right"), cwd, extra_args, start_opts)
+end
+
+-- Starts a terminal without disturbing the user: the current tab, window, cursor and mode stay
+-- as they are. Hidden (default): it runs in a temporary floating window (so that no window is
+-- resized) that is closed at once; the buffer stays, as after `:q`. opts.show: in a window to
+-- the right of `caller_win` (default: at the far right) that is not entered.
+-- opts: { model, prompt, show, caller_win }
+function M.start_detached(cwd, opts)
+    local saved_ei = vim.o.eventignore
+    vim.o.eventignore = "BufEnter,BufLeave,WinEnter,WinLeave,BufWinEnter"
+    local ok, result = pcall(function()
+        local buf = vim.api.nvim_get_current_buf()
+        local win
+        if opts.show then
+            local caller = opts.caller_win
+            win = vim.api.nvim_open_win(buf, false, {
+                split = "right",
+                win = (caller and vim.api.nvim_win_is_valid(caller)) and caller or -1,
+            })
+        else
+            win = vim.api.nvim_open_win(buf, false, {
+                relative = "editor",
+                row = 0,
+                col = 0,
+                width = math.max(math.floor(vim.o.columns * config.options.width_ratio), 20),
+                height = math.max(vim.o.lines - 3, 5),
+                focusable = false,
+                noautocmd = true,
+            })
+        end
+        local term = M.start(win, cwd, nil, { model = opts.model, prompt = opts.prompt })
+        if opts.show then
+            M.fit_pty(win)
+        else
+            vim.api.nvim_win_close(win, true)
+        end
+        return term
+    end)
+    vim.o.eventignore = saved_ei
+    if not ok then
+        error(result)
+    end
+    return result
 end
 
 -- Shows a terminal (including hidden ones). Focuses it if already visible in this tab.

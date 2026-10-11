@@ -102,6 +102,8 @@ M.defaults = {
         -- Also tell Claude (in that system prompt) to name its terminal with `ct title`.
         -- `ct title` works either way.
         auto_title = true,
+        -- Max number of terminals started by `ct spawn` that have not exited.
+        spawn_limit = 3,
     },
 }
 
@@ -152,6 +154,11 @@ local function validate(options)
     if send_location ~= false and type(send_location) ~= "string" then
         warn_invalid("keymaps.send_location", send_location, "use a key such as \"<leader>cp\" or false")
         options.keymaps.send_location = false
+    end
+    local limit = options.cli.spawn_limit
+    if type(limit) ~= "number" or limit % 1 ~= 0 or limit < 0 then
+        warn_invalid("cli.spawn_limit", limit, "use an integer, 0 or more", 3)
+        options.cli.spawn_limit = 3
     end
     local delay = options.notify.delay
     if type(delay) ~= "number" or delay < 0 then

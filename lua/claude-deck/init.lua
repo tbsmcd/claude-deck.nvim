@@ -202,9 +202,11 @@ function M.toggle()
 end
 
 -- Open a new terminal. where: "right" or "below" (split the current window), or nil.
-function M.new(where)
+-- opts.model: model for Claude Code (`--model`, any alias or full id); without it the model
+-- comes from `cmd` / the Claude Code settings.
+function M.new(where, opts)
     ensure_setup()
-    terminal.open_new(default_cwd(), where)
+    terminal.open_new(default_cwd(), where, nil, { model = (opts or {}).model })
 end
 
 -- Show a terminal by id (works for hidden terminals too).
@@ -357,8 +359,9 @@ function M.pick_dir(opts)
     open_dir_picker(nil, (opts or {}).where)
 end
 
--- Open a terminal that forks the current terminal's session.
-function M.fork(where)
+-- Open a terminal that forks the current terminal's session. opts.model: as in new(); by
+-- default the model of the forked terminal is used (the conversation continues).
+function M.fork(where, opts)
     ensure_setup()
     local parent = state.current()
     if not parent or not parent.session_id then
@@ -369,7 +372,12 @@ function M.fork(where)
         return
     end
 
-    local term = terminal.open_new(parent.cwd, where or "right", { "--resume", parent.session_id, "--fork-session" })
+    local term = terminal.open_new(
+        parent.cwd,
+        where or "right",
+        { "--resume", parent.session_id, "--fork-session" },
+        { model = (opts or {}).model or parent.model }
+    )
     state.set_title(term, "↳" .. (parent.title ~= "" and parent.title or ("#" .. parent.id)), "auto")
 end
 
@@ -426,7 +434,7 @@ function M.redraw()
             state.remove(term.id)
             return
         end
-        terminal.start(win, term.cwd, { "--resume", session_id }, { reuse = term })
+        terminal.start(win, term.cwd, { "--resume", session_id }, { reuse = term, model = term.model })
         vim.notify(string.format("claude-deck: redrew #%d", term.id), vim.log.levels.INFO)
     end
 
@@ -456,6 +464,21 @@ function M.redraw()
             vim.notify(string.format("claude-deck: #%d did not exit; not redrawn", term.id), vim.log.levels.WARN)
         end
     end))
+end
+
+-- Start a new Claude Code session in another terminal without changing the current tab, window
+-- or mode (what `ct spawn` does). opts: { prompt (required), cwd (default: the cwd of the current
+-- terminal, else Neovim's), model, title (at most 40 cells), show }. The terminal stays hidden
+-- (see show()) unless opts.show: then it opens to the right of the current terminal. Returns
+-- the terminal id, or nil and a message.
+function M.spawn(opts)
+    ensure_setup()
+    opts = opts or {}
+    local term, err = require("claude-deck.cli").spawn_term(state.current(), opts)
+    if not term then
+        return nil, (err:gsub("^ct: ", ""))
+    end
+    return term.id
 end
 
 -- Show the Claude Code settings JSON (hooks and `ct` permissions) in a scratch buffer,
@@ -558,12 +581,43 @@ function M.open_diff(opts)
     end
 end
 
+-- `[right|below] [--model <model>]` (any order) -> where, { model }; false (after a warning)
+-- when the arguments are wrong
+local function parse_where_model(args)
+    local where, opts, i = nil, {}, 1
+    while i <= #args do
+        local arg = args[i]
+        if arg == "--model" then
+            i = i + 1
+            opts.model = args[i] or ""
+        elseif vim.startswith(arg, "--model=") then
+            opts.model = arg:sub(9)
+        elseif not where then
+            where = arg
+        else
+            where = false
+        end
+        if opts.model ~= nil and (opts.model == "" or vim.startswith(opts.model, "-")) then
+            where = false
+        end
+        if where == false then
+            vim.notify("claude-deck: usage: ClaudeDeck new|fork [right|below] [--model <model>]", vim.log.levels.WARN)
+            return false
+        end
+        i = i + 1
+    end
+    return where, opts
+end
+
 local SUBCOMMANDS = {
     toggle = function()
         M.toggle()
     end,
     new = function(args)
-        M.new(args[1])
+        local where, opts = parse_where_model(args)
+        if where ~= false then
+            M.new(where, opts)
+        end
     end,
     list = function(args)
         M.list({ where = args[1] })
@@ -572,7 +626,10 @@ local SUBCOMMANDS = {
         M.pick_dir({ where = args[1] })
     end,
     fork = function(args)
-        M.fork(args[1])
+        local where, opts = parse_where_model(args)
+        if where ~= false then
+            M.fork(where, opts)
+        end
     end,
     rename = function()
         M.rename()

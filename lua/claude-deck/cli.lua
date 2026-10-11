@@ -8,7 +8,33 @@ local MAX_MESSAGE_LENGTH = 2000
 -- cut, so that Claude picks a shorter one.
 local MAX_TITLE_WIDTH = 40
 
-function M.list(self_id)
+local function json_list(self_id)
+    local terminals = {}
+    for _, term in ipairs(state.sorted()) do
+        table.insert(terminals, {
+            id = term.id,
+            state = term.state,
+            title = term.title,
+            title_source = term.title_source or vim.NIL,
+            cwd = term.cwd,
+            session_id = term.session_id or vim.NIL,
+            transcript_path = term.transcript_path or vim.NIL,
+            -- The model requested when the terminal was started (not confirmed by Claude Code)
+            model = term.model or vim.NIL,
+            spawned_by = term.spawned_by or vim.NIL,
+        })
+    end
+    return vim.json.encode({
+        self = (tonumber(self_id) and tonumber(self_id) > 0) and tonumber(self_id) or vim.NIL,
+        terminals = #terminals > 0 and terminals or vim.empty_dict(),
+    })
+end
+
+-- `ct list`; with `json`, one JSON object (internal state names, null for missing values)
+function M.list(self_id, json)
+    if json then
+        return json_list(self_id)
+    end
     local lines = {}
     for _, term in ipairs(state.sorted()) do
         table.insert(
@@ -24,6 +50,7 @@ function M.list(self_id)
         )
         table.insert(lines, "\tsession_id: " .. (term.session_id or "(not started)"))
         table.insert(lines, "\ttranscript: " .. (term.transcript_path or "(not started)"))
+        table.insert(lines, "\tmodel: " .. (term.model or "(default)"))
     end
     return #lines > 0 and table.concat(lines, "\n") or "No terminals"
 end
@@ -200,6 +227,171 @@ function M.diff(id, args, cwd)
         return "ct: " .. tostring(result)
     end
     return result
+end
+
+local function title_error(title)
+    if title == "" then
+        return "ct: the title is empty"
+    end
+    local width = vim.fn.strdisplaywidth(title)
+    if width > MAX_TITLE_WIDTH then
+        return string.format("ct: title is too long (%d cells, max %d)", width, MAX_TITLE_WIDTH)
+    end
+end
+
+-- Starts a new terminal for `ct spawn` / spawn(). `caller`: the terminal that asks (or nil).
+-- opts: { prompt, cwd (relative to opts.base, default: the caller's cwd), base, model, title,
+-- show }. Returns the terminal, or nil and a "ct: …" message. Nothing is created on an error.
+function M.spawn_term(caller, opts)
+    local prompt = opts.prompt
+    if type(prompt) ~= "string" or vim.trim(prompt) == "" then
+        return nil, "ct: no prompt given (use --prompt or --prompt-file)"
+    end
+    if prompt:find("\0", 1, true) then
+        return nil, "ct: the prompt contains a NUL byte"
+    end
+
+    local model = opts.model
+    if model ~= nil and (type(model) ~= "string" or model == "" or vim.startswith(model, "-")) then
+        return nil, "ct: invalid model: " .. tostring(model)
+    end
+
+    local title
+    if opts.title ~= nil then
+        title = state.normalize_title(opts.title)
+        local err = title_error(title)
+        if err then
+            return nil, err
+        end
+    end
+
+    local default_cwd = caller and caller.cwd or vim.fn.getcwd()
+    local base = (opts.base and opts.base ~= "") and opts.base or default_cwd
+    local cwd = default_cwd
+    if opts.cwd ~= nil then
+        cwd = opts.cwd
+        if cwd == "~" or vim.startswith(cwd, "~/") then
+            cwd = vim.env.HOME .. cwd:sub(2)
+        elseif not vim.startswith(cwd, "/") then
+            cwd = base .. "/" .. cwd
+        end
+        cwd = vim.fs.normalize(vim.fn.simplify(cwd))
+        if vim.fn.isdirectory(cwd) == 0 then
+            return nil, "ct: not a directory: " .. opts.cwd
+        end
+    end
+
+    local limit = require("claude-deck.config").options.cli.spawn_limit
+    local running = 0
+    for _, term in ipairs(state.sorted()) do
+        if term.spawned and term.state ~= "exited" then
+            running = running + 1
+        end
+    end
+    if running >= limit then
+        return nil, string.format("ct: spawn limit reached (%d)", limit)
+    end
+
+    local caller_win = caller and vim.fn.bufwinid(caller.buf)
+    local ok, term = pcall(require("claude-deck.terminal").start_detached, cwd, {
+        model = model,
+        prompt = prompt,
+        show = opts.show,
+        caller_win = (caller_win and caller_win > 0) and caller_win or nil,
+    })
+    if not ok then
+        return nil, "ct: " .. tostring(term)
+    end
+    term.spawned = true
+    term.spawned_by = caller and caller.id or nil
+    if title then
+        state.set_title(term, title, "claude")
+    end
+    return term
+end
+
+local function read_file(path)
+    local file = io.open(path, "rb")
+    if not file then
+        return nil
+    end
+    local content = file:read("*a")
+    file:close()
+    return content
+end
+
+local SPAWN_VALUE_OPTIONS = { "--title", "--cwd", "--model", "--prompt", "--prompt-file" }
+
+-- `ct spawn [--title <title>] [--cwd <dir>] [--model <model>] (--prompt <text> | --prompt-file
+-- <path>) [--show]`: starts a new terminal without changing what the user sees (with --show:
+-- next to terminal `id`) and returns its id etc. as one line of JSON. `args`: the arguments as
+-- a list; relative paths are relative to `pwd` (the shell's current directory).
+function M.spawn(id, args, pwd)
+    local caller = state.get(id)
+    if not caller then
+        return "ct: no terminal #" .. tostring(id)
+    end
+
+    local opts, i = {}, 1
+    while i <= #args do
+        local arg = args[i]
+        local name, value = arg:match("^(%-%-[%w-]+)=(.*)$")
+        name = name or arg
+        if name == "--show" and value == nil then
+            opts.show = true
+        elseif vim.tbl_contains(SPAWN_VALUE_OPTIONS, name) then
+            if value == nil then
+                i = i + 1
+                value = args[i]
+            end
+            if value == nil then
+                return "ct: " .. name .. " needs a value"
+            end
+            opts[name:sub(3):gsub("-", "_")] = value
+        else
+            return "ct: unknown argument " .. arg
+        end
+        i = i + 1
+    end
+
+    if opts.prompt and opts.prompt_file then
+        return "ct: use either --prompt or --prompt-file, not both"
+    end
+    local prompt = opts.prompt
+    if opts.prompt_file then
+        local path = opts.prompt_file
+        if path == "~" or vim.startswith(path, "~/") then
+            path = vim.env.HOME .. path:sub(2)
+        elseif not vim.startswith(path, "/") then
+            path = ((pwd and pwd ~= "") and pwd or caller.cwd) .. "/" .. path
+        end
+        prompt = read_file(path)
+        if not prompt or vim.fn.isdirectory(path) == 1 then
+            return "ct: cannot read the prompt file: " .. opts.prompt_file
+        end
+        prompt = prompt:gsub("\n+$", "")
+    end
+    if prompt == nil then
+        return "ct: no prompt given (use --prompt or --prompt-file)"
+    end
+
+    local term, err = M.spawn_term(caller, {
+        prompt = prompt,
+        cwd = opts.cwd,
+        base = pwd,
+        model = opts.model,
+        title = opts.title,
+        show = opts.show,
+    })
+    if not term then
+        return err
+    end
+    return vim.json.encode({
+        id = term.id,
+        cwd = term.cwd,
+        model = term.model or vim.NIL,
+        title = term.title ~= "" and term.title or vim.NIL,
+    })
 end
 
 return M

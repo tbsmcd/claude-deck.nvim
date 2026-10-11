@@ -71,13 +71,18 @@ toggle()                                                  *claude-deck.toggle()*
     Outside a terminal, focus a visible terminal or open a new one. Inside a
     terminal, open a new one to the right.
 
-new({where})                                                 *claude-deck.new()*
+new({where}, {opts})                                       *claude-deck.new()*
     Open a new terminal. {where} is "right" or "below" to split the current
     window, or nil to use the default placement:
     - inside a terminal: to the right
     - in an empty unnamed buffer: in place
     - otherwise: at the far right
     The new terminal uses the current terminal's cwd, or |getcwd()|.
+    {opts.model} (optional) is the model for Claude Code, passed as
+    `--model <model>`: an alias such as "haiku" or a full model id. It
+    replaces a `--model` in the `cmd` option. Without it, the model comes
+    from `cmd` and the Claude Code settings. Also
+    `:ClaudeDeck new [right|below] [--model <model>]`.
 
 list({opts})                                                *claude-deck.list()*
     Pick a terminal, including hidden ones, and show it. With fzf-lua,
@@ -98,9 +103,11 @@ pick_dir({opts})                                        *claude-deck.pick_dir()*
     When nothing matches, <Tab> shows the same list again.
     With |vim.ui.select| only the first list is shown.
 
-fork({where})                                               *claude-deck.fork()*
+fork({where}, {opts})                                     *claude-deck.fork()*
     Open a new terminal that runs `claude --resume <session> --fork-session`
-    for the current terminal's session.
+    for the current terminal's session. It keeps the model of the current
+    terminal unless {opts.model} is given (see |claude-deck.new()|). Also
+    `:ClaudeDeck fork [right|below] [--model <model>]`.
 
 rename()                                                  *claude-deck.rename()*
     Rename the current terminal's task. This title takes precedence over
@@ -169,6 +176,18 @@ open_diff({opts})                                    *claude-deck.open_diff()*
     `:ClaudeDeck diff [{path}[:{line}]] [--pr {pr}] [--base {ref}]` does
     the same, with a relative path relative to Neovim's current directory.
     `ct diff` runs this.
+
+spawn({opts})                                            *claude-deck.spawn()*
+    Start a new Claude Code session in another terminal without changing
+    the current tab, window, cursor or mode, and return its id (nil and a
+    message on failure). {opts}: { prompt, cwd, model, title, show }.
+    {prompt} is required and is passed to Claude Code as its first
+    argument. {cwd} defaults to the cwd of the current terminal and must be
+    an existing directory. {title} is at most 40 cells. The terminal is
+    hidden (bring it back with |claude-deck.list()|) unless {show} is true:
+    then it opens to the right of the current terminal. At most
+    `cli.spawn_limit` spawned terminals that have not exited can exist.
+    `ct spawn` runs this (|claude-deck-ct|).
 
 show_settings()                                    *claude-deck.show_settings()*
     Show the Claude Code settings JSON (hooks and `ct` permissions) in a
@@ -310,7 +329,9 @@ command per session.
 
 Inside a terminal, `ct` is on PATH and Claude is told about it:
 
-    ct list                 list terminals
+    ct list                 list terminals (id, status, title, cwd,
+                            session_id, transcript, model)
+    ct list --json          the same as one JSON object
     ct read <id> [count]    recent messages of a terminal (default 20)
     ct title [title]        set the task title of this terminal; without a
                             title, show it
@@ -319,8 +340,11 @@ Inside a terminal, `ct` is on PATH and Claude is told about it:
     ct diff [path[:line]] [--pr pr] [--base ref]
                             open the diff of the pull request (or of the
                             uncommitted changes) there
+    ct spawn [--title title] [--cwd dir] [--model model]
+             (--prompt text | --prompt-file path) [--show]
+                            start a new session in a hidden terminal
 
-All of them are allowed without a permission prompt. `ct read` parses Claude
+All of them except `ct spawn` are allowed without a permission prompt. `ct read` parses Claude
 Code's transcript files, whose format is internal and may change.
 
 With `cli.auto_title`, Claude is told to name its terminal with `ct title`
@@ -364,6 +388,28 @@ under the cursor. Claude is told to use `ct diff` when you ask to see a
 diff, the changes or the pull request, or to show you a change it is
 explaining: e.g. "show me the diff of this PR" or "show me the change in
 greeter.rb".
+
+`ct list --json` prints one JSON object,
+`{"self": id or null, "terminals": [...]}`, with one entry per terminal
+sorted by id: `id`, `state` (the internal name: idle, running, waiting,
+attention or exited, not the configurable label), `title`, `title_source`
+("claude", "user", "auto" or null), `cwd`, `session_id`, `transcript_path`,
+`model` and `spawned_by` (null when not known). `model` is the model that
+was requested when the terminal was started; Claude Code may use another.
+
+`ct spawn` starts a new Claude Code session in a new terminal
+(|claude-deck.spawn()|) and prints `{"id": 4, "cwd": "...", "model": null,
+"title": "..."}` on one line. Give exactly one of `--prompt text` and
+`--prompt-file path` (read by Neovim; a relative path is relative to
+Claude's shell); it is passed to Claude Code as its first argument, not
+typed into it. `--cwd` defaults to the cwd of the calling terminal and
+must be an existing directory; `--title` follows the rules of `ct title`.
+The terminal is created hidden, so your tab, window, cursor and mode do
+not change. With `--show` it opens to the right of the calling terminal
+instead and the focus stays. `cli.spawn_limit` limits the spawned
+terminals that have not exited. `ct spawn` is not allowed in advance:
+Claude Code asks you for permission each time, and Claude is told to use it
+only when you asked it to delegate work to other sessions.
 
 ==============================================================================
 6. CONFIGURATION                                           *claude-deck-config*
@@ -414,6 +460,8 @@ greeter.rb".
     cli.system_prompt     tell Claude about `ct`  (default: true)
     cli.auto_title        tell Claude to name its terminal with `ct title`;
                           `ct title` works either way  (default: true)
+    cli.spawn_limit       max number of terminals started by `ct spawn` that
+                          have not exited  (default: 3)
 
 ==============================================================================
 7. HIGHLIGHTS                                          *claude-deck-highlights*
