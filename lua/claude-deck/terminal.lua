@@ -6,6 +6,7 @@ local ui = require("claude-deck.ui")
 local M = {}
 
 local function system_prompt(id)
+    local allow = config.options.cli.allow_orchestration
     local lines = {
         string.format("You are running inside terminal #%d of claude-deck (a Neovim plugin that runs multiple Claude Code sessions).", id),
         "Other terminals in the same Neovim run their own Claude Code sessions. You can inspect them with:",
@@ -32,8 +33,10 @@ local function system_prompt(id)
         "`ct spawn --title <title> [--cwd <dir>] [--model <model>] --prompt-file <file>` starts a new Claude Code session in another",
         "terminal (hidden until the user shows it) with that file as its first prompt and prints its id as JSON; `ct list --json` gives",
         "machine-readable states. Use them only when the user asked you to delegate work to other sessions (e.g. with /orchestrate);",
-        "each spawn asks the user for permission.",
-        "`ct send <id> --prompt-file <file>` hands a task to an existing idle or waiting terminal (asks the user for permission) and",
+        allow and "they run without a permission prompt." or "each spawn asks the user for permission.",
+        "`ct send <id> --prompt-file <file>` hands a task to an existing idle or waiting terminal"
+            .. (allow and "" or " (asks the user for permission)")
+            .. " and",
         "prints a request id; `ct wait <id>... [--timeout s]` waits until those requests have finished (or the terminal needs the user",
         "or has exited). Finished means the turn ended, not that it succeeded: read the result the worker wrote, and check each",
         "terminal's `status` in the output (exit status 0 does not mean `done`).",

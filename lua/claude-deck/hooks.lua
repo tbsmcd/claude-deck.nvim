@@ -32,6 +32,11 @@ function M.settings_json()
                 "Bash(ct wait:*)",
             },
         }
+        if config.options.cli.allow_orchestration then
+            -- opt-in: an orchestrator may create and drive worker sessions without a prompt
+            table.insert(settings.permissions.allow, "Bash(ct spawn:*)")
+            table.insert(settings.permissions.allow, "Bash(ct send:*)")
+        end
     end
     return vim.json.encode(settings)
 end

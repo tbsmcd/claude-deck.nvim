@@ -364,7 +364,7 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
     ct wait id... [--timeout seconds]
                             渡した作業が終わるまで待つ
 
-`ct spawn` と `ct send` 以外は、許可の確認なしで実行できます。`ct read` は Claude Code の transcript
+`ct spawn` と `ct send` 以外（`cli.allow_orchestration` を有効にしていない場合）は、許可の確認なしで実行できます。`ct read` は Claude Code の transcript
 ファイルを読み取ります。このファイルの形式は内部仕様のため、変わる可能性が
 あります。
 
@@ -431,7 +431,7 @@ Claude のシェルのカレントディレクトリからの相対です）。�
 されていないときはタブの右端。ほかの window の大きさが変わることがありま
 す）に開き、フォーカスは元の場所に残ります。Claude Code を起動できないと
 きは、何も残さずエラーを出力します。終了していない起動済みのターミナルは `cli.spawn_limit` 個まで
-です。`ct spawn` は事前に許可されていません。そのつど Claude Code があなたに
+です。`ct spawn` は事前に許可されていません（`cli.allow_orchestration` を `true` にした場合を除く）。そのつど Claude Code があなたに
 許可を求め、Claude には、他のセッションに作業を任せるよう頼まれたときだけ
 使うよう伝えています。
 
@@ -460,7 +460,7 @@ Code は長いペーストを貼り付けられた内容として扱い、作業
 指示ではなくデータとして重く見ないことがあります。タスク全体ではなく、タス
 クファイルを指す 1〜2 行にします。例: `Read /abs/task.md and do what it says.
 Write your report to /abs/result.md.``ct send` は事前に許可されて
-おらず、そのつど Claude Code があなたに確認します。
+おらず（`cli.allow_orchestration` を `true` にした場合を除く）、そのつど Claude Code があなたに確認します。
 
 `ct wait id... [--timeout seconds]`（既定 600）は、すべての番号について、
 最新のリクエストが完了する、ターミナルが対応待ち（`attention`）になる、終了
@@ -535,6 +535,9 @@ Write your report to /abs/result.md.``ct send` は事前に許可されて
                           （既定: true）
     cli.spawn_limit       `ct spawn` で起動した、終了していないターミナルの
                           最大数（既定: 3）
+    cli.allow_orchestration
+                          `ct spawn` と `ct send` も許可の確認なしで実行できる
+                          ようにする（既定: false）
 
 ==============================================================================
 7. ハイライト                                         *claude-deck-highlights*

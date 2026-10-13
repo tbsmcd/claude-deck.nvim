@@ -770,6 +770,16 @@ lua '(function() local t = require("claude-deck.state").get('"$SID"'); t.request
 check "send: target is waiting" "$(lua 'require("claude-deck.state").get('"$SID"').state')" "waiting"
 check "permissions do not allow ct send" "$(lua 'tostring(require("claude-deck.hooks").settings_json():find("ct send", 1, true))')" "nil"
 check "permissions allow ct wait" "$(lua 'require("claude-deck.hooks").settings_json()')" '"Bash(ct wait:*)"'
+# cli.allow_orchestration
+lua '(function() require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { cli = { allow_orchestration = true } })); return "" end)()' >/dev/null
+check "allow_orchestration allows ct spawn" "$(lua 'require("claude-deck.hooks").settings_json()')" '"Bash(ct spawn:*)"'
+check "allow_orchestration allows ct send" "$(lua 'require("claude-deck.hooks").settings_json()')" '"Bash(ct send:*)"'
+AO=$(lua '(function() require("claude-deck").new("below"); vim.cmd("stopinsert"); local id = vim.b.claude_deck_id; vim.wait(500); vim.cmd("close"); return id end)()')
+check "allow_orchestration: the system prompt says no permission prompt" "$(cat "$TEST_OUT/args.$AO")" "without a permission prompt"
+check "invalid cli.allow_orchestration warns" "$(lua 'T_notify(function() require("claude-deck").setup(vim.tbl_deep_extend("force", T_opts, { cli = { allow_orchestration = "yes" } })) end)')" 'invalid cli.allow_orchestration "yes"'
+check "invalid cli.allow_orchestration falls back to false" "$(lua 'tostring(require("claude-deck.config").options.cli.allow_orchestration)')" "false"
+lua '(function() require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
+check "permissions do not allow ct send after restoring the options" "$(lua 'tostring(require("claude-deck.hooks").settings_json():find("ct send", 1, true))')" "nil"
 check "system prompt tells about ct send and ct wait" "$(cat "$TEST_OUT/args.$MT")" '`ct wait <id>... [--timeout s]`'
 OUT=$(ct_as "$MT" send "$SID" --prompt "Do the thing")
 check "ct send prints JSON" "$OUT" '{"id":'"$SID"',"request":"r1"} exit=0'

@@ -355,7 +355,7 @@ Inside a terminal, `ct` is on PATH and Claude is told about it:
     ct wait id... [--timeout seconds]
                             wait until the tasks sent to them have finished
 
-All of them except `ct spawn` and `ct send` are allowed without a permission prompt. `ct read` parses Claude
+All of them except `ct spawn` and `ct send` (unless `cli.allow_orchestration` is set) are allowed without a permission prompt. `ct read` parses Claude
 Code's transcript files, whose format is internal and may change.
 
 With `cli.auto_title`, Claude is told to name its terminal with `ct title`
@@ -421,8 +421,8 @@ not change. With `--show` it opens to the right of the calling terminal
 instead (at the far right of the tab when the caller is not shown in it;
 other windows may be resized) and the focus stays. If Claude Code cannot
 be started, nothing is left behind and the error is printed. `cli.spawn_limit` limits the spawned
-terminals that have not exited. `ct spawn` is not allowed in advance:
-Claude Code asks you for permission each time, and Claude is told to use it
+terminals that have not exited. `ct spawn` is not allowed in advance
+(unless `cli.allow_orchestration` is true): Claude Code asks you for permission each time, and Claude is told to use it
 only when you asked it to delegate work to other sessions.
 
 `ct send` hands a task to an existing terminal that is `idle` or `waiting`
@@ -449,8 +449,8 @@ Keep prompts for `ct send` and `ct spawn --prompt-file` short: Claude Code
 treats a long pasted prompt as pasted content, and the worker may weigh it
 as data rather than as your instruction. Give one or two lines that point
 to a task file, e.g. `Read /abs/task.md and do what it says. Write your
-report to /abs/result.md.` `ct send` is not allowed in advance: Claude Code asks you each
-time.
+report to /abs/result.md.` `ct send` is not allowed in advance (unless `cli.allow_orchestration` is
+true): Claude Code asks you each time.
 
 `ct wait id... [--timeout seconds]` (default 600) waits until, for every
 id, the last request is completed, or the terminal needs you (`attention`),
@@ -521,6 +521,9 @@ succeeded.
                           `ct title` works either way  (default: true)
     cli.spawn_limit       max number of terminals started by `ct spawn` that
                           have not exited  (default: 3)
+    cli.allow_orchestration
+                          also allow `ct spawn` and `ct send` without a
+                          permission prompt  (default: false)
 
 ==============================================================================
 7. HIGHLIGHTS                                          *claude-deck-highlights*

@@ -104,6 +104,11 @@ M.defaults = {
         auto_title = true,
         -- Max number of terminals started by `ct spawn` that have not exited.
         spawn_limit = 3,
+        -- When true, `ct spawn` and `ct send` are added to the Claude Code permission allow list
+        -- passed with `--settings`, so an orchestrator session can create and drive worker sessions
+        -- without a permission prompt for each call. false keeps them prompting (recommended unless
+        -- you run /orchestrate often and trust the sessions).
+        allow_orchestration = false,
     },
 }
 
@@ -159,6 +164,10 @@ local function validate(options)
     if type(limit) ~= "number" or limit % 1 ~= 0 or limit < 0 then
         warn_invalid("cli.spawn_limit", limit, "use an integer, 0 or more", 3)
         options.cli.spawn_limit = 3
+    end
+    if type(options.cli.allow_orchestration) ~= "boolean" then
+        warn_invalid("cli.allow_orchestration", options.cli.allow_orchestration, "use true or false")
+        options.cli.allow_orchestration = false
     end
     local delay = options.notify.delay
     if type(delay) ~= "number" or delay < 0 then
