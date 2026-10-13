@@ -9,6 +9,11 @@ case "$1" in '' | *[!A-Za-z]*) exit 0 ;; esac
 
 f=$(mktemp "${TMPDIR:-/tmp}/claude-deck-hook.XXXXXX") || exit 0
 cat > "$f"
-nvim --server "$NVIM" --remote-expr \
-    "v:lua.require'claude-deck.hooks'.on_hook('$CLAUDE_DECK_ID','$1','$f')" >/dev/null 2>&1 || rm -f "$f"
+expr="v:lua.require'claude-deck.hooks'.on_hook('$CLAUDE_DECK_ID','$1','$f')"
+if [ "$1" = PreToolUse ]; then
+    # The result is the hook's JSON decision (empty: no decision)
+    nvim --server "$NVIM" --remote-expr "$expr" 2>/dev/null || rm -f "$f"
+else
+    nvim --server "$NVIM" --remote-expr "$expr" >/dev/null 2>&1 || rm -f "$f"
+fi
 exit 0

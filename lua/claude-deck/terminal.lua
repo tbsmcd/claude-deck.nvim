@@ -6,7 +6,6 @@ local ui = require("claude-deck.ui")
 local M = {}
 
 local function system_prompt(id)
-    local allow = config.options.cli.allow_orchestration
     local lines = {
         string.format("You are running inside terminal #%d of claude-deck (a Neovim plugin that runs multiple Claude Code sessions).", id),
         "Other terminals in the same Neovim run their own Claude Code sessions. You can inspect them with:",
@@ -32,11 +31,11 @@ local function system_prompt(id)
         "",
         "`ct spawn --title <title> [--cwd <dir>] [--model <model>] --prompt-file <file>` starts a new Claude Code session in another",
         "terminal (hidden until the user shows it) with that file as its first prompt and prints its id as JSON; `ct list --json` gives",
-        "machine-readable states. Use them only when the user asked you to delegate work to other sessions (e.g. with /orchestrate);",
-        allow and "they run without a permission prompt." or "each spawn asks the user for permission.",
-        "`ct send <id> --prompt-file <file>` hands a task to an existing idle or waiting terminal"
-            .. (allow and "" or " (asks the user for permission)")
-            .. " and",
+        "machine-readable states. Use them only when the user asked you to delegate work to other sessions (e.g. with /orchestrate).",
+        "`ct spawn` and `ct send` run without a permission prompt when orchestration is on for this terminal (`ct orchestrate status`);",
+        "the user turns it on with `ct orchestrate on` (they approve that command once) or from Neovim. Do not turn it on by yourself",
+        "unless the user asked for orchestration (e.g. invoked /orchestrate).",
+        "`ct send <id> --prompt-file <file>` hands a task to an existing idle or waiting terminal and",
         "prints a request id; `ct wait <id>... [--timeout s]` waits until those requests have finished (or the terminal needs the user",
         "or has exited). Finished means the turn ended, not that it succeeded: read the result the worker wrote, and check each",
         "terminal's `status` in the output (exit status 0 does not mean `done`).",
@@ -163,6 +162,15 @@ function M.start(win, cwd, extra_args, start_opts)
     end
     -- The requested model (nothing confirms what Claude Code actually uses)
     term.model = model
+    -- Per-terminal switch for `ct spawn` / `ct send` without a prompt (hooks.lua, PreToolUse).
+    -- A restarted terminal (redraw) keeps its flag.
+    if not reuse then
+        local flag = start_opts and start_opts.orchestration
+        if flag == nil then
+            flag = opts.cli.enabled and opts.cli.allow_orchestration
+        end
+        term.orchestration = flag == true
+    end
 
     local env = { CLAUDE_DECK_ID = tostring(id) }
     if opts.cli.enabled then
@@ -296,7 +304,7 @@ end
 -- as they are. Hidden (default): it runs in a temporary floating window (so that no window is
 -- resized) that is closed at once; the buffer stays, as after `:q`. opts.show: in a window to
 -- the right of `caller_win` (default: at the far right) that is not entered.
--- opts: { model, prompt, show, caller_win }
+-- opts: { model, prompt, show, caller_win, orchestration }
 function M.start_detached(cwd, opts)
     local saved_ei = vim.o.eventignore
     vim.o.eventignore = "BufEnter,BufLeave,WinEnter,WinLeave,BufWinEnter"
@@ -326,7 +334,7 @@ function M.start_detached(cwd, opts)
                 noautocmd = true,
             })
         end
-        local term = M.start(win, cwd, nil, { model = opts.model, prompt = opts.prompt })
+        local term = M.start(win, cwd, nil, { model = opts.model, prompt = opts.prompt, orchestration = opts.orchestration })
         if opts.show then
             M.fit_pty(win)
         else

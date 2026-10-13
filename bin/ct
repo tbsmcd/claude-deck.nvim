@@ -15,10 +15,12 @@
 #                                wait until the requests sent to those terminals have finished (default 600 s);
 #                                exit 0 only means the wait finished (2 = timed out): read each terminal's
 #                                "status" (done, attention, exited, missing, none, lost; pending after a timeout)
+#   ct orchestrate on|off|status
+#                                let this terminal run ct spawn / ct send without a permission prompt (or show the setting)
 #   ct diff [<path>[:line]] [--pr <number>] [--base <ref>]
 #                                open the diff of the pull request (or the uncommitted changes) there
 usage() {
-    sed -n '4,19p' "$0" | sed 's/^# //' >&2
+    sed -n '4,21p' "$0" | sed 's/^# //' >&2
     exit 1
 }
 
@@ -114,6 +116,12 @@ send)
     done
     pwd_hex=$(printf '%s' "${PWD-}" | od -An -v -tx1 | tr -d ' \n' | sed 's/../\\x&/g')
     expr="v:lua.require'claude-deck.cli'.send($self,$target,[$list],\"$pwd_hex\")"
+    ;;
+orchestrate)
+    self="$CLAUDE_DECK_ID"
+    is_number "$self" || { echo "ct: run this inside a claude-deck terminal" >&2; exit 1; }
+    case "${2-}" in on | off | status) ;; *) usage ;; esac
+    expr="v:lua.require'claude-deck.cli'.orchestrate($self,'$2')"
     ;;
 wait)
     shift

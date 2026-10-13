@@ -38,6 +38,7 @@ local function json_list(self_id)
                 -- The model requested when the terminal was started (not confirmed by Claude Code)
                 { "model", term.model or vim.NIL },
                 { "spawned_by", term.spawned_by or vim.NIL },
+                { "orchestration", term.orchestration == true },
                 {
                     "last_request",
                     request
@@ -85,8 +86,25 @@ function M.list(self_id, json)
         table.insert(lines, "\tsession_id: " .. (term.session_id or "(not started)"))
         table.insert(lines, "\ttranscript: " .. (term.transcript_path or "(not started)"))
         table.insert(lines, "\tmodel: " .. (term.model or "(default)"))
+        table.insert(lines, "\torchestration: " .. (term.orchestration and "on" or "off"))
     end
     return #lines > 0 and table.concat(lines, "\n") or "No terminals"
+end
+
+-- `ct orchestrate on|off|status`: sets or shows the orchestration flag of terminal `id`
+function M.orchestrate(id, mode)
+    local term = state.get(id)
+    if not term then
+        return "ct: no terminal #" .. tostring(id)
+    end
+    if mode == "on" then
+        term.orchestration = true
+    elseif mode == "off" then
+        term.orchestration = false
+    elseif mode ~= "status" then
+        return "ct: usage: ct orchestrate on|off|status"
+    end
+    return "orchestration: " .. (term.orchestration and "on" or "off")
 end
 
 local function message_text(entry)
@@ -292,7 +310,7 @@ end
 
 -- Starts a new terminal for `ct spawn` / spawn(). `caller`: the terminal that asks (or nil).
 -- opts: { prompt, cwd (relative to opts.base, default: the caller's cwd), base, model, title,
--- show }. Returns the terminal, or nil and a "ct: …" message. Nothing is created on an error.
+-- show, orchestration }. Returns the terminal, or nil and a "ct: …" message. Nothing is created on an error.
 function M.spawn_term(caller, opts)
     local prompt = opts.prompt
     if type(prompt) ~= "string" or vim.trim(prompt) == "" then
@@ -352,6 +370,7 @@ function M.spawn_term(caller, opts)
         prompt = prompt,
         show = opts.show,
         caller_win = (caller_win and caller_win > 0) and caller_win or nil,
+        orchestration = opts.orchestration,
     })
     if not ok then
         return nil, "ct: " .. tostring(term)

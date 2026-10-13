@@ -16,6 +16,12 @@ function M.settings_json()
         }
     end
 
+    -- PreToolUse is handled apart from the state machine: it answers `ct spawn` / `ct send` for terminals
+    -- with orchestration on (see allow_orchestration_call())
+    hooks.PreToolUse = {
+        { matcher = "Bash", hooks = { { type = "command", command = script .. " PreToolUse", timeout = 5 } } },
+    }
+
     local settings = { hooks = hooks }
     if config.options.cli.enabled then
         -- `ct list` / `ct read` / `ct wait` only read state, `ct title` only names the terminal it runs in
@@ -94,6 +100,28 @@ local function handle(term, event, data)
     end
 end
 
+local ALLOW_DECISION = vim.json.encode({
+    hookSpecificOutput = {
+        hookEventName = "PreToolUse",
+        permissionDecision = "allow",
+        permissionDecisionReason = "claude-deck: orchestration is on for this terminal",
+    },
+})
+
+-- Whether a PreToolUse input is a plain `ct spawn` / `ct send` Bash call
+local function is_orchestration_call(data)
+    if data.tool_name ~= "Bash" or type(data.tool_input) ~= "table" then
+        return false
+    end
+    local command = data.tool_input.command
+    if type(command) ~= "string" then
+        return false
+    end
+    command = vim.trim(command)
+    command = command:gsub("^command%s+", "")
+    return command:match("^ct%s+spawn%f[%W]") ~= nil or command:match("^ct%s+send%f[%W]") ~= nil
+end
+
 -- Called via `nvim --remote-expr`. `path` is a temp file with the hook's JSON input.
 function M.on_hook(id, event, path)
     local ok, data = pcall(function()
@@ -102,6 +130,15 @@ function M.on_hook(id, event, path)
     os.remove(path)
     if not ok or type(data) ~= "table" then
         data = {}
+    end
+
+    if event == "PreToolUse" then
+        -- Answered at once (bin/claude-deck-hook prints the result); never changes the state
+        local term = state.get(id)
+        if term and term.orchestration and is_orchestration_call(data) then
+            return ALLOW_DECISION
+        end
+        return ""
     end
 
     vim.schedule(function()

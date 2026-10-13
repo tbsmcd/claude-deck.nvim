@@ -80,7 +80,11 @@ new({where}, {opts})                                      *claude-deck.new()*
     渡します。"haiku" のような別名か、完全なモデル ID を指定します。`cmd`
     オプションに `--model` があるときは置き換えます。省略すると、モデルは
     `cmd` と Claude Code の設定で決まります。
-    `:ClaudeDeck new [right|below] [--model <model>]` でも指定できます。
+    {opts.orchestration}（省略可）は、新しいターミナルで `ct spawn` /
+    `ct send` を許可の確認なしで実行できるかどうかです（既定:
+    `cli.allow_orchestration`。|claude-deck.set_orchestration()| を参照）。
+    `:ClaudeDeck new [right|below] [--model <model>] [--orchestrate]` でも指定
+    できます。
 
 list({opts})                                              *claude-deck.list()*
     ターミナルを選んで表示します（非表示のものも含む）。fzf-lua では、<CR>
@@ -105,8 +109,10 @@ pick_dir({opts})                                      *claude-deck.pick_dir()*
 fork({where}, {opts})                                    *claude-deck.fork()*
     今のターミナルのセッションを分岐させた新しいターミナルを開きます。
     `claude --resume <session> --fork-session` を実行します。{opts.model} を
-    省くと、今のターミナルのモデルを引き継ぎます（|claude-deck.new()| を参照）。
-    `:ClaudeDeck fork [right|below] [--model <model>]` でも指定できます。
+    省くと、今のターミナルのモデルを引き継ぎます。{opts.orchestration} を省くと
+    orchestration の設定も引き継ぎます（|claude-deck.new()| を参照）。
+    `:ClaudeDeck fork [right|below] [--model <model>] [--orchestrate]` でも指定
+    できます。
 
 rename()                                                *claude-deck.rename()*
     今のターミナルのタスク名を変更します。ここで付けた名前は、Claude が
@@ -151,6 +157,14 @@ send_location()                                  *claude-deck.send_location()*
     （|claude-deck-setup| を参照）、`keymaps.send_location` を設定して
     ください。
 
+set_orchestration({id}, {enabled})            *claude-deck.set_orchestration()*
+    ターミナル {id}（nil なら今のターミナル、または集中モードのタブのターミナ
+    ル）で、`ct spawn` / `ct send` を許可の確認なしで実行できるかどうかを切り
+    替えます。有効な間は、claude-deck の PreToolUse hook がそれらのコマンド
+    に「許可」を返します（|claude-deck-ct|）。`ct orchestrate` は呼び出し元の
+    ターミナルに対して同じことをします。`:ClaudeDeck orchestrate on|off` でも
+    同じです。
+
 open_file({path}, {line}, {id})                      *claude-deck.open_file()*
     ターミナル {id} の集中モードのエディタのウィンドウで {path} を開き、
     そのウィンドウに（ノーマルモードで）移動します。{line} を指定すると
@@ -181,7 +195,8 @@ open_diff({opts})                                    *claude-deck.open_diff()*
 spawn({opts})                                           *claude-deck.spawn()*
     今のタブ・window・カーソル・モードを変えずに、別のターミナルに新しい
     Claude Code のセッションを起動し、その番号を返します（失敗したときは nil
-    とメッセージ）。{opts}: { prompt, cwd, model, title, show }。{prompt} は
+    とメッセージ）。{opts}: { prompt, cwd, model, title, show,
+    orchestration }。{prompt} は
     必須で、Claude Code の最初の引数として渡します。{cwd} を省くと今の
     ターミナルの cwd になり、存在するディレクトリでなければなりません。
     {title} は 40 セルまでです。{show} が true でなければターミナルは非表示
@@ -363,8 +378,11 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
                             idle または waiting のターミナルに作業を打ち込む
     ct wait id... [--timeout seconds]
                             渡した作業が終わるまで待つ
+    ct orchestrate on|off|status
+                            このターミナルで ct spawn / ct send を確認なしで
+                            実行できるようにする、または設定を表示する
 
-`ct spawn` と `ct send` 以外（`cli.allow_orchestration` を有効にしていない場合）は、許可の確認なしで実行できます。`ct read` は Claude Code の transcript
+`ct spawn`・`ct send`・`ct orchestrate` 以外は、許可の確認なしで実行できます（`ct spawn` / `ct send` は orchestration が有効なら確認なしです。後述）。`ct read` は Claude Code の transcript
 ファイルを読み取ります。このファイルの形式は内部仕様のため、変わる可能性が
 あります。
 
@@ -413,7 +431,8 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
 `id`、`state`（設定で変えられる表示名ではなく内部名: idle・running・
 waiting・attention・exited）、`title`、`title_source`（"claude"・"user"・
 "auto"、または null）、`cwd`、`session_id`、`transcript_path`、`model`、
-`spawned_by` を持ちます（不明な値は null）。`model` はターミナルの起動時に
+`spawned_by`、`orchestration`（true または false）を持ちます（不明な値は
+null。`orchestration` を除く）。`model` はターミナルの起動時に
 要求したモデルで、Claude Code が実際に使うモデルとは限りません。
 
 `ct spawn` は、新しいターミナルに Claude Code のセッションを起動し
@@ -431,7 +450,7 @@ Claude のシェルのカレントディレクトリからの相対です）。�
 されていないときはタブの右端。ほかの window の大きさが変わることがありま
 す）に開き、フォーカスは元の場所に残ります。Claude Code を起動できないと
 きは、何も残さずエラーを出力します。終了していない起動済みのターミナルは `cli.spawn_limit` 個まで
-です。`ct spawn` は事前に許可されていません（`cli.allow_orchestration` を `true` にした場合を除く）。そのつど Claude Code があなたに
+です。`ct spawn` は事前に許可されていません。そのターミナルで orchestration が有効（`ct orchestrate` を参照）な場合を除き、そのつど Claude Code があなたに
 許可を求め、Claude には、他のセッションに作業を任せるよう頼まれたときだけ
 使うよう伝えています。
 
@@ -460,7 +479,20 @@ Code は長いペーストを貼り付けられた内容として扱い、作業
 指示ではなくデータとして重く見ないことがあります。タスク全体ではなく、タス
 クファイルを指す 1〜2 行にします。例: `Read /abs/task.md and do what it says.
 Write your report to /abs/result.md.``ct send` は事前に許可されて
-おらず（`cli.allow_orchestration` を `true` にした場合を除く）、そのつど Claude Code があなたに確認します。
+おらず、そのターミナルで orchestration が有効な場合を除き、そのつど Claude Code があなたに確認します。
+
+`ct orchestrate on|off|status` は、呼び出し元のターミナルの orchestration の
+設定を変更または表示し、`orchestration: on` または `orchestration: off` を
+出力します（|claude-deck.set_orchestration()|）。有効な間は、`ct spawn` と
+`ct send` を確認なしで実行できます。`--settings` で渡した権限は Claude Code
+の起動後に変更できないため、claude-deck の `PreToolUse` hook が、そのターミ
+ナルの素の `ct spawn ...` / `ct send ...` という Bash コマンドに限って「許可」
+を返す仕組みです。`ct orchestrate` 自体は事前に許可されていません。一度承認す
+れば、それがそのセッションの間の同意になります。Claude には、あなたが
+orchestration を求めた場合（たとえば /orchestrate）を除き、自分で有効にしない
+よう伝えています。設定はターミナルごとで、既定は無効です。
+`cli.allow_orchestration` は新しいターミナルの既定値を決め、fork は設定を引き
+継ぎます。`ct list` に表示されます。
 
 `ct wait id... [--timeout seconds]`（既定 600）は、すべての番号について、
 最新のリクエストが完了する、ターミナルが対応待ち（`attention`）になる、終了
@@ -527,7 +559,7 @@ Write your report to /abs/result.md.``ct send` は事前に許可されて
     picker                "auto"、"fzf-lua"、"select" のいずれか
     focus.tree            "auto"、false、function(cwd) のいずれか
     cli.enabled           `ct` を PATH に入れ、許可の確認なしで実行できる
-                          ようにする（`ct spawn` と `ct send` を除く）
+                          ようにする（`ct spawn`・`ct send`・`ct orchestrate` を除く）
                           （既定: true）
     cli.system_prompt     `ct` のことを Claude に伝える（既定: true）
     cli.auto_title        `ct title` でターミナルに名前を付けるよう Claude
@@ -536,8 +568,8 @@ Write your report to /abs/result.md.``ct send` は事前に許可されて
     cli.spawn_limit       `ct spawn` で起動した、終了していないターミナルの
                           最大数（既定: 3）
     cli.allow_orchestration
-                          `ct spawn` と `ct send` も許可の確認なしで実行できる
-                          ようにする（既定: false）
+                          新しいターミナルの既定値: `ct spawn` と `ct send` を
+                          許可の確認なしで実行できるようにする（既定: false）
 
 ==============================================================================
 7. ハイライト                                         *claude-deck-highlights*

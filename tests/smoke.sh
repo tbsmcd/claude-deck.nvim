@@ -655,6 +655,56 @@ check "permissions allow ct list with arguments" "$(lua 'require("claude-deck.ho
 check "permissions do not allow ct spawn" "$(lua 'tostring(require("claude-deck.hooks").settings_json():find("ct spawn", 1, true))')" "nil"
 check "system prompt tells about ct spawn" "$(cat "$TEST_OUT/args.$MT")" '`ct spawn --title <title>'
 
+# Per-terminal orchestration flag, ct orchestrate, PreToolUse hook
+ct_as() { NVIM="$SOCK" CLAUDE_DECK_ID="$1" bin/ct "${@:2}" 2>&1; }
+pre() { # id, command: the stdout of the PreToolUse hook
+    printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$2" | NVIM="$SOCK" CLAUDE_DECK_ID="$1" bin/claude-deck-hook PreToolUse
+}
+check "orchestration is off by default" "$(ct_as "$MT" orchestrate status)" "orchestration: off"
+check "ct list shows orchestration off" "$(NVIM="$SOCK" bin/ct list)" "orchestration: off"
+check "ct list --json: orchestration false" "$(NVIM="$SOCK" bin/ct list --json | grep -o '"id":'"$MT"',.*' | grep -o '"orchestration":[a-z]*' | head -1)" '"orchestration":false'
+check "PreToolUse: flag off gives no decision (spawn)" "[$(pre "$MT" 'ct spawn --prompt x')]" "[]"
+check "PreToolUse: flag off gives no decision (send)" "[$(pre "$MT" 'ct send 3 --prompt x')]" "[]"
+STATE_BEFORE=$(lua 'require("claude-deck.state").get('"$MT"').state')
+check "ct orchestrate on" "$(ct_as "$MT" orchestrate on)" "orchestration: on"
+check "ct orchestrate status after on" "$(ct_as "$MT" orchestrate status)" "orchestration: on"
+check "ct list --json: orchestration true" "$(NVIM="$SOCK" bin/ct list --json | grep -o '"id":'"$MT"',.*' | grep -o '"orchestration":[a-z]*' | head -1)" '"orchestration":true'
+check "ct list shows orchestration on" "$(NVIM="$SOCK" bin/ct list)" "orchestration: on"
+check "PreToolUse: flag on allows ct spawn" "$(pre "$MT" 'ct spawn --prompt x')" '"permissionDecision":"allow"'
+check "PreToolUse: the decision names the hook event" "$(pre "$MT" 'ct spawn --prompt x')" '"hookEventName":"PreToolUse"'
+check "PreToolUse: flag on allows ct send" "$(pre "$MT" 'ct send 3 --prompt x')" '"permissionDecision":"allow"'
+check "PreToolUse: command ct spawn is allowed" "$(pre "$MT" '  command ct spawn --prompt x')" '"permissionDecision":"allow"'
+check "PreToolUse: ct list gives no decision" "[$(pre "$MT" 'ct list')]" "[]"
+check "PreToolUse: ct spawnx gives no decision" "[$(pre "$MT" 'ct spawnx')]" "[]"
+check "PreToolUse: another command gives no decision" "[$(pre "$MT" 'rm -rf x; ct spawn')]" "[]"
+check "PreToolUse: ct orchestrate gives no decision" "[$(pre "$MT" 'ct orchestrate on')]" "[]"
+check "PreToolUse: other tools give no decision" "[$(printf '{"tool_name":"Read","tool_input":{"command":"ct spawn x"}}' | NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin/claude-deck-hook PreToolUse)]" "[]"
+check "PreToolUse: unknown terminal gives no decision" "[$(pre 99999 'ct spawn --prompt x')]" "[]"
+check "PreToolUse: bad JSON gives no decision" "[$(echo '{' | NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin/claude-deck-hook PreToolUse)]" "[]"
+check "other events print nothing" "[$(echo '{}' | NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin/claude-deck-hook Stop)]" "[]"
+sleep 0.2
+check "PreToolUse does not change the state" "$(lua 'require("claude-deck.state").get('"$MT"').state')" "$STATE_BEFORE"
+check "ct orchestrate off" "$(ct_as "$MT" orchestrate off)" "orchestration: off"
+check "PreToolUse: flag off again gives no decision" "[$(pre "$MT" 'ct spawn --prompt x')]" "[]"
+check "ct orchestrate without an argument shows usage" "$(ct_as "$MT" orchestrate; true)" "ct orchestrate on|off|status"
+check "permissions do not allow ct orchestrate" "$(lua 'tostring(require("claude-deck.hooks").settings_json():find("ct orchestrate", 1, true))')" "nil"
+check "settings has a PreToolUse hook with the Bash matcher" "$(lua '(function() local h = vim.json.decode(require("claude-deck.hooks").settings_json()).hooks.PreToolUse[1]; return h.matcher .. " " .. h.hooks[1].command:match("claude%-deck%-hook. PreToolUse$") end)()')" "Bash claude-deck-hook' PreToolUse"
+check "settings PreToolUse matcher" "$(lua 'require("claude-deck.hooks").settings_json()')" '"matcher":"Bash"'
+check "system prompt tells about ct orchestrate" "$(cat "$TEST_OUT/args.$MT")" 'ct orchestrate on'
+check "set_orchestration(id, true)" "$(lua '(function() require("claude-deck").set_orchestration('"$MT"', true); return tostring(require("claude-deck.state").get('"$MT"').orchestration) end)()')" "true"
+check ":ClaudeDeck orchestrate off" "$(lua '(function() vim.cmd("ClaudeDeck orchestrate off"); return tostring(require("claude-deck.state").get('"$MT"').orchestration) end)()')" "false"
+check ":ClaudeDeck orchestrate with a bad argument warns" "$(lua 'T_notify(function() vim.cmd("ClaudeDeck orchestrate maybe") end)')" "usage: ClaudeDeck orchestrate on|off"
+lua '(function() vim.cmd("ClaudeDeck new below --orchestrate"); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+check ":ClaudeDeck new --orchestrate sets the flag" "$(lua 'tostring(require("claude-deck.state").get(vim.b.claude_deck_id).orchestration)')" "true"
+lua 'vim.cmd("close")' >/dev/null
+lua '(function() vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$MT"').buf); require("claude-deck.state").get('"$MT"').orchestration = true; vim.cmd("ClaudeDeck fork below"); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+check "fork inherits the flag" "$(lua 'tostring(require("claude-deck.state").get(vim.b.claude_deck_id).orchestration)')" "true"
+lua 'vim.cmd("close")' >/dev/null
+lua '(function() vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$MT"').buf); vim.cmd("ClaudeDeck fork below --orchestrate"); vim.cmd("stopinsert"); require("claude-deck.state").get(vim.b.claude_deck_id).orchestration = false; vim.cmd("close"); require("claude-deck.state").get('"$MT"').orchestration = false; return "" end)()' >/dev/null
+check "new(opts.orchestration = false) is off" "$(lua '(function() require("claude-deck").new("below", { orchestration = false }); vim.cmd("stopinsert"); local v = tostring(require("claude-deck.state").get(vim.b.claude_deck_id).orchestration); vim.cmd("close"); return v end)()')" "false"
+check "spawn({ orchestration = true }) sets the flag" "$(lua '(function() local id = require("claude-deck").spawn({ prompt = "x", orchestration = true }); local t = require("claude-deck.state").get(id); local v = tostring(t.orchestration); require("claude-deck.state").remove(id); pcall(vim.api.nvim_buf_delete, t.buf, { force = true }); return v end)()')" "true"
+check "cli.allow_orchestration makes new terminals default on" "$(lua '(function() local o = vim.deepcopy(T_opts); o.cli = vim.tbl_extend("force", o.cli or {}, { allow_orchestration = true }); require("claude-deck").setup(o); require("claude-deck").new("below"); vim.cmd("stopinsert"); local v = tostring(require("claude-deck.state").get(vim.b.claude_deck_id).orchestration); vim.cmd("close"); require("claude-deck").new("below", { orchestration = false }); vim.cmd("stopinsert"); v = v .. " " .. tostring(require("claude-deck.state").get(vim.b.claude_deck_id).orchestration); vim.cmd("close"); require("claude-deck").setup(T_opts); return v end)()')" "true false"
+
 # ct spawn
 SP="$TEST_OUT/prompt.txt"
 printf 'Fix the bug\nin "parser" $HOME\n' >"$SP"

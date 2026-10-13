@@ -203,10 +203,12 @@ end
 
 -- Open a new terminal. where: "right" or "below" (split the current window), or nil.
 -- opts.model: model for Claude Code (`--model`, any alias or full id); without it the model
--- comes from `cmd` / the Claude Code settings.
+-- comes from `cmd` / the Claude Code settings. opts.orchestration: allow `ct spawn` / `ct send` without
+-- a prompt in this terminal (default: `cli.allow_orchestration`).
 function M.new(where, opts)
     ensure_setup()
-    terminal.open_new(default_cwd(), where, nil, { model = (opts or {}).model })
+    opts = opts or {}
+    terminal.open_new(default_cwd(), where, nil, { model = opts.model, orchestration = opts.orchestration })
 end
 
 -- Show a terminal by id (works for hidden terminals too).
@@ -361,6 +363,7 @@ end
 
 -- Open a terminal that forks the current terminal's session. opts.model: as in new(); by
 -- default the model of the forked terminal is used (the conversation continues).
+-- opts.orchestration: as in new(); by default the flag of the forked terminal is inherited.
 function M.fork(where, opts)
     ensure_setup()
     local parent = state.current()
@@ -372,11 +375,16 @@ function M.fork(where, opts)
         return
     end
 
+    opts = opts or {}
+    local orchestration = opts.orchestration
+    if orchestration == nil then
+        orchestration = parent.orchestration
+    end
     local term = terminal.open_new(
         parent.cwd,
         where or "right",
         { "--resume", parent.session_id, "--fork-session" },
-        { model = (opts or {}).model or parent.model }
+        { model = opts.model or parent.model, orchestration = orchestration }
     )
     state.set_title(term, "↳" .. (parent.title ~= "" and parent.title or ("#" .. parent.id)), "auto")
 end
@@ -571,6 +579,18 @@ function M.open_file(path, line, term_id)
     end
 end
 
+-- Turns `ct spawn` / `ct send` without a permission prompt on or off for terminal `id` (default: the
+-- current terminal, or the one of this focus mode tab). Needs the PreToolUse hook (`claude_settings`).
+function M.set_orchestration(id, enabled)
+    ensure_setup()
+    local term = target_term(id)
+    if not term then
+        return
+    end
+    term.orchestration = enabled and true or false
+    vim.notify("claude-deck: orchestration " .. (term.orchestration and "on" or "off") .. " for #" .. term.id)
+end
+
 -- Open the diff of the pull request of the current branch (`gh pr diff`), or of the uncommitted
 -- changes, in the editor window of the focus mode of terminal `opts.id` (default: the current
 -- terminal, or the one of this focus mode tab). opts: { path, line, base, pr, id }; `path` is
@@ -601,6 +621,8 @@ local function parse_where_model(args)
             opts.model = args[i] or ""
         elseif vim.startswith(arg, "--model=") then
             opts.model = arg:sub(9)
+        elseif arg == "--orchestrate" then
+            opts.orchestration = true
         elseif not where then
             where = arg
         else
@@ -610,7 +632,7 @@ local function parse_where_model(args)
             where = false
         end
         if where == false then
-            vim.notify("claude-deck: usage: ClaudeDeck new|fork [right|below] [--model <model>]", vim.log.levels.WARN)
+            vim.notify("claude-deck: usage: ClaudeDeck new|fork [right|below] [--model <model>] [--orchestrate]", vim.log.levels.WARN)
             return false
         end
         i = i + 1
@@ -639,6 +661,13 @@ local SUBCOMMANDS = {
         if where ~= false then
             M.fork(where, opts)
         end
+    end,
+    orchestrate = function(args)
+        if args[1] ~= "on" and args[1] ~= "off" then
+            vim.notify("claude-deck: usage: ClaudeDeck orchestrate on|off", vim.log.levels.WARN)
+            return
+        end
+        M.set_orchestration(nil, args[1] == "on")
     end,
     rename = function()
         M.rename()

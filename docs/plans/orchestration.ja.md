@@ -51,3 +51,10 @@
 - `ct wait` の終了コード 0 は「待ちが終わった」だけを意味する。呼び出し側は各ターミナルの `status`（`done|attention|exited|missing|none|lost`）を読む。
 - `ct spawn --show` で呼び出し元がタブに表示されていないときは `vertical botright split` でタブの右端に開く（フォーカスは動かさない。ほかの window の大きさが変わることがある）。
 - claude に渡す引数では、位置引数のプロンプトの前に常に `--` を置く（`cmd` の末尾の可変長オプションに飲まれないため。Commander 標準）。
+
+## 実装済み（ターミナルごとの orchestration）
+
+- `--settings` で渡した権限は起動後に変えられないため、ターミナルごとのフラグ `term.orchestration`（既定は false。`cli.allow_orchestration = true` なら作成時に true）を PreToolUse hook で効かせる。`new` / `fork` / `spawn` は `orchestration = true|false` を受け取り、fork は元の値を引き継ぐ。`:ClaudeDeck new|fork … --orchestrate`、`:ClaudeDeck orchestrate on|off`、Lua の `set_orchestration(id, enabled)` で設定できる。
+- `ct orchestrate on|off|status` は呼び出し元のターミナルのフラグを変更・表示し、`orchestration: on` / `orchestration: off` を出力する。許可リストには入れない（一度の承認がそのセッションの同意になる）。システムプロンプトには、ユーザーが求めたとき以外は自分で有効にしないよう書いた。
+- `ct list --json` の各要素に `"orchestration": true|false`、`ct list` に `\torchestration: on|off` の行を足した。
+- `settings_json()` に matcher `Bash` の `PreToolUse` hook を登録する。`bin/claude-deck-hook` は PreToolUse のときだけ `--remote-expr` の結果を標準出力に出す。`hooks.on_hook` は `tool_name == "Bash"` で、コマンド（前後の空白を除き、先頭の `command ` は許す）が `ct spawn` または `ct send` で始まり、フラグが true のときだけ `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow",…}}` を返し、それ以外は空文字列（判断なし）を返す。PreToolUse は状態遷移に関与せず、`term.state` は変わらない。
