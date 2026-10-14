@@ -58,3 +58,11 @@
 - `ct orchestrate on|off|status` は呼び出し元のターミナルのフラグを変更・表示し、`orchestration: on` / `orchestration: off` を出力する。許可リストには入れない（一度の承認がそのセッションの同意になる）。システムプロンプトには、ユーザーが求めたとき以外は自分で有効にしないよう書いた。
 - `ct list --json` の各要素に `"orchestration": true|false`、`ct list` に `\torchestration: on|off` の行を足した。
 - `settings_json()` に matcher `Bash` の `PreToolUse` hook を登録する。`bin/claude-deck-hook` は PreToolUse のときだけ `--remote-expr` の結果を標準出力に出す。`hooks.on_hook` は `tool_name == "Bash"` で、コマンド（前後の空白を除き、先頭の `command ` は許す）が `ct spawn` または `ct send` で始まり、フラグが true のときだけ `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow",…}}` を返し、それ以外は空文字列（判断なし）を返す。PreToolUse は状態遷移に関与せず、`term.state` は変わらない。
+
+## 実装済み（usage）
+
+- `ct list --json` に `usage`（transcript がなければ null）を追加しました。`{"model", "turns", "input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "context_tokens"}` の順で、キー `model` は従来どおり要求したモデル、`usage.model` は transcript が報告する実際のモデルです。`ct list` のテキストにも `usage:` の行が出ます。
+- 集計は `lua/claude-deck/usage.lua` が transcript（JSONL）の assistant の行から行います。`isSidechain` の行とデコードできない行は無視し、`context_tokens` は最新の assistant の行の `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` です。
+- ターミナルごとにパス・読み込み済みのバイト位置・集計値をキャッシュし、追記された分だけを読みます（ファイルが縮んだ、またはパスが変わったら最初から）。`ct list --json` は大きな transcript でも軽いままです。
+- ステータスライン（2 行目）に ` · ` 区切りで `<n>k ctx` を出します。ステータスラインの再描画（`Stop` などの hook）のたびに差分だけを読みます。
+- transcript の形式は Claude Code の内部仕様で、変わる可能性があります。数値は transcript の記録で、請求額ではありません。`cli.usage = false` で無効にできます（usage は null、transcript は読みません）。

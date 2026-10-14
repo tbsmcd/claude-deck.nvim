@@ -85,6 +85,29 @@ check "ct list" "$(NVIM="$SOCK" CLAUDE_DECK_ID=2 bin/ct list)" "#2 (you)"
 check "ct read" "$(NVIM="$SOCK" bin/ct read '#1' 2)" "## Claude"
 check "ct read unknown id fails" "$(NVIM="$SOCK" bin/ct read 9; echo "exit=$?")" "exit=1"
 
+# ct list: token usage from the transcript
+cat >"$TEST_OUT/usage.jsonl" <<'JSONL'
+{"type":"user","message":{"role":"user","content":"hi"}}
+{"type":"assistant","message":{"model":"claude-a","usage":{"input_tokens":10,"output_tokens":5,"cache_read_input_tokens":100,"cache_creation_input_tokens":1000}}}
+{"type":"assistant","isSidechain":true,"message":{"model":"claude-side","usage":{"input_tokens":9999,"output_tokens":9999}}}
+this line is broken
+{"type":"assistant","message":{"model":"claude-a","usage":{"input_tokens":20,"output_tokens":7}}}
+{"type":"assistant","message":{"model":"claude-b","usage":{"input_tokens":3,"output_tokens":4,"cache_read_input_tokens":2000,"cache_creation_input_tokens":30}}}
+JSONL
+UJ='(function() local t = require("claude-deck.state").get(1); t.transcript_path = %s; local u = vim.json.decode(require("claude-deck.cli").list(nil, true)).terminals[1].usage; if u == vim.NIL then return "null" end; return table.concat({ u.model, u.turns, u.input_tokens, u.output_tokens, u.cache_read_input_tokens, u.cache_creation_input_tokens, u.context_tokens }, " ") end)()'
+lua "$(printf "$UJ" 'vim.env.TEST_OUT .. "/usage.jsonl"')" >"$TEST_OUT/u1"
+check "ct list --json usage sums, latest model and context" "$(cat "$TEST_OUT/u1")" "claude-b 3 33 16 2100 1030 2033"
+printf '{"type":"assistant","message":{"model":"claude-c","usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":5000}}}\n' >>"$TEST_OUT/usage.jsonl"
+lua "$(printf "$UJ" 'vim.env.TEST_OUT .. "/usage.jsonl"')" >"$TEST_OUT/u1"
+check "appended assistant line is picked up" "$(cat "$TEST_OUT/u1")" "claude-c 4 34 17 7100 1030 5001"
+check "usage key follows orchestration in the JSON" "$(lua 'require("claude-deck.cli").list(nil, true):match("\"orchestration\":%a+,\"usage\":{\"model\":\"claude%-c\",\"turns\":4")')" "orchestration"
+check "ct list text has a usage line" "$(NVIM="$SOCK" bin/ct list)" "usage: claude-c turns=4 context=5001 in=34 out=17 cache_read=7100 cache_create=1030"
+check "statusline shows the context size" "$(lua '(function() local t = require("claude-deck.state").get(1); vim.g.statusline_winid = vim.fn.bufwinid(t.buf); if vim.g.statusline_winid < 0 then return "nowin" end; return require("claude-deck.ui").statusline() end)()')" "5k ctx"
+check "cli.usage = false gives null" "$(lua '(function() local c = require("claude-deck.config").options.cli; c.usage = false; local r = ('"$(printf "$UJ" 'vim.env.TEST_OUT .. "/usage.jsonl"' | sed 's/^/(/;s/$/)/')"'); c.usage = true; return r end)()')" "null"
+check "no transcript gives null" "$(lua "$(printf "$UJ" 'nil')")" "null"
+check "text ct list without transcript" "$(lua '(function() require("claude-deck.state").get(1).transcript_path = nil; return require("claude-deck.cli").list() end)()')" "usage: (no transcript yet)"
+lua '(function() require("claude-deck.state").get(1).transcript_path = vim.env.PWD .. "/tests/fixtures/transcript.jsonl"; return "" end)()' >/dev/null
+
 # Fork opens to the right with --resume
 lua '(function() vim.cmd("wincmd k"); require("claude-deck").fork(); vim.cmd("stopinsert"); return "" end)()' >/dev/null
 sleep 0.5

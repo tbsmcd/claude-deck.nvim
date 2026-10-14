@@ -109,6 +109,9 @@ M.defaults = {
         -- without a permission prompt for each call. false keeps them prompting (recommended unless
         -- you run /orchestrate often and trust the sessions).
         allow_orchestration = false,
+        -- Sum up token usage from the Claude Code transcript (`ct list`, statusline). false: no
+        -- transcript is read for this.
+        usage = true,
     },
 }
 
@@ -168,6 +171,10 @@ local function validate(options)
     if type(options.cli.allow_orchestration) ~= "boolean" then
         warn_invalid("cli.allow_orchestration", options.cli.allow_orchestration, "use true or false")
         options.cli.allow_orchestration = false
+    end
+    if type(options.cli.usage) ~= "boolean" then
+        warn_invalid("cli.usage", options.cli.usage, "use true or false")
+        options.cli.usage = true
     end
     local delay = options.notify.delay
     if type(delay) ~= "number" or delay < 0 then

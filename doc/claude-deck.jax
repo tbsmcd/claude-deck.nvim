@@ -431,9 +431,23 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
 `id`、`state`（設定で変えられる表示名ではなく内部名: idle・running・
 waiting・attention・exited）、`title`、`title_source`（"claude"・"user"・
 "auto"、または null）、`cwd`、`session_id`、`transcript_path`、`model`、
-`spawned_by`、`orchestration`（true または false）を持ちます（不明な値は
-null。`orchestration` を除く）。`model` はターミナルの起動時に
+`spawned_by`、`orchestration`（true または false）、`usage` を持ちます
+（不明な値は null。`orchestration` を除く）。`model` はターミナルの起動時に
 要求したモデルで、Claude Code が実際に使うモデルとは限りません。
+`usage` は、まだ読める transcript がない場合（または `cli.usage` が false の
+場合）は null で、そうでなければ `{"model", "turns", "input_tokens",
+"output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens",
+"context_tokens"}` です。transcript の assistant の行を集計したもので
+（サブエージェントの行とデコードできない行は除きます）、`usage.model` は
+最新のターンについて transcript が報告するモデル（実際に使われたモデル）、
+`turns` は assistant のターン数、トークン数は全ターンの合計、
+`context_tokens`（最新のターンの `input_tokens + cache_read_input_tokens +
+cache_creation_input_tokens`）は現在のコンテキストの大きさの目安です。
+これらは transcript に記録された数値であり、請求額ではありません。
+transcript の形式は Claude Code の内部仕様で、変わる可能性があります。
+読むのは毎回ファイルの追記された部分だけです。`ct list` には同じ内容が
+`usage:` の 1 行で表示され、ターミナル window のステータスラインには
+コンテキストの大きさ（例: `120k ctx`）が表示されます。
 
 `ct spawn` は、新しいターミナルに Claude Code のセッションを起動し
 （|claude-deck.spawn()|）、`{"id": 4, "cwd": "...", "model": null,
@@ -570,6 +584,9 @@ orchestration を求めた場合（たとえば /orchestrate）を除き、自�
     cli.allow_orchestration
                           新しいターミナルの既定値: `ct spawn` と `ct send` を
                           許可の確認なしで実行できるようにする（既定: false）
+    cli.usage             transcript からトークン使用量を集計する（`ct list`・
+                          ステータスライン）。false なら、そのための
+                          transcript の読み込みをしない（既定: true）
 
 ==============================================================================
 7. ハイライト                                         *claude-deck-highlights*

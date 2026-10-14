@@ -420,9 +420,23 @@ greeter.rb".
 sorted by id: `id`, `state` (the internal name: idle, running, waiting,
 attention or exited, not the configurable label), `title`, `title_source`
 ("claude", "user", "auto" or null), `cwd`, `session_id`, `transcript_path`,
-`model`, `spawned_by` and `orchestration` (true or false; null when not known,
-except `orchestration`). `model` is the model that
+`model`, `spawned_by`, `orchestration` (true or false; null when not known,
+except `orchestration`) and `usage`. `model` is the model that
 was requested when the terminal was started; Claude Code may use another.
+`usage` is null when there is no readable transcript yet (or `cli.usage` is
+false), otherwise `{"model", "turns", "input_tokens", "output_tokens",
+"cache_read_input_tokens", "cache_creation_input_tokens", "context_tokens"}`,
+summed up from the assistant lines of the transcript (subagent lines and lines
+that cannot be decoded are skipped). `usage.model` is the model the transcript
+reports for the latest turn (the one actually used), `turns` the number of
+assistant turns, the token fields are sums over all turns, and
+`context_tokens` (`input_tokens + cache_read_input_tokens +
+cache_creation_input_tokens` of the latest turn) approximates the current
+context size. These are the numbers in the transcript, not a bill. The
+transcript format is internal to Claude Code and may change. Only the newly
+appended part of the file is read each time. `ct list` prints the same as one
+`usage:` line, and the statusline of a terminal window shows the context size
+(for example `120k ctx`).
 
 `ct spawn` starts a new Claude Code session in a new terminal
 (|claude-deck.spawn()|) and prints `{"id": 4, "cwd": "...", "model": null,
@@ -555,6 +569,9 @@ succeeded.
                           default for new terminals: allow `ct spawn` and
                           `ct send` without a permission prompt
                           (default: false)
+    cli.usage             sum up token usage from the transcript (`ct list`,
+                          statusline); false reads no transcript for it
+                          (default: true)
 
 ==============================================================================
 7. HIGHLIGHTS                                          *claude-deck-highlights*

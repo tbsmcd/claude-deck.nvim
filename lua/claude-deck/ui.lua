@@ -101,6 +101,11 @@ function M.statusline()
     end
 
     local session = term.session_id and ("session " .. term.session_id:sub(1, 8)) or ""
+    local usage = require("claude-deck.usage").get(term)
+    if usage and usage.turns > 0 then
+        session = string.format("%dk ctx", math.floor(usage.context_tokens / 1000 + 0.5))
+            .. (session ~= "" and " · " .. session or "")
+    end
     return string.format(
         "%%#ClaudeDeckCwd# %%<%s %%*%%=%s ",
         escape(vim.fn.fnamemodify(term.cwd, ":~")),

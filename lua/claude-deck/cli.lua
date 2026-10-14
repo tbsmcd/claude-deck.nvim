@@ -21,6 +21,28 @@ local function ordered_object(pairs_list)
     return "{" .. table.concat(parts, ",") .. "}"
 end
 
+-- Token usage of a terminal from its transcript (nil when none); see claude-deck.usage
+function M.usage(term)
+    return require("claude-deck.usage").get(term)
+end
+
+local function usage_json(usage)
+    if not usage then
+        return vim.NIL
+    end
+    return {
+        raw = ordered_object({
+            { "model", usage.model or vim.NIL },
+            { "turns", usage.turns },
+            { "input_tokens", usage.input_tokens },
+            { "output_tokens", usage.output_tokens },
+            { "cache_read_input_tokens", usage.cache_read_input_tokens },
+            { "cache_creation_input_tokens", usage.cache_creation_input_tokens },
+            { "context_tokens", usage.context_tokens },
+        }),
+    }
+end
+
 local function json_list(self_id)
     local terminals = {}
     for _, term in ipairs(state.sorted()) do
@@ -39,6 +61,7 @@ local function json_list(self_id)
                 { "model", term.model or vim.NIL },
                 { "spawned_by", term.spawned_by or vim.NIL },
                 { "orchestration", term.orchestration == true },
+                { "usage", usage_json(M.usage(term)) },
                 {
                     "last_request",
                     request
@@ -87,6 +110,22 @@ function M.list(self_id, json)
         table.insert(lines, "\ttranscript: " .. (term.transcript_path or "(not started)"))
         table.insert(lines, "\tmodel: " .. (term.model or "(default)"))
         table.insert(lines, "\torchestration: " .. (term.orchestration and "on" or "off"))
+        local usage = M.usage(term)
+        table.insert(
+            lines,
+            usage
+                    and string.format(
+                        "\tusage: %s turns=%d context=%d in=%d out=%d cache_read=%d cache_create=%d",
+                        usage.model or "(unknown)",
+                        usage.turns,
+                        usage.context_tokens,
+                        usage.input_tokens,
+                        usage.output_tokens,
+                        usage.cache_read_input_tokens,
+                        usage.cache_creation_input_tokens
+                    )
+                or "\tusage: (no transcript yet)"
+        )
     end
     return #lines > 0 and table.concat(lines, "\n") or "No terminals"
 end
