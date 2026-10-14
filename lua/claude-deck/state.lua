@@ -102,6 +102,7 @@ end
 
 function M.remove(id)
     M.terminals[id] = nil
+    require("claude-deck.usage").forget(id)
 end
 
 function M.set_state(term, state, message)
