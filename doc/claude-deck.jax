@@ -202,12 +202,13 @@ open_diff({opts})                                    *claude-deck.open_diff()*
 spawn({opts})                                           *claude-deck.spawn()*
     今のタブ・window・カーソル・モードを変えずに、別のターミナルに新しい
     Claude Code のセッションを起動し、その番号を返します（失敗したときは nil
-    とメッセージ）。{opts}: { prompt, cwd, model,
+    とメッセージ）。{opts}: { prompt, resume, cwd, model,
     permission_mode, title, show, orchestration }。{permission_mode} の既定は
     `cli.spawn_permission_mode` です（値は |claude-deck.new()| を参照。
     "bypassPermissions" は worker の権限確認をすべて無効にするので、
     サンドボックスの中でだけ使ってください）。{prompt} は
-    必須で、Claude Code の最初の引数として渡します。{cwd} を省くと今の
+    必須（{resume} があれば省略可）で、Claude Code の最初の引数として渡します。{resume} は
+    続けるセッション ID（`--resume <id>`）です。{cwd} を省くと今の
     ターミナルの cwd になり、存在するディレクトリでなければなりません。
     {title} は 40 セルまでです。{show} が true でなければターミナルは非表示
     で作られます（|claude-deck.list()| で表示できます）。true のときは今の
@@ -383,7 +384,8 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
                             をそこに開く
     ct spawn [--title title] [--cwd dir] [--model model]
              [--permission-mode mode]
-             (--prompt text | --prompt-file path) [--show]
+             (--prompt text | --prompt-file path)
+             [--resume session-id] [--show]
                             非表示のターミナルに新しいセッションを起動する
     ct send id (--prompt text | --prompt-file path)
                             idle または waiting のターミナルに作業を打ち込む
@@ -442,7 +444,8 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
 `id`、`state`（設定で変えられる表示名ではなく内部名: idle・running・
 waiting・attention・exited）、`title`、`title_source`（"claude"・"user"・
 "auto"、または null）、`cwd`、`session_id`、`transcript_path`、`model`、
-`permission_mode`、`spawned_by`、`orchestration`（true または false）、`usage` を持ちます
+`permission_mode`、`spawned_by`、`resumed_from`（`ct spawn --resume` に渡した
+セッション ID。なければ null）、`orchestration`（true または false）、`usage` を持ちます
 （不明な値は null。`orchestration` を除く）。`model` はターミナルの起動時に
 要求したモデルで、Claude Code が実際に使うモデルとは限りません。
 `permission_mode` は `--permission-mode` で要求したモードです（指定がなければ
@@ -469,7 +472,10 @@ transcript の形式は Claude Code の内部仕様で、変わる可能性が�
 Claude のシェルのカレントディレクトリからの相対です）。プロンプトは入力欄に
 打ち込まれるのではなく、Claude Code の最初の引数として（`--` の後に）渡さ
 れ、そのターミナルの最初のリクエストとして登録されます（`ct send` を参照）。
-そのため `ct wait` で追跡できます。`--cwd`
+そのため `ct wait` で追跡できます。`--resume session-id`（`ct list --json` の
+`session_id`）を付けると、そのセッションを新しいターミナルで続けます。このと
+きプロンプトは省略でき、省くと worker は `idle` のまま起動し、リクエストは作
+られません。出力にも `"resumed_from"` が加わります。`--cwd`
 を省くと呼び出し元のターミナルの cwd になり、存在するディレクトリでなければ
 なりません。`--title` の規則は `ct title` と同じです。ターミナルは非表示で
 作られるので、今のタブ・window・カーソル・モードは変わりません。`--show`

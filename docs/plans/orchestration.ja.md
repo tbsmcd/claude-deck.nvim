@@ -77,3 +77,5 @@
 - `ct list --json` の各要素に `model` の次の `permission_mode`（文字列または null）を、`ct list` に `\tpermission_mode: <mode または (default)>` の行を追加しました。`ct spawn` の出力にも `permission_mode` を含めます。
 - `bypassPermissions` は受け付けますが、コードでは特別扱いしません。ドキュメントで、その worker の権限確認をすべて無効にするのでサンドボックスの中でだけ使うよう明記しています。
 - システムプロンプトの `ct spawn` の説明に、`--permission-mode acceptEdits`（または `auto`）で worker が確認で止まらずに進められること、モードはユーザーが決めること（指示やスキルに従い、`bypassPermissions` を自分では選ばない）を追記しました。
+- `ct spawn --resume <session_id>`（Lua は `spawn({ resume })`）は、`--resume <id>` を `--model` / `--permission-mode` の前に渡し（`--fork-session` なし）、以前の Neovim のセッションを新しいターミナルで続けます。`resume` があればプロンプトは省略でき、省くと位置引数もリクエストも作らず `idle` で起動します。
+- `term.resumed_from` に記録し、`ct list --json` の `spawned_by` の次と `ct spawn` の出力に `resumed_from`（文字列または null）を含めます。

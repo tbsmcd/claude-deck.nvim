@@ -332,7 +332,7 @@ end
 -- as they are. Hidden (default): it runs in a temporary floating window (so that no window is
 -- resized) that is closed at once; the buffer stays, as after `:q`. opts.show: in a window to
 -- the right of `caller_win` (default: at the far right) that is not entered.
--- opts: { model, permission_mode, prompt, show, caller_win, orchestration }
+-- opts: { model, permission_mode, prompt, extra_args, show, caller_win, orchestration }
 function M.start_detached(cwd, opts)
     local saved_ei = vim.o.eventignore
     vim.o.eventignore = "BufEnter,BufLeave,WinEnter,WinLeave,BufWinEnter"
@@ -362,7 +362,7 @@ function M.start_detached(cwd, opts)
                 noautocmd = true,
             })
         end
-        local term = M.start(win, cwd, nil, {
+        local term = M.start(win, cwd, opts.extra_args, {
             model = opts.model,
             permission_mode = opts.permission_mode,
             prompt = opts.prompt,

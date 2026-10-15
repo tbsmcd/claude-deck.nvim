@@ -868,6 +868,26 @@ check "ct spawn refuses an invalid permission mode" "$(ct_spawn --prompt pm --pe
 check "ct spawn --permission-mode needs a value" "$(ct_spawn --prompt pm --permission-mode)" "ct: --permission-mode needs a value exit=1"
 lua '(function() local o = vim.deepcopy(T_opts); o.cli = { spawn_limit = 20, spawn_permission_mode = "acceptEdits" }; require("claude-deck").setup(o); return "" end)()' >/dev/null
 check "cli.spawn_permission_mode applies without the flag" "$(ct_spawn --prompt pm)" '"permission_mode":"acceptEdits"'
+# ct spawn --resume
+OUT=$(ct_spawn --resume abc-123 --title T)
+SIDR=$(echo "$OUT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+sleep 0.5
+check "ct spawn --resume without a prompt succeeds" "$OUT" '"resumed_from":"abc-123"'
+check "ct spawn --resume passes --resume and the id before --model/--permission-mode" "$(grep -A3 -x -e '--resume' "$TEST_OUT/args.$SIDR" | tr '\n' ' ')" "--resume abc-123 --permission-mode acceptEdits "
+check "ct spawn --resume without a prompt passes no prompt" "$(tail -n 1 "$TEST_OUT/args.$SIDR")" "acceptEdits"
+check "ct spawn --resume: no fork-session" "$(grep -c -x -e '--fork-session' "$TEST_OUT/args.$SIDR")" "0"
+check "ct list --json shows resumed_from and no request" "$(NVIM="$SOCK" bin/ct list --json | grep -o '"id":'"$SIDR"',[^}]*' | grep -o '"resumed_from":"abc-123"')|$(lua 'tostring(require("claude-deck.state").get('"$SIDR"').last_request)')" '"resumed_from":"abc-123"|nil'
+check "ct list --json: resumed_from is null otherwise" "$(NVIM="$SOCK" bin/ct list --json | grep -o '"id":'"$SIDP"',[^}]*')" '"resumed_from":null'
+OUT=$(ct_spawn --resume def-456 --prompt hi)
+SIDR2=$(echo "$OUT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+sleep 0.5
+check "ct spawn --resume with a prompt: the prompt is the last argument" "$(tail -n 2 "$TEST_OUT/args.$SIDR2" | tr '\n' '|')" '--|hi|'
+check "ct spawn --resume with a prompt: the id is passed" "$(grep -A1 -x -e '--resume' "$TEST_OUT/args.$SIDR2" | tr '\n' ' ')" "--resume def-456 "
+check "ct spawn --resume with a prompt registers a request" "$(lua 'require("claude-deck.state").get('"$SIDR2"').last_request.text')" "hi"
+check "ct spawn --resume without a value fails" "$(ct_spawn --resume)" "ct: --resume needs a session id exit=1"
+check "ct spawn --resume with an empty value fails" "$(ct_spawn --resume= --prompt a)" "ct: --resume needs a session id exit=1"
+check "ct spawn --resume with whitespace fails" "$(ct_spawn --resume "a b" --prompt a)" "ct: --resume needs a session id exit=1"
+check "spawn({ resume }) works without a prompt" "$(lua '(function() local id = require("claude-deck").spawn({ resume = "lua-1" }); local t = require("claude-deck.state").get(id); return t.resumed_from .. " " .. tostring(t.last_request) end)()')" "lua-1 nil"
 check "--permission-mode overrides cli.spawn_permission_mode" "$(ct_spawn --prompt pm --permission-mode plan)" '"permission_mode":"plan"'
 check "spawn() uses cli.spawn_permission_mode" "$(lua '(function() local id = require("claude-deck").spawn({ prompt = "api" }); return require("claude-deck.state").get(id).permission_mode end)()')" "acceptEdits"
 check "spawn() with an invalid permission mode returns a message" "$(lua '(function() local id, err = require("claude-deck").spawn({ prompt = "api", permission_mode = "x" }); return tostring(id) .. " " .. err end)()')" "nil invalid permission mode: x"

@@ -199,13 +199,14 @@ open_diff({opts})                                    *claude-deck.open_diff()*
 spawn({opts})                                            *claude-deck.spawn()*
     Start a new Claude Code session in another terminal without changing
     the current tab, window, cursor or mode, and return its id (nil and a
-    message on failure). {opts}: { prompt, cwd, model,
+    message on failure). {opts}: { prompt, resume, cwd, model,
     permission_mode, title, show, orchestration }. {permission_mode}
     defaults to `cli.spawn_permission_mode` (see |claude-deck.new()| for
     the values; "bypassPermissions" disables all permission prompts of the
     worker, so use it only in a sandbox).
-    {prompt} is required and is passed to Claude Code as its first
-    argument. {cwd} defaults to the cwd of the current terminal and must be
+    {prompt} is required (unless {resume} is set) and is passed to Claude
+    Code as its first argument. {resume} is a session id to continue
+    (`--resume <id>`). {cwd} defaults to the cwd of the current terminal and must be
     an existing directory. {title} is at most 40 cells. The terminal is
     hidden (bring it back with |claude-deck.list()|) unless {show} is true:
     then it opens to the right of the current terminal. At most
@@ -372,7 +373,8 @@ Inside a terminal, `ct` is on PATH and Claude is told about it:
                             uncommitted changes) there
     ct spawn [--title title] [--cwd dir] [--model model]
              [--permission-mode mode]
-             (--prompt text | --prompt-file path) [--show]
+             (--prompt text | --prompt-file path)
+             [--resume session-id] [--show]
                             start a new session in a hidden terminal
     ct send id (--prompt text | --prompt-file path)
                             type a task into an idle or waiting terminal
@@ -432,7 +434,8 @@ greeter.rb".
 sorted by id: `id`, `state` (the internal name: idle, running, waiting,
 attention or exited, not the configurable label), `title`, `title_source`
 ("claude", "user", "auto" or null), `cwd`, `session_id`, `transcript_path`,
-`model`, `permission_mode`, `spawned_by`, `orchestration` (true or false; null when not known,
+`model`, `permission_mode`, `spawned_by`, `resumed_from` (the session id given
+to `ct spawn --resume`, else null), `orchestration` (true or false; null when not known,
 except `orchestration`) and `usage`. `model` is the model that
 was requested when the terminal was started; Claude Code may use another.
 `permission_mode` is the mode requested with `--permission-mode` (null when
@@ -458,7 +461,10 @@ appended part of the file is read each time. `ct list` prints the same as one
 `--prompt-file path` (read by Neovim; a relative path is relative to
 Claude's shell); it is passed to Claude Code as its first argument (after
 `--`), not typed into it, and registered as the terminal's first request
-(see `ct send`), so `ct wait` can follow it. `--cwd` defaults to the cwd of the calling terminal and
+(see `ct send`), so `ct wait` can follow it. `--resume session-id` continues that session (the
+`session_id` of `ct list --json`) in the new terminal; the prompt is then
+optional, and without it the worker comes back up in `idle` with no request.
+The output has `"resumed_from"` too. `--cwd` defaults to the cwd of the calling terminal and
 must be an existing directory; `--title` follows the rules of `ct title`.
 The terminal is created hidden, so your tab, window, cursor and mode do
 not change. With `--show` it opens to the right of the calling terminal

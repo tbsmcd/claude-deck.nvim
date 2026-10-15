@@ -504,7 +504,7 @@ function M.redraw()
 end
 
 -- Start a new Claude Code session in another terminal without changing the current tab, window
--- or mode (what `ct spawn` does). opts: { prompt (required), cwd (default: the cwd of the current
+-- or mode (what `ct spawn` does). opts: { prompt (required unless resume), resume (a session id to continue), cwd (default: the cwd of the current
 -- terminal, else Neovim's), model, permission_mode (default: `cli.spawn_permission_mode`), title (at most 40 cells), show }. The terminal stays hidden
 -- (see show()) unless opts.show: then it opens to the right of the current terminal. Returns
 -- the terminal id, or nil and a message.

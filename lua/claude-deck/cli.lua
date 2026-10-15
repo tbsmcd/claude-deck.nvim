@@ -61,6 +61,7 @@ local function json_list(self_id)
                 { "model", term.model or vim.NIL },
                 { "permission_mode", term.permission_mode or vim.NIL },
                 { "spawned_by", term.spawned_by or vim.NIL },
+                { "resumed_from", term.resumed_from or vim.NIL },
                 { "orchestration", term.orchestration == true },
                 { "usage", usage_json(M.usage(term)) },
                 {
@@ -350,14 +351,22 @@ local function new_request(term, caller, text)
 end
 
 -- Starts a new terminal for `ct spawn` / spawn(). `caller`: the terminal that asks (or nil).
--- opts: { prompt, cwd (relative to opts.base, default: the caller's cwd), base, model, permission_mode, title,
+-- opts: { prompt (optional with resume), resume (a session id: `--resume <id>`), cwd (relative to opts.base, default: the caller's cwd), base, model, permission_mode, title,
 -- show, orchestration }. Returns the terminal, or nil and a "ct: …" message. Nothing is created on an error.
 function M.spawn_term(caller, opts)
-    local prompt = opts.prompt
-    if type(prompt) ~= "string" or vim.trim(prompt) == "" then
-        return nil, "ct: no prompt given (use --prompt or --prompt-file)"
+    local resume = opts.resume
+    if resume ~= nil and (type(resume) ~= "string" or resume == "" or resume:find("[%s%z]")) then
+        return nil, "ct: --resume needs a session id"
     end
-    if prompt:find("\0", 1, true) then
+    if resume ~= nil and vim.startswith(resume, "-") then
+        return nil, "ct: invalid session id: " .. resume
+    end
+    local prompt = opts.prompt
+    if prompt == nil and resume then
+        -- Resuming without a task: the worker just comes back up in idle
+    elseif type(prompt) ~= "string" or vim.trim(prompt) == "" then
+        return nil, "ct: no prompt given (use --prompt or --prompt-file)"
+    elseif prompt:find("\0", 1, true) then
         return nil, "ct: the prompt contains a NUL byte"
     end
 
@@ -415,7 +424,9 @@ function M.spawn_term(caller, opts)
     end
 
     -- CRLF (e.g. a prompt file) becomes LF, as for `ct send`
-    prompt = prompt:gsub("\r\n", "\n")
+    if prompt then
+        prompt = prompt:gsub("\r\n", "\n")
+    end
 
     local caller_win = caller and vim.fn.bufwinid(caller.buf)
     local ok, term = pcall(require("claude-deck.terminal").start_detached, cwd, {
@@ -425,6 +436,7 @@ function M.spawn_term(caller, opts)
         show = opts.show,
         caller_win = (caller_win and caller_win > 0) and caller_win or nil,
         orchestration = opts.orchestration,
+        extra_args = resume and { "--resume", resume } or nil,
     })
     if not ok then
         return nil, "ct: " .. tostring(term)
@@ -432,7 +444,10 @@ function M.spawn_term(caller, opts)
     term.spawned = true
     term.spawned_by = caller and caller.id or nil
     -- The first prompt is a request too, so that `ct wait` can follow the first turn
-    new_request(term, caller, prompt)
+    term.resumed_from = resume
+    if prompt then
+        new_request(term, caller, prompt)
+    end
     if title then
         state.set_title(term, title, "claude")
     end
@@ -449,7 +464,7 @@ local function read_file(path)
     return content
 end
 
-local SPAWN_VALUE_OPTIONS = { "--title", "--cwd", "--model", "--permission-mode", "--prompt", "--prompt-file" }
+local SPAWN_VALUE_OPTIONS = { "--title", "--cwd", "--model", "--permission-mode", "--prompt", "--prompt-file", "--resume" }
 
 -- `ct spawn [--title <title>] [--cwd <dir>] [--model <model>] [--permission-mode <mode>]
 -- (--prompt <text> | --prompt-file
@@ -475,7 +490,7 @@ function M.spawn(id, args, pwd)
                 value = args[i]
             end
             if value == nil then
-                return "ct: " .. name .. " needs a value"
+                return name == "--resume" and "ct: --resume needs a session id" or "ct: " .. name .. " needs a value"
             end
             opts[name:sub(3):gsub("-", "_")] = value
         else
@@ -501,12 +516,13 @@ function M.spawn(id, args, pwd)
         end
         prompt = prompt:gsub("[\r\n]+$", "")
     end
-    if prompt == nil then
+    if prompt == nil and not opts.resume then
         return "ct: no prompt given (use --prompt or --prompt-file)"
     end
 
     local term, err = M.spawn_term(caller, {
         prompt = prompt,
+        resume = opts.resume,
         cwd = opts.cwd,
         base = pwd,
         model = opts.model,
@@ -523,6 +539,7 @@ function M.spawn(id, args, pwd)
         model = term.model or vim.NIL,
         permission_mode = term.permission_mode or vim.NIL,
         title = term.title ~= "" and term.title or vim.NIL,
+        resumed_from = term.resumed_from or vim.NIL,
     })
 end
 
@@ -613,7 +630,7 @@ function M.send(self_id, target, args, pwd)
                 value = args[i]
             end
             if value == nil then
-                return "ct: " .. name .. " needs a value"
+                return name == "--resume" and "ct: --resume needs a session id" or "ct: " .. name .. " needs a value"
             end
             opts[name:sub(3):gsub("-", "_")] = value
         else
