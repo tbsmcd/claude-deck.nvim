@@ -204,11 +204,26 @@ end
 -- Open a new terminal. where: "right" or "below" (split the current window), or nil.
 -- opts.model: model for Claude Code (`--model`, any alias or full id); without it the model
 -- comes from `cmd` / the Claude Code settings. opts.orchestration: allow `ct spawn` / `ct send` without
--- a prompt in this terminal (default: `cli.allow_orchestration`).
+-- a prompt in this terminal (default: `cli.allow_orchestration`). opts.permission_mode:
+-- `--permission-mode` (default, acceptEdits, plan, auto or bypassPermissions; the last one
+-- disables all permission prompts); without it Claude Code's own default applies.
 function M.new(where, opts)
     ensure_setup()
     opts = opts or {}
-    terminal.open_new(default_cwd(), where, nil, { model = opts.model, orchestration = opts.orchestration })
+    if opts.permission_mode ~= nil and not require("claude-deck.config").is_permission_mode(opts.permission_mode) then
+        vim.notify(
+            "claude-deck: invalid permission mode: "
+                .. tostring(opts.permission_mode)
+                .. " (use default, acceptEdits, plan, auto or bypassPermissions)",
+            vim.log.levels.WARN
+        )
+        return
+    end
+    terminal.open_new(default_cwd(), where, nil, {
+        model = opts.model,
+        permission_mode = opts.permission_mode,
+        orchestration = opts.orchestration,
+    })
 end
 
 -- Show a terminal by id (works for hidden terminals too).
@@ -364,6 +379,7 @@ end
 -- Open a terminal that forks the current terminal's session. opts.model: as in new(); by
 -- default the model of the forked terminal is used (the conversation continues).
 -- opts.orchestration: as in new(); by default the flag of the forked terminal is inherited.
+-- opts.permission_mode: as in new(); by default the mode of the forked terminal is inherited.
 function M.fork(where, opts)
     ensure_setup()
     local parent = state.current()
@@ -376,6 +392,15 @@ function M.fork(where, opts)
     end
 
     opts = opts or {}
+    if opts.permission_mode ~= nil and not require("claude-deck.config").is_permission_mode(opts.permission_mode) then
+        vim.notify(
+            "claude-deck: invalid permission mode: "
+                .. tostring(opts.permission_mode)
+                .. " (use default, acceptEdits, plan, auto or bypassPermissions)",
+            vim.log.levels.WARN
+        )
+        return
+    end
     local orchestration = opts.orchestration
     if orchestration == nil then
         orchestration = parent.orchestration
@@ -384,7 +409,11 @@ function M.fork(where, opts)
         parent.cwd,
         where or "right",
         { "--resume", parent.session_id, "--fork-session" },
-        { model = opts.model or parent.model, orchestration = orchestration }
+        {
+            model = opts.model or parent.model,
+            permission_mode = opts.permission_mode or parent.permission_mode,
+            orchestration = orchestration,
+        }
     )
     state.set_title(term, "↳" .. (parent.title ~= "" and parent.title or ("#" .. parent.id)), "auto")
 end
@@ -442,7 +471,7 @@ function M.redraw()
             state.remove(term.id)
             return
         end
-        terminal.start(win, term.cwd, { "--resume", session_id }, { reuse = term, model = term.model })
+        terminal.start(win, term.cwd, { "--resume", session_id }, { reuse = term, model = term.model, permission_mode = term.permission_mode })
         vim.notify(string.format("claude-deck: redrew #%d", term.id), vim.log.levels.INFO)
     end
 
@@ -476,7 +505,7 @@ end
 
 -- Start a new Claude Code session in another terminal without changing the current tab, window
 -- or mode (what `ct spawn` does). opts: { prompt (required), cwd (default: the cwd of the current
--- terminal, else Neovim's), model, title (at most 40 cells), show }. The terminal stays hidden
+-- terminal, else Neovim's), model, permission_mode (default: `cli.spawn_permission_mode`), title (at most 40 cells), show }. The terminal stays hidden
 -- (see show()) unless opts.show: then it opens to the right of the current terminal. Returns
 -- the terminal id, or nil and a message.
 function M.spawn(opts)
@@ -610,7 +639,7 @@ function M.open_diff(opts)
     end
 end
 
--- `[right|below] [--model <model>]` (any order) -> where, { model }; false (after a warning)
+-- `[right|below] [--model <model>] [--permission-mode <mode>]` (any order) -> where, { model, ... }; false (after a warning)
 -- when the arguments are wrong
 local function parse_where_model(args)
     local where, opts, i = nil, {}, 1
@@ -621,6 +650,11 @@ local function parse_where_model(args)
             opts.model = args[i] or ""
         elseif vim.startswith(arg, "--model=") then
             opts.model = arg:sub(9)
+        elseif arg == "--permission-mode" then
+            i = i + 1
+            opts.permission_mode = args[i] or ""
+        elseif vim.startswith(arg, "--permission-mode=") then
+            opts.permission_mode = arg:sub(19)
         elseif arg == "--orchestrate" then
             opts.orchestration = true
         elseif not where then
@@ -632,7 +666,7 @@ local function parse_where_model(args)
             where = false
         end
         if where == false then
-            vim.notify("claude-deck: usage: ClaudeDeck new|fork [right|below] [--model <model>] [--orchestrate]", vim.log.levels.WARN)
+            vim.notify("claude-deck: usage: ClaudeDeck new|fork [right|below] [--model <model>] [--orchestrate] [--permission-mode <mode>]", vim.log.levels.WARN)
             return false
         end
         i = i + 1

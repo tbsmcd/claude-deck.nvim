@@ -4,6 +4,13 @@ local M = {}
 M.root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
 M.bin_dir = M.root .. "/bin"
 
+-- Values of Claude Code's `--permission-mode` (per-terminal permission mode).
+M.permission_modes = { "default", "acceptEdits", "plan", "auto", "bypassPermissions" }
+
+function M.is_permission_mode(mode)
+    return type(mode) == "string" and vim.tbl_contains(M.permission_modes, mode)
+end
+
 M.defaults = {
     -- Command used to start Claude Code. Extra arguments are appended by the plugin.
     cmd = { "claude" },
@@ -104,6 +111,12 @@ M.defaults = {
         auto_title = true,
         -- Max number of terminals started by `ct spawn` that have not exited.
         spawn_limit = 3,
+        -- Permission mode (`--permission-mode`: default, acceptEdits, plan, auto or
+        -- bypassPermissions) for terminals started by `ct spawn` / spawn() without an explicit
+        -- mode. nil: pass nothing, Claude Code's own default applies, so a worker stops at every
+        -- permission prompt. "bypassPermissions" disables all permission prompts of the worker;
+        -- use it only in a sandbox.
+        spawn_permission_mode = nil,
         -- When true, `ct spawn` and `ct send` are added to the Claude Code permission allow list
         -- passed with `--settings`, so an orchestrator session can create and drive worker sessions
         -- without a permission prompt for each call. false keeps them prompting (recommended unless
@@ -167,6 +180,16 @@ local function validate(options)
     if type(limit) ~= "number" or limit % 1 ~= 0 or limit < 0 then
         warn_invalid("cli.spawn_limit", limit, "use an integer, 0 or more", 3)
         options.cli.spawn_limit = 3
+    end
+    local spawn_mode = options.cli.spawn_permission_mode
+    if spawn_mode ~= nil and not M.is_permission_mode(spawn_mode) then
+        warn_invalid(
+            "cli.spawn_permission_mode",
+            spawn_mode,
+            "use default, acceptEdits, plan, auto or bypassPermissions",
+            nil
+        )
+        options.cli.spawn_permission_mode = nil
     end
     if type(options.cli.allow_orchestration) ~= "boolean" then
         warn_invalid("cli.allow_orchestration", options.cli.allow_orchestration, "use true or false")

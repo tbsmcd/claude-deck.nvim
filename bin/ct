@@ -7,7 +7,8 @@
 #   ct title --force <title>     also replace a title set by the user (the title is required)
 #   ct open <path>[:line]        open a file in the editor of focus mode (path relative to the cwd)
 #   ct list --json               the same as JSON (one object)
-#   ct spawn [--title <title>] [--cwd <dir>] [--model <model>] (--prompt <text> | --prompt-file <path>) [--show]
+#   ct spawn [--title <title>] [--cwd <dir>] [--model <model>] [--permission-mode <mode>]
+#                                (--prompt <text> | --prompt-file <path>) [--show]
 #                                start a new Claude Code session in a hidden terminal; prints its id as JSON
 #   ct send <id> (--prompt <text> | --prompt-file <path>)
 #                                type a task into an idle or waiting terminal; prints {"id", "request"}
@@ -20,7 +21,7 @@
 #   ct diff [<path>[:line]] [--pr <number>] [--base <ref>]
 #                                open the diff of the pull request (or the uncommitted changes) there
 usage() {
-    sed -n '4,21p' "$0" | sed 's/^# //' >&2
+    sed -n '4,22p' "$0" | sed 's/^# //' >&2
     exit 1
 }
 

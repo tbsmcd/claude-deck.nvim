@@ -29,9 +29,12 @@ local function system_prompt(id)
         "checked out it shows the current branch's version; say so, and offer `gh pr checkout <number>` if the user wants the",
         "pull request's version. In the diff buffer the user can press <CR> on a line to open the file there themselves.",
         "",
-        "`ct spawn --title <title> [--cwd <dir>] [--model <model>] --prompt-file <file>` starts a new Claude Code session in another",
+        "`ct spawn --title <title> [--cwd <dir>] [--model <model>] [--permission-mode <mode>] --prompt-file <file>` starts a new Claude Code session in another",
         "terminal (hidden until the user shows it) with that file as its first prompt and prints its id as JSON; `ct list --json` gives",
         "machine-readable states. Use them only when the user asked you to delegate work to other sessions (e.g. with /orchestrate).",
+        "A worker started in the default permission mode stops at every permission prompt, which you cannot answer for it;",
+        "`--permission-mode acceptEdits` (or `auto`) lets it proceed without stopping at prompts the user cannot answer. The mode to",
+        "use is the user's decision: follow the user's instructions (or the skill) and do not pick bypassPermissions on your own.",
         "`ct spawn` and `ct send` run without a permission prompt when orchestration is on for this terminal (`ct orchestrate status`);",
         "the user turns it on with `ct orchestrate on` (they approve that command once) or from Neovim. Do not turn it on by yourself",
         "unless the user asked for orchestration (e.g. invoked /orchestrate).",
@@ -106,9 +109,25 @@ local function without_model(cmd)
     return result
 end
 
+-- Removes `--permission-mode X` / `--permission-mode=X` from a command (a copy is returned)
+local function without_permission_mode(cmd)
+    local result, skip = {}, false
+    for _, item in ipairs(cmd) do
+        if skip then
+            skip = false
+        elseif item == "--permission-mode" then
+            skip = true
+        elseif not vim.startswith(item, "--permission-mode=") then
+            table.insert(result, item)
+        end
+    end
+    return result
+end
+
 -- Starts Claude Code in `win`. `extra_args` are appended to the command.
 -- opts.model: the model requested with `--model` (replaces one in `cmd`); opts.prompt: the
--- first prompt, given as the positional argument.
+-- first prompt, given as the positional argument. opts.permission_mode: `--permission-mode`
+-- (replaces one in `cmd`).
 -- opts.reuse: an exited terminal to start again in a new buffer, keeping its id, title and cwd
 -- (redraw()). Its old buffer is deleted.
 function M.start(win, cwd, extra_args, start_opts)
@@ -140,9 +159,13 @@ function M.start(win, cwd, extra_args, start_opts)
     end
 
     local model = start_opts and start_opts.model
+    local permission_mode = start_opts and start_opts.permission_mode
     local cmd = vim.deepcopy(opts.cmd)
     if model then
         cmd = without_model(cmd)
+    end
+    if permission_mode then
+        cmd = without_permission_mode(cmd)
     end
     if opts.claude_settings then
         vim.list_extend(cmd, { "--settings", require("claude-deck.hooks").settings_json() })
@@ -154,6 +177,9 @@ function M.start(win, cwd, extra_args, start_opts)
     if model then
         vim.list_extend(cmd, { "--model", model })
     end
+    if permission_mode then
+        vim.list_extend(cmd, { "--permission-mode", permission_mode })
+    end
     local prompt = start_opts and start_opts.prompt
     if prompt then
         -- "--" always, so that a variadic option at the end of `cmd` cannot take the prompt
@@ -162,6 +188,8 @@ function M.start(win, cwd, extra_args, start_opts)
     end
     -- The requested model (nothing confirms what Claude Code actually uses)
     term.model = model
+    -- The requested permission mode (nil: Claude Code's own default)
+    term.permission_mode = permission_mode
     -- Per-terminal switch for `ct spawn` / `ct send` without a prompt (hooks.lua, PreToolUse).
     -- A restarted terminal (redraw) keeps its flag.
     if not reuse then
@@ -304,7 +332,7 @@ end
 -- as they are. Hidden (default): it runs in a temporary floating window (so that no window is
 -- resized) that is closed at once; the buffer stays, as after `:q`. opts.show: in a window to
 -- the right of `caller_win` (default: at the far right) that is not entered.
--- opts: { model, prompt, show, caller_win, orchestration }
+-- opts: { model, permission_mode, prompt, show, caller_win, orchestration }
 function M.start_detached(cwd, opts)
     local saved_ei = vim.o.eventignore
     vim.o.eventignore = "BufEnter,BufLeave,WinEnter,WinLeave,BufWinEnter"
@@ -334,7 +362,12 @@ function M.start_detached(cwd, opts)
                 noautocmd = true,
             })
         end
-        local term = M.start(win, cwd, nil, { model = opts.model, prompt = opts.prompt, orchestration = opts.orchestration })
+        local term = M.start(win, cwd, nil, {
+            model = opts.model,
+            permission_mode = opts.permission_mode,
+            prompt = opts.prompt,
+            orchestration = opts.orchestration,
+        })
         if opts.show then
             M.fit_pty(win)
         else

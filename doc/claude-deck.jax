@@ -83,8 +83,14 @@ new({where}, {opts})                                      *claude-deck.new()*
     {opts.orchestration}（省略可）は、新しいターミナルで `ct spawn` /
     `ct send` を許可の確認なしで実行できるかどうかです（既定:
     `cli.allow_orchestration`。|claude-deck.set_orchestration()| を参照）。
-    `:ClaudeDeck new [right|below] [--model <model>] [--orchestrate]` でも指定
-    できます。
+    {opts.permission_mode}（省略可）は権限モードで、`--permission-mode <mode>`
+    として渡します。"default"・"acceptEdits"・"plan"・"auto"・
+    "bypassPermissions" のいずれかを指定します。`cmd` オプションに
+    `--permission-mode` があるときは置き換えます。省くと Claude Code 自身の
+    既定になります。"bypassPermissions" はそのターミナルの権限確認をすべて
+    無効にするので、サンドボックスの中でだけ使ってください。
+    `:ClaudeDeck new [right|below] [--model <model>] [--orchestrate]
+    [--permission-mode <mode>]` でも指定できます。
 
 list({opts})                                              *claude-deck.list()*
     ターミナルを選んで表示します（非表示のものも含む）。fzf-lua では、<CR>
@@ -109,10 +115,11 @@ pick_dir({opts})                                      *claude-deck.pick_dir()*
 fork({where}, {opts})                                    *claude-deck.fork()*
     今のターミナルのセッションを分岐させた新しいターミナルを開きます。
     `claude --resume <session> --fork-session` を実行します。{opts.model} を
-    省くと、今のターミナルのモデルを引き継ぎます。{opts.orchestration} を省くと
-    orchestration の設定も引き継ぎます（|claude-deck.new()| を参照）。
-    `:ClaudeDeck fork [right|below] [--model <model>] [--orchestrate]` でも指定
-    できます。
+    省くと、今のターミナルのモデルを引き継ぎます。{opts.permission_mode} を
+    省くと権限モードを、{opts.orchestration} を省くと orchestration の設定も
+    引き継ぎます（|claude-deck.new()| を参照）。
+    `:ClaudeDeck fork [right|below] [--model <model>] [--orchestrate]
+    [--permission-mode <mode>]` でも指定できます。
 
 rename()                                                *claude-deck.rename()*
     今のターミナルのタスク名を変更します。ここで付けた名前は、Claude が
@@ -195,8 +202,11 @@ open_diff({opts})                                    *claude-deck.open_diff()*
 spawn({opts})                                           *claude-deck.spawn()*
     今のタブ・window・カーソル・モードを変えずに、別のターミナルに新しい
     Claude Code のセッションを起動し、その番号を返します（失敗したときは nil
-    とメッセージ）。{opts}: { prompt, cwd, model, title, show,
-    orchestration }。{prompt} は
+    とメッセージ）。{opts}: { prompt, cwd, model,
+    permission_mode, title, show, orchestration }。{permission_mode} の既定は
+    `cli.spawn_permission_mode` です（値は |claude-deck.new()| を参照。
+    "bypassPermissions" は worker の権限確認をすべて無効にするので、
+    サンドボックスの中でだけ使ってください）。{prompt} は
     必須で、Claude Code の最初の引数として渡します。{cwd} を省くと今の
     ターミナルの cwd になり、存在するディレクトリでなければなりません。
     {title} は 40 セルまでです。{show} が true でなければターミナルは非表示
@@ -372,6 +382,7 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
                             プルリクエストの差分（または未コミットの変更）
                             をそこに開く
     ct spawn [--title title] [--cwd dir] [--model model]
+             [--permission-mode mode]
              (--prompt text | --prompt-file path) [--show]
                             非表示のターミナルに新しいセッションを起動する
     ct send id (--prompt text | --prompt-file path)
@@ -431,9 +442,11 @@ macOS で terminal-notifier の通知が表示されないときは、システ�
 `id`、`state`（設定で変えられる表示名ではなく内部名: idle・running・
 waiting・attention・exited）、`title`、`title_source`（"claude"・"user"・
 "auto"、または null）、`cwd`、`session_id`、`transcript_path`、`model`、
-`spawned_by`、`orchestration`（true または false）、`usage` を持ちます
+`permission_mode`、`spawned_by`、`orchestration`（true または false）、`usage` を持ちます
 （不明な値は null。`orchestration` を除く）。`model` はターミナルの起動時に
 要求したモデルで、Claude Code が実際に使うモデルとは限りません。
+`permission_mode` は `--permission-mode` で要求したモードです（指定がなければ
+null）。
 `usage` は、まだ読める transcript がない場合（または `cli.usage` が false の
 場合）は null で、そうでなければ `{"model", "turns", "input_tokens",
 "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens",
@@ -451,7 +464,7 @@ transcript の形式は Claude Code の内部仕様で、変わる可能性が�
 
 `ct spawn` は、新しいターミナルに Claude Code のセッションを起動し
 （|claude-deck.spawn()|）、`{"id": 4, "cwd": "...", "model": null,
-"title": "..."}` を 1 行で出力します。`--prompt text` と `--prompt-file path`
+"permission_mode": null, "title": "..."}` を 1 行で出力します。`--prompt text` と `--prompt-file path`
 のどちらか一方だけを指定します（ファイルは Neovim が読み込み、相対パスは
 Claude のシェルのカレントディレクトリからの相対です）。プロンプトは入力欄に
 打ち込まれるのではなく、Claude Code の最初の引数として（`--` の後に）渡さ
@@ -464,7 +477,15 @@ Claude のシェルのカレントディレクトリからの相対です）。�
 されていないときはタブの右端。ほかの window の大きさが変わることがありま
 す）に開き、フォーカスは元の場所に残ります。Claude Code を起動できないと
 きは、何も残さずエラーを出力します。終了していない起動済みのターミナルは `cli.spawn_limit` 個まで
-です。`ct spawn` は事前に許可されていません。そのターミナルで orchestration が有効（`ct orchestrate` を参照）な場合を除き、そのつど Claude Code があなたに
+です。`--permission-mode mode`（default・acceptEdits・plan・auto・
+bypassPermissions）で worker の権限モードを指定します。省くと
+`cli.spawn_permission_mode` が使われ、それも未設定なら Claude Code 自身の既定
+になり、worker は権限の確認のたびに止まります（状態は attention）。親は
+これに答えられません。`acceptEdits`（または `auto`）なら止まらずに進められます。
+モードはあなたが決めるもので、Claude には、あなたの指示に従い、
+bypassPermissions を自分では選ばないよう伝えています。bypassPermissions は
+worker の権限確認をすべて無効にするので、サンドボックスの中でだけ使って
+ください。`ct spawn` は事前に許可されていません。そのターミナルで orchestration が有効（`ct orchestrate` を参照）な場合を除き、そのつど Claude Code があなたに
 許可を求め、Claude には、他のセッションに作業を任せるよう頼まれたときだけ
 使うよう伝えています。
 
@@ -581,6 +602,12 @@ orchestration を求めた場合（たとえば /orchestrate）を除き、自�
                           （既定: true）
     cli.spawn_limit       `ct spawn` で起動した、終了していないターミナルの
                           最大数（既定: 3）
+    cli.spawn_permission_mode
+                          フラグなしの `ct spawn` に使う `--permission-mode`:
+                          default・acceptEdits・plan・auto・
+                          bypassPermissions（既定: nil。Claude Code 自身の
+                          既定）。bypassPermissions は権限確認をすべて
+                          無効にする（サンドボックス専用）
     cli.allow_orchestration
                           新しいターミナルの既定値: `ct spawn` と `ct send` を
                           許可の確認なしで実行できるようにする（既定: false）

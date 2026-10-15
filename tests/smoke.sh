@@ -660,6 +660,45 @@ check "an explicit model replaces --model in cmd" "$(model_args "$M2")" "--model
 check "the replaced --model is not duplicated" "$(grep -c -x -e '--model' "$TEST_OUT/args.$M2")|$(grep -c opus "$TEST_OUT/args.$M2")" "1|0"
 check "an explicit model replaces --model=X in cmd" "$(grep -c -x -e '--model' "$TEST_OUT/args.$M3")|$(grep -c -x -e '--model=opus' "$TEST_OUT/args.$M3")" "1|0"
 
+# Per-terminal permission mode
+lua '(function() vim.cmd("only"); require("claude-deck").new("below", { permission_mode = "acceptEdits" }); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+PT=$(lua 'vim.b.claude_deck_id')
+check "new(opts.permission_mode) passes --permission-mode and the value" "$(model_args "$PT")" "--permission-mode acceptEdits"
+check "the requested permission mode is recorded" "$(lua 'tostring(require("claude-deck.state").get('"$PT"').permission_mode)')" "acceptEdits"
+check "new() inherits no permission mode" "$(lua 'tostring(require("claude-deck.state").get('"$MT"').permission_mode)')" "nil"
+hook "$PT" SessionStart '{"cwd":"'"$ROOT"'","session_id":"sess-perm"}'
+lua '(function() require("claude-deck").fork(); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+PF=$(lua 'vim.b.claude_deck_id')
+check "fork inherits the permission mode" "$(model_args "$PF")" "--resume sess-perm --fork-session --permission-mode acceptEdits"
+lua '(function() vim.cmd("close"); require("claude-deck").fork("below", { permission_mode = "plan" }); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+check "fork with an explicit permission mode overrides" "$(model_args "$(lua 'vim.b.claude_deck_id')")" "--resume sess-perm --fork-session --permission-mode plan"
+lua '(function() vim.cmd("close"); vim.cmd("ClaudeDeck new below --permission-mode acceptEdits"); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+check ":ClaudeDeck new below --permission-mode acceptEdits" "$(model_args "$(lua 'vim.b.claude_deck_id')")" "--permission-mode acceptEdits"
+lua '(function() vim.cmd("close"); vim.cmd("ClaudeDeck fork below --permission-mode=auto"); vim.cmd("stopinsert"); return "" end)()' >/dev/null
+check ":ClaudeDeck fork --permission-mode=auto" "$(model_args "$(lua 'vim.b.claude_deck_id')")" "--permission-mode auto"
+lua '(function() vim.cmd("close"); return "" end)()' >/dev/null
+check ":ClaudeDeck new with an invalid permission mode warns" "$(lua 'T_notify(function() vim.cmd("ClaudeDeck new below --permission-mode nope") end)')" "invalid permission mode: nope (use default, acceptEdits, plan, auto or bypassPermissions)"
+# redraw keeps the permission mode
+lua '(function() vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$PT"').buf); return "" end)()' >/dev/null
+hook "$PT" Stop '{}'
+lua '(function() require("claude-deck").redraw(); return "" end)()' >/dev/null
+sleep 1.5
+check "redraw keeps the permission mode" "$(model_args "$PT")" "--resume sess-perm --permission-mode acceptEdits"
+lua '(function() vim.cmd("stopinsert"); return "" end)()' >/dev/null
+# An explicit mode replaces --permission-mode in cmd
+lua '(function() local o = vim.deepcopy(T_opts); vim.list_extend(o.cmd, { "--permission-mode", "plan" }); require("claude-deck").setup(o); require("claude-deck").new("below"); vim.cmd("stopinsert"); _G.T_id1 = vim.b.claude_deck_id; vim.cmd("close"); require("claude-deck").new("below", { permission_mode = "acceptEdits" }); vim.cmd("stopinsert"); _G.T_id2 = vim.b.claude_deck_id; vim.cmd("close"); local o2 = vim.deepcopy(T_opts); vim.list_extend(o2.cmd, { "--permission-mode=plan" }); require("claude-deck").setup(o2); require("claude-deck").new("below", { permission_mode = "acceptEdits" }); vim.cmd("stopinsert"); _G.T_id3 = vim.b.claude_deck_id; vim.cmd("close"); require("claude-deck").setup(T_opts); return "" end)()' >/dev/null
+sleep 0.5
+P1=$(lua '_G.T_id1') P2=$(lua '_G.T_id2') P3=$(lua '_G.T_id3')
+check "cmd with --permission-mode is kept without an explicit mode" "$(model_args "$P1")" "--permission-mode plan"
+check "an explicit mode replaces --permission-mode in cmd" "$(grep -c -x -e '--permission-mode' "$TEST_OUT/args.$P2")|$(grep -c -x plan "$TEST_OUT/args.$P2")|$(grep -c -x acceptEdits "$TEST_OUT/args.$P2")" "1|0|1"
+check "an explicit mode replaces --permission-mode=X in cmd" "$(grep -c -x -e '--permission-mode' "$TEST_OUT/args.$P3")|$(grep -c -x -e '--permission-mode=plan' "$TEST_OUT/args.$P3")" "1|0"
+check "ct list shows the permission mode" "$(NVIM="$SOCK" bin/ct list)" "permission_mode: acceptEdits"
+check "ct list shows (default) without a permission mode" "$(NVIM="$SOCK" bin/ct list)" "permission_mode: (default)"
+JP=$(NVIM="$SOCK" CLAUDE_DECK_ID="$MT" bin/ct list --json)
+check "ct list --json: permission_mode follows model" "$JP" '"model":"haiku","permission_mode":null'
+check "ct list --json: permission_mode value" "$JP" '"permission_mode":"acceptEdits"'
+lua '(function() vim.cmd("only"); vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$MT"').buf); return "" end)()' >/dev/null
+
 # ct list shows the model; ct list --json
 check "ct list shows the model" "$(NVIM="$SOCK" bin/ct list)" "model: haiku"
 check "ct list shows (default) without a model" "$(NVIM="$SOCK" bin/ct list)" "model: (default)"
@@ -816,6 +855,25 @@ check "ct spawn with a bad cmd names the command" "$OUT" "nonexistent"
 check "ct spawn with a bad cmd opens no window" "$(lua '#vim.api.nvim_list_wins()')" "$FAIL_WINS"
 check "ct spawn with a bad cmd adds no terminal" "$(NVIM="$SOCK" bin/ct list --json | grep -o '"spawned_by"' | wc -l | tr -d ' ')" "$FAIL_TERMS"
 check "ct spawn with a bad cmd restores eventignore" "$(lua 'vim.o.eventignore')" "$FAIL_EI"
+# ct spawn --permission-mode and cli.spawn_permission_mode
+OUT=$(ct_spawn --prompt "pm" --permission-mode auto)
+SIDP=$(echo "$OUT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+sleep 0.5
+check "ct spawn --permission-mode auto prints the mode" "$OUT" '"permission_mode":"auto"'
+check "ct spawn --permission-mode passes the mode before --" "$(tail -n 4 "$TEST_OUT/args.$SIDP" | head -2 | tr '\n' ' ')" "--permission-mode auto "
+check "ct spawn: permission mode is recorded" "$(lua 'require("claude-deck.state").get('"$SIDP"').permission_mode')" "auto"
+check "ct spawn --permission-mode=plan form" "$(ct_spawn --prompt pm --permission-mode=plan)" '"permission_mode":"plan"'
+check "ct spawn without a mode passes none" "$(ct_spawn --prompt pm)" '"permission_mode":null'
+check "ct spawn refuses an invalid permission mode" "$(ct_spawn --prompt pm --permission-mode nope)" "ct: invalid permission mode: nope (use default, acceptEdits, plan, auto or bypassPermissions) exit=1"
+check "ct spawn --permission-mode needs a value" "$(ct_spawn --prompt pm --permission-mode)" "ct: --permission-mode needs a value exit=1"
+lua '(function() local o = vim.deepcopy(T_opts); o.cli = { spawn_limit = 20, spawn_permission_mode = "acceptEdits" }; require("claude-deck").setup(o); return "" end)()' >/dev/null
+check "cli.spawn_permission_mode applies without the flag" "$(ct_spawn --prompt pm)" '"permission_mode":"acceptEdits"'
+check "--permission-mode overrides cli.spawn_permission_mode" "$(ct_spawn --prompt pm --permission-mode plan)" '"permission_mode":"plan"'
+check "spawn() uses cli.spawn_permission_mode" "$(lua '(function() local id = require("claude-deck").spawn({ prompt = "api" }); return require("claude-deck.state").get(id).permission_mode end)()')" "acceptEdits"
+check "spawn() with an invalid permission mode returns a message" "$(lua '(function() local id, err = require("claude-deck").spawn({ prompt = "api", permission_mode = "x" }); return tostring(id) .. " " .. err end)()')" "nil invalid permission mode: x"
+check "an invalid cli.spawn_permission_mode warns and falls back to nil" "$(lua '(function() local o = vim.deepcopy(T_opts); o.cli = { spawn_permission_mode = "nope" }; local w = T_notify(function() require("claude-deck").setup(o) end); return w .. "|" .. tostring(require("claude-deck.config").options.cli.spawn_permission_mode) end)()')" "cli.spawn_permission_mode"
+check "the fallback of an invalid cli.spawn_permission_mode is nil" "$(lua 'tostring(require("claude-deck.config").options.cli.spawn_permission_mode)')" "nil"
+lua '(function() local o = vim.deepcopy(T_opts); o.cli = { spawn_limit = 20 }; require("claude-deck").setup(o); return "" end)()' >/dev/null
 # Lua API
 check "spawn() returns the id" "$(lua '(function() local id = require("claude-deck").spawn({ prompt = "api", title = "Api", model = "haiku" }); local t = require("claude-deck.state").get(id); return t.title .. " " .. t.model .. " " .. t.spawned_by end)()')" "Api haiku $MT"
 check "spawn() without a prompt returns nil and a message" "$(lua '(function() local id, err = require("claude-deck").spawn({}); return tostring(id) .. " " .. err end)()')" "nil no prompt given"

@@ -59,6 +59,7 @@ local function json_list(self_id)
                 { "transcript_path", term.transcript_path or vim.NIL },
                 -- The model requested when the terminal was started (not confirmed by Claude Code)
                 { "model", term.model or vim.NIL },
+                { "permission_mode", term.permission_mode or vim.NIL },
                 { "spawned_by", term.spawned_by or vim.NIL },
                 { "orchestration", term.orchestration == true },
                 { "usage", usage_json(M.usage(term)) },
@@ -109,6 +110,7 @@ function M.list(self_id, json)
         table.insert(lines, "\tsession_id: " .. (term.session_id or "(not started)"))
         table.insert(lines, "\ttranscript: " .. (term.transcript_path or "(not started)"))
         table.insert(lines, "\tmodel: " .. (term.model or "(default)"))
+        table.insert(lines, "\tpermission_mode: " .. (term.permission_mode or "(default)"))
         table.insert(lines, "\torchestration: " .. (term.orchestration and "on" or "off"))
         local usage = M.usage(term)
         table.insert(
@@ -348,7 +350,7 @@ local function new_request(term, caller, text)
 end
 
 -- Starts a new terminal for `ct spawn` / spawn(). `caller`: the terminal that asks (or nil).
--- opts: { prompt, cwd (relative to opts.base, default: the caller's cwd), base, model, title,
+-- opts: { prompt, cwd (relative to opts.base, default: the caller's cwd), base, model, permission_mode, title,
 -- show, orchestration }. Returns the terminal, or nil and a "ct: …" message. Nothing is created on an error.
 function M.spawn_term(caller, opts)
     local prompt = opts.prompt
@@ -362,6 +364,18 @@ function M.spawn_term(caller, opts)
     local model = opts.model
     if model ~= nil and (type(model) ~= "string" or model == "" or vim.startswith(model, "-")) then
         return nil, "ct: invalid model: " .. tostring(model)
+    end
+
+    local config = require("claude-deck.config")
+    local permission_mode = opts.permission_mode
+    if permission_mode == nil then
+        permission_mode = config.options.cli.spawn_permission_mode
+    end
+    if permission_mode ~= nil and not config.is_permission_mode(permission_mode) then
+        return nil,
+            "ct: invalid permission mode: "
+                .. tostring(permission_mode)
+                .. " (use default, acceptEdits, plan, auto or bypassPermissions)"
     end
 
     local title
@@ -406,6 +420,7 @@ function M.spawn_term(caller, opts)
     local caller_win = caller and vim.fn.bufwinid(caller.buf)
     local ok, term = pcall(require("claude-deck.terminal").start_detached, cwd, {
         model = model,
+        permission_mode = permission_mode,
         prompt = prompt,
         show = opts.show,
         caller_win = (caller_win and caller_win > 0) and caller_win or nil,
@@ -434,9 +449,10 @@ local function read_file(path)
     return content
 end
 
-local SPAWN_VALUE_OPTIONS = { "--title", "--cwd", "--model", "--prompt", "--prompt-file" }
+local SPAWN_VALUE_OPTIONS = { "--title", "--cwd", "--model", "--permission-mode", "--prompt", "--prompt-file" }
 
--- `ct spawn [--title <title>] [--cwd <dir>] [--model <model>] (--prompt <text> | --prompt-file
+-- `ct spawn [--title <title>] [--cwd <dir>] [--model <model>] [--permission-mode <mode>]
+-- (--prompt <text> | --prompt-file
 -- <path>) [--show]`: starts a new terminal without changing what the user sees (with --show:
 -- next to terminal `id`) and returns its id etc. as one line of JSON. `args`: the arguments as
 -- a list; relative paths are relative to `pwd` (the shell's current directory).
@@ -494,6 +510,7 @@ function M.spawn(id, args, pwd)
         cwd = opts.cwd,
         base = pwd,
         model = opts.model,
+        permission_mode = opts.permission_mode,
         title = opts.title,
         show = opts.show,
     })
@@ -504,6 +521,7 @@ function M.spawn(id, args, pwd)
         id = term.id,
         cwd = term.cwd,
         model = term.model or vim.NIL,
+        permission_mode = term.permission_mode or vim.NIL,
         title = term.title ~= "" and term.title or vim.NIL,
     })
 end

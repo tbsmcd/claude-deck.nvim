@@ -66,3 +66,14 @@
 - ターミナルごとにパス・読み込み済みのバイト位置・集計値をキャッシュし、追記された分だけを読みます（ファイルが縮んだ、またはパスが変わったら最初から）。`ct list --json` は大きな transcript でも軽いままです。
 - ステータスライン（2 行目）に ` · ` 区切りで `<n>k ctx` を出します。ステータスラインの再描画（`Stop` などの hook）のたびに差分だけを読みます。
 - transcript の形式は Claude Code の内部仕様で、変わる可能性があります。数値は transcript の記録で、請求額ではありません。`cli.usage = false` で無効にできます（usage は null、transcript は読みません）。
+
+## 実装済み（ターミナルごとの権限モード）
+
+- worker は親の権限を引き継がないため、既定モードの親から起動した worker は権限の確認で止まり（状態は `attention`）、親は承認できません。そこで、モデルと同じ形でターミナルごとの権限モードを持てるようにしました。
+- `start_opts.permission_mode` を `--permission-mode <mode>`（別々の argv 要素）として渡します。値は `default`・`acceptEdits`・`plan`・`auto`・`bypassPermissions` で、一覧は `config.lua` の 1 つの表に置き、検証します。`cmd` に `--permission-mode X` / `--permission-mode=X` があるときは、明示的に指定した場合だけ取り除きます。
+- `term.permission_mode` に保存します（指定がなければ nil）。`fork()` は指定がなければ元のターミナルのモードを引き継ぎ、`redraw()` は保持し、`new()` は何も引き継ぎません。
+- `new(where, { permission_mode })`、`fork(where, { permission_mode })`、`spawn({ permission_mode })`、`:ClaudeDeck new|fork [right|below] [--model m] [--orchestrate] [--permission-mode mode]`、`ct spawn [--permission-mode <mode>]`。不正な値は `ct: invalid permission mode: <x> (use default, acceptEdits, plan, auto or bypassPermissions)` で拒否します（`:ClaudeDeck` では警告）。
+- 設定 `cli.spawn_permission_mode`（既定 nil）は、`--permission-mode` なしの `ct spawn` / `spawn()` に使うモードです。nil なら何も渡さず、Claude Code 自身の既定になります。不正な値は警告して nil に戻します。
+- `ct list --json` の各要素に `model` の次の `permission_mode`（文字列または null）を、`ct list` に `\tpermission_mode: <mode または (default)>` の行を追加しました。`ct spawn` の出力にも `permission_mode` を含めます。
+- `bypassPermissions` は受け付けますが、コードでは特別扱いしません。ドキュメントで、その worker の権限確認をすべて無効にするのでサンドボックスの中でだけ使うよう明記しています。
+- システムプロンプトの `ct spawn` の説明に、`--permission-mode acceptEdits`（または `auto`）で worker が確認で止まらずに進められること、モードはユーザーが決めること（指示やスキルに従い、`bypassPermissions` を自分では選ばない）を追記しました。

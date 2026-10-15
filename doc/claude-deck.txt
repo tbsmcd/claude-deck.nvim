@@ -85,7 +85,14 @@ new({where}, {opts})                                       *claude-deck.new()*
     {opts.orchestration} (optional) turns `ct spawn` / `ct send` without a
     permission prompt on or off for the new terminal (default:
     `cli.allow_orchestration`; see |claude-deck.set_orchestration()|).
-    Also `:ClaudeDeck new [right|below] [--model <model>] [--orchestrate]`.
+    {opts.permission_mode} (optional) is the permission mode, passed as
+    `--permission-mode <mode>`: "default", "acceptEdits", "plan", "auto" or
+    "bypassPermissions". It replaces a `--permission-mode` in the `cmd`
+    option. Without it Claude Code's own default applies. "bypassPermissions"
+    disables all permission prompts of that terminal; use it only in a
+    sandbox.
+    Also `:ClaudeDeck new [right|below] [--model <model>] [--orchestrate]
+    [--permission-mode <mode>]`.
 
 list({opts})                                                *claude-deck.list()*
     Pick a terminal, including hidden ones, and show it. With fzf-lua,
@@ -108,10 +115,11 @@ pick_dir({opts})                                        *claude-deck.pick_dir()*
 
 fork({where}, {opts})                                     *claude-deck.fork()*
     Open a new terminal that runs `claude --resume <session> --fork-session`
-    for the current terminal's session. It keeps the model of the current
-    terminal, and its orchestration setting, unless {opts.model} /
-    {opts.orchestration} is given (see |claude-deck.new()|). Also
-    `:ClaudeDeck fork [right|below] [--model <model>] [--orchestrate]`.
+    for the current terminal's session. It keeps the model, the permission
+    mode and the orchestration setting of the current terminal unless
+    {opts.model} / {opts.permission_mode} / {opts.orchestration} is given
+    (see |claude-deck.new()|). Also `:ClaudeDeck fork [right|below]
+    [--model <model>] [--orchestrate] [--permission-mode <mode>]`.
 
 rename()                                                  *claude-deck.rename()*
     Rename the current terminal's task. This title takes precedence over
@@ -191,8 +199,11 @@ open_diff({opts})                                    *claude-deck.open_diff()*
 spawn({opts})                                            *claude-deck.spawn()*
     Start a new Claude Code session in another terminal without changing
     the current tab, window, cursor or mode, and return its id (nil and a
-    message on failure). {opts}: { prompt, cwd, model, title, show,
-    orchestration }.
+    message on failure). {opts}: { prompt, cwd, model,
+    permission_mode, title, show, orchestration }. {permission_mode}
+    defaults to `cli.spawn_permission_mode` (see |claude-deck.new()| for
+    the values; "bypassPermissions" disables all permission prompts of the
+    worker, so use it only in a sandbox).
     {prompt} is required and is passed to Claude Code as its first
     argument. {cwd} defaults to the cwd of the current terminal and must be
     an existing directory. {title} is at most 40 cells. The terminal is
@@ -360,6 +371,7 @@ Inside a terminal, `ct` is on PATH and Claude is told about it:
                             open the diff of the pull request (or of the
                             uncommitted changes) there
     ct spawn [--title title] [--cwd dir] [--model model]
+             [--permission-mode mode]
              (--prompt text | --prompt-file path) [--show]
                             start a new session in a hidden terminal
     ct send id (--prompt text | --prompt-file path)
@@ -420,9 +432,11 @@ greeter.rb".
 sorted by id: `id`, `state` (the internal name: idle, running, waiting,
 attention or exited, not the configurable label), `title`, `title_source`
 ("claude", "user", "auto" or null), `cwd`, `session_id`, `transcript_path`,
-`model`, `spawned_by`, `orchestration` (true or false; null when not known,
+`model`, `permission_mode`, `spawned_by`, `orchestration` (true or false; null when not known,
 except `orchestration`) and `usage`. `model` is the model that
 was requested when the terminal was started; Claude Code may use another.
+`permission_mode` is the mode requested with `--permission-mode` (null when
+none was given).
 `usage` is null when there is no readable transcript yet (or `cli.usage` is
 false), otherwise `{"model", "turns", "input_tokens", "output_tokens",
 "cache_read_input_tokens", "cache_creation_input_tokens", "context_tokens"}`,
@@ -440,7 +454,7 @@ appended part of the file is read each time. `ct list` prints the same as one
 
 `ct spawn` starts a new Claude Code session in a new terminal
 (|claude-deck.spawn()|) and prints `{"id": 4, "cwd": "...", "model": null,
-"title": "..."}` on one line. Give exactly one of `--prompt text` and
+"permission_mode": null, "title": "..."}` on one line. Give exactly one of `--prompt text` and
 `--prompt-file path` (read by Neovim; a relative path is relative to
 Claude's shell); it is passed to Claude Code as its first argument (after
 `--`), not typed into it, and registered as the terminal's first request
@@ -451,7 +465,15 @@ not change. With `--show` it opens to the right of the calling terminal
 instead (at the far right of the tab when the caller is not shown in it;
 other windows may be resized) and the focus stays. If Claude Code cannot
 be started, nothing is left behind and the error is printed. `cli.spawn_limit` limits the spawned
-terminals that have not exited. `ct spawn` is not allowed in advance:
+terminals that have not exited. `--permission-mode mode` (default,
+acceptEdits, plan, auto or bypassPermissions) sets the worker's permission
+mode; without it `cli.spawn_permission_mode` applies, and when that is unset
+too, Claude Code's own default applies and the worker stops at every
+permission prompt (state attention), which the parent cannot answer.
+`acceptEdits` (or `auto`) lets it proceed. The mode is your decision: Claude
+is told to follow your instructions and not to pick bypassPermissions on
+its own; that mode disables all permission prompts of the worker, so use it
+only in a sandbox. `ct spawn` is not allowed in advance:
 Claude Code asks you for permission each time unless orchestration is on
 for the terminal (see `ct orchestrate`), and Claude is told to use it
 only when you asked it to delegate work to other sessions.
@@ -565,6 +587,12 @@ succeeded.
                           `ct title` works either way  (default: true)
     cli.spawn_limit       max number of terminals started by `ct spawn` that
                           have not exited  (default: 3)
+    cli.spawn_permission_mode
+                          `--permission-mode` for `ct spawn` without the
+                          flag: default, acceptEdits, plan, auto or
+                          bypassPermissions (default: nil, Claude Code's
+                          own default). bypassPermissions disables all
+                          permission prompts: sandbox only
     cli.allow_orchestration
                           default for new terminals: allow `ct spawn` and
                           `ct send` without a permission prompt
