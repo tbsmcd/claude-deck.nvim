@@ -60,7 +60,8 @@ local function two_lines()
     return require("claude-deck.config").options.statusline and vim.o.laststatus ~= 3
 end
 
--- Line 1: " #2 Running │ task title". Without the statusline, the cwd is right-aligned here,
+-- Line 1: " #2 Running │ task title" (" #2›#3 Running │ …" for a spawned terminal, " #2 Running ·2 │ …"
+-- for one with 2 live spawned terminals). Without the statusline, the cwd is right-aligned here,
 -- shortened or dropped before the title is cut.
 function M.winbar()
     local win = vim.g.statusline_winid
@@ -69,7 +70,10 @@ function M.winbar()
         return ""
     end
 
-    local prefix = string.format(" #%d %s │ ", term.id, state.label(term.state))
+    local id = term.spawned_by and string.format("#%d›#%d", term.spawned_by, term.id) or "#" .. term.id
+    local alive = #state.children(term.id, true)
+    local count = alive > 0 and " ·" .. alive or ""
+    local prefix = string.format(" %s %s%s │ ", id, state.label(term.state), count)
     local available = vim.api.nvim_win_get_width(win) - width(prefix) - 1
     local title = state.title(term)
     local cwd = ""

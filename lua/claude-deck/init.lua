@@ -238,18 +238,26 @@ end
 -- Pick a terminal to show. opts.where applies when the picker has no split keys.
 function M.list(opts)
     ensure_setup()
-    local list = state.sorted()
+    local list = state.tree()
     if #list == 0 then
         vim.notify("claude-deck: no terminals", vim.log.levels.INFO)
         return
     end
 
+    -- The id column is widened by the child marker for all lines when any terminal has a parent
+    local nested = false
+    for _, entry in ipairs(list) do
+        nested = nested or entry.depth > 0
+    end
+
     local items = {}
-    for _, term in ipairs(list) do
+    for _, entry in ipairs(list) do
+        local term = entry.term
         table.insert(items, {
             value = term.id,
             text = string.format(
-                "#%d [%s]\t%s\t%s\t%s",
+                "%s#%d [%s]\t%s\t%s\t%s",
+                entry.depth > 0 and "  └ " or (nested and "    " or ""),
                 term.id,
                 state.label(term.state),
                 vim.fn.fnamemodify(term.cwd, ":~"),

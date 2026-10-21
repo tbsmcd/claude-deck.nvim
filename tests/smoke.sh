@@ -897,6 +897,38 @@ lua '(function() local o = vim.deepcopy(T_opts); o.cli = { spawn_limit = 20 }; r
 # Lua API
 check "spawn() returns the id" "$(lua '(function() local id = require("claude-deck").spawn({ prompt = "api", title = "Api", model = "haiku" }); local t = require("claude-deck.state").get(id); return t.title .. " " .. t.model .. " " .. t.spawned_by end)()')" "Api haiku $MT"
 check "spawn() without a prompt returns nil and a message" "$(lua '(function() local id, err = require("claude-deck").spawn({}); return tostring(id) .. " " .. err end)()')" "nil no prompt given"
+# Spawn tree: winbar, picker and ct list
+lua '(function() vim.cmd("only"); require("claude-deck").new("below"); vim.cmd("stopinsert"); _G.T_P = vim.b.claude_deck_id; return "" end)()' >/dev/null
+PT=$(lua '_G.T_P')
+C1=$(NVIM="$SOCK" CLAUDE_DECK_ID="$PT" bin/ct spawn --title "Kid one" --prompt a | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+C2=$(NVIM="$SOCK" CLAUDE_DECK_ID="$PT" bin/ct spawn --title "Kid two" --prompt b | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+winbar_of() { lua '(function() vim.api.nvim_set_current_buf(require("claude-deck.state").get('"$1"').buf); vim.cmd("stopinsert"); return T_winbar() end)()'; }
+picker_line() { # offset from the parent's line
+    lua '(function() local p; for i, l in ipairs(_G.last_picker.lines) do if l:find("#'"$PT"' %[") then p = i end end; return _G.last_picker.lines[p + '"$1"'] end)()'
+}
+check "winbar: a spawned terminal shows its parent" "$(winbar_of "$C1")" "#$PT›#$C1 "
+check "winbar: a parent shows the count of live children" "$(winbar_of "$PT")" "#$PT "
+check "winbar: the count follows the status" "$(winbar_of "$PT")" "·2 │ "
+check "winbar: a terminal without a parent is unchanged" "$(winbar_of 1)" " #1 "
+lua '(function() vim.fn.jobstop(require("claude-deck.state").get('"$C2"').job); return "" end)()' >/dev/null
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+    [ "$(lua 'require("claude-deck.state").get('"$C2"').state')" = exited ] && break
+    sleep 0.3
+done
+check "winbar: the count drops when a child exits" "$(winbar_of "$PT")" "·1 │ "
+check "state.children(alive_only)" "$(lua '#require("claude-deck.state").children('"$PT"') .. "/" .. #require("claude-deck.state").children('"$PT"', true)')" "2/1"
+lua '(function() require("claude-deck").list(); return "" end)()' >/dev/null
+check "picker: the first child follows the parent, with the marker" "$(picker_line 1)" "	  └ #$C1 ["
+check "picker: the second child follows the first" "$(picker_line 2)" "	  └ #$C2 ["
+check "picker: top-level lines are padded when children exist" "$(picker_line 0)" "	    #$PT ["
+LT=$(NVIM="$SOCK" bin/ct list | grep -v '^	' | sed 's/	.*//' | tr '\n' ' ')
+case "$LT" in
+*"#$PT   └ #$C1   └ #$C2 "*) echo "ok   - ct list: tree order with the marker" ;;
+*) echo "FAIL - ct list: tree order with the marker"; echo "       actual: $LT"; failures=$((failures + 1)) ;;
+esac
+check "ct list --json: sorted by id" "$(NVIM="$SOCK" bin/ct list --json | grep -o '"id":[0-9]*,"state"' | sed 's/,"state"//' | tr '\n' ' ')" "\"id\":$PT \"id\":$C1 \"id\":$C2 "
+check "ct list --json: no marker" "$(NVIM="$SOCK" bin/ct list --json | grep -c '└')" "0"
+
 lua '(function() require("claude-deck").setup(T_opts); vim.cmd("only"); return "" end)()' >/dev/null
 
 # ct send / ct wait

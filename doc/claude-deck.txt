@@ -98,6 +98,8 @@ list({opts})                                                *claude-deck.list()*
     Pick a terminal, including hidden ones, and show it. With fzf-lua,
     <CR> opens with the default placement, <C-v> splits right and <C-s>
     splits below. {opts}.where sets the placement for |vim.ui.select|.
+    Terminals started by `ct spawn` are listed directly under their parent,
+    prefixed with `  └ `.
 
 pick_dir({opts})                                        *claude-deck.pick_dir()*
     Pick a directory and open a new terminal there. Candidates, in order:
@@ -456,6 +458,8 @@ appended part of the file is read each time. `ct list` prints the same as one
 (for example `120k ctx`).
 
 `ct spawn` starts a new Claude Code session in a new terminal
+(its winbar shows `#6›#8`, the parent's winbar `·2` for the live ones; `ct list` and
+|claude-deck.list()| put it under its parent with `  └ `)
 (|claude-deck.spawn()|) and prints `{"id": 4, "cwd": "...", "model": null,
 "permission_mode": null, "title": "..."}` on one line. Give exactly one of `--prompt text` and
 `--prompt-file path` (read by Neovim; a relative path is relative to

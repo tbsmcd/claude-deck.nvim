@@ -96,11 +96,13 @@ function M.list(self_id, json)
         return json_list(self_id)
     end
     local lines = {}
-    for _, term in ipairs(state.sorted()) do
+    for _, entry in ipairs(state.tree()) do
+        local term = entry.term
         table.insert(
             lines,
             string.format(
-                "#%d%s\t%s\t%s\t%s",
+                "%s#%d%s\t%s\t%s\t%s",
+                entry.depth > 0 and "  └ " or "",
                 term.id,
                 term.id == tonumber(self_id) and " (you)" or "",
                 state.label(term.state),

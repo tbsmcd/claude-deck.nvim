@@ -18,6 +18,7 @@
   - 成功時: `{"id": <新しい番号>, "cwd": "…", "model": <文字列|null>, "title": <文字列|null>}`（終了コード 0）。
   - エラー（`ct: …`、終了コード 1）: プロンプトなし、両方指定、プロンプトファイルを読めない、`--cwd` が不正、名前が 40 セル超（何も作る前に拒否）、claude-deck のターミナルの外、`ct: spawn limit reached (N)`。
   - 上限は `cli.spawn_limit`（既定 3）。`term.spawned = true` で終了していないものを数える。`term.spawned_by` に呼び出し元の番号を記録する。
+  - winbar は子に `#6›#8`、終了していない子を持つ親に `·2` を表示する。`list()` と `ct list`（テキスト）は子を親の直下に `  └ ` 付きで並べる（`state.children(id)` / `state.tree()`）。`ct list --json` は変えない。
   - `Bash(ct spawn:*)` と `Bash(ct send:*)` は既定では許可リストに入れない（そのつど Claude Code があなたに確認する）。`cli.allow_orchestration = true` のときだけ追加する。システムプロンプトには、作業を任せるよう頼まれたときだけ使うよう書いた。
   - Lua API: `require("claude-deck").spawn({ prompt, cwd, model, title, show })` が新しい番号（失敗時は nil とメッセージ）を返す。
 

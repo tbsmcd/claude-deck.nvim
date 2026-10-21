@@ -35,6 +35,38 @@ function M.sorted()
     return list
 end
 
+-- Terminals spawned by terminal `id` (`ct spawn`), sorted by id; with `alive_only`, not the exited ones
+function M.children(id, alive_only)
+    local list = {}
+    for _, term in ipairs(M.sorted()) do
+        if term.spawned_by == id and not (alive_only and term.state == "exited") then
+            table.insert(list, term)
+        end
+    end
+    return list
+end
+
+-- Display order of the picker and `ct list`: top-level terminals by id (the order the
+-- picker and `ct list` always had), each followed by
+-- its children (oldest first). A terminal whose parent is gone is top-level. Each entry is
+-- { term = term, depth = 0 | 1 }.
+function M.tree()
+    local out = {}
+    local function add(term, depth)
+        table.insert(out, { term = term, depth = depth })
+        for _, child in ipairs(M.children(term.id)) do
+            add(child, 1)
+        end
+    end
+    local sorted = M.sorted()
+    for _, term in ipairs(sorted) do
+        if not (term.spawned_by and M.terminals[term.spawned_by]) then
+            add(term, 0)
+        end
+    end
+    return out
+end
+
 -- Windows in the current tab that show a terminal
 function M.wins_in_tab()
     local wins = {}

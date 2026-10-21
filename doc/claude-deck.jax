@@ -95,7 +95,8 @@ new({where}, {opts})                                      *claude-deck.new()*
 list({opts})                                              *claude-deck.list()*
     ターミナルを選んで表示します（非表示のものも含む）。fzf-lua では、<CR>
     で既定の場所に開き、<C-v> で右に、<C-s> で下に分割して開きます。
-    {opts}.where で |vim.ui.select| のときの開く場所を指定します。
+    {opts}.where で |vim.ui.select| のときの開く場所を指定します。`ct spawn`
+    で起動したターミナルは、親の直下に `  └ ` を付けて表示します。
 
 pick_dir({opts})                                      *claude-deck.pick_dir()*
     ディレクトリを選んで、そこで新しいターミナルを開きます。候補は、今の
@@ -466,6 +467,8 @@ transcript の形式は Claude Code の内部仕様で、変わる可能性が�
 コンテキストの大きさ（例: `120k ctx`）が表示されます。
 
 `ct spawn` は、新しいターミナルに Claude Code のセッションを起動し
+（winbar には `#6›#8` と親の番号も表示し、親の winbar には終了していない子の数を
+`·2` と表示します。`ct list` と |claude-deck.list()| では親の直下に `  └ ` を付けて表示します）
 （|claude-deck.spawn()|）、`{"id": 4, "cwd": "...", "model": null,
 "permission_mode": null, "title": "..."}` を 1 行で出力します。`--prompt text` と `--prompt-file path`
 のどちらか一方だけを指定します（ファイルは Neovim が読み込み、相対パスは
