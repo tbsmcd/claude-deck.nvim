@@ -94,6 +94,7 @@ opts = {
 | `set_orchestration(id, enabled)` | `:ClaudeDeck orchestrate on\|off` | Turn `ct spawn` / `ct send` without a permission prompt on or off for terminal `id` (nil: the current one, or the one of this focus mode tab); see the `ct` section |
 | `rename()` | `:ClaudeDeck rename` | Rename the current task |
 | `redraw()` | `:ClaudeDeck redraw` | Draw the current terminal again at the current width by resuming the same session |
+| `equal()` | `:ClaudeDeck equal` | Give the terminals of the current tab the same width (side by side) or height (stacked), leaving other windows alone |
 | `show_settings()` | `:ClaudeDeck settings` | Show the Claude Code settings JSON (hooks, permissions) |
 | `focus()` | `:ClaudeDeck focus` | Toggle focus mode |
 | `send_location()` | `:ClaudeDeck location` | Insert the current file path and line (or selected lines) into Claude's prompt |
@@ -153,6 +154,8 @@ Keys typed in a terminal go to Claude, so leave terminal mode first to use windo
 Moving back into a terminal window enters terminal mode automatically (`auto_insert`).
 
 To run window commands without leaving terminal mode, set `keymaps.window = "<C-w>"` (Claude Code's `Ctrl+W`, delete word, is then unavailable).
+
+To reset the terminals to equal widths without touching the editor or file tree, run `equal()` (`:ClaudeDeck equal`); windows with `'winfixwidth'` are left as they are.
 
 Opening a terminal never resizes your other windows, even with `'equalalways'`: splits happen inside the terminal's area.
 

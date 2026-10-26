@@ -8,7 +8,7 @@ vim.api.nvim_create_user_command("ClaudeDeck", function(opts)
 end, {
     nargs = "*",
     range = true,
-    desc = "claude-deck: toggle / new / list / dir / fork / rename / redraw / focus / location / open / diff / settings / show / orchestrate",
+    desc = "claude-deck: toggle / new / list / dir / fork / rename / redraw / equal / focus / location / open / diff / settings / show / orchestrate",
     complete = function(arg_lead, cmdline)
         local args = vim.split(cmdline, "%s+", { trimempty = true })
         local completing_sub = #args == 1 or (#args == 2 and arg_lead ~= "")

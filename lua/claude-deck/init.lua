@@ -426,6 +426,94 @@ function M.fork(where, opts)
     state.set_title(term, "↳" .. (parent.title ~= "" and parent.title or ("#" .. parent.id)), "auto")
 end
 
+-- Give the terminal windows of the current tab the same size, leaving the other windows alone:
+-- terminals side by side (same row) get the same width, stacked ones (same column) the same
+-- height. Windows with 'winfixwidth' / 'winfixheight' are left as they are. Returns the number
+-- of windows resized.
+function M.equal()
+    local state = require("claude-deck.state")
+    local api = vim.api
+    local wins = vim.tbl_filter(function(win)
+        return api.nvim_win_get_config(win).relative == ""
+    end, state.wins_in_tab())
+    if #wins < 2 then
+        vim.notify("claude-deck: fewer than two terminals in this tab", vim.log.levels.INFO)
+        return 0
+    end
+
+    local resized = {}
+    -- axis: position index (1 = row, 2 = column) shared by a group
+    local function equalize(axis, fixed_opt, get, set)
+        local groups, keys = {}, {}
+        for _, win in ipairs(wins) do
+            if not vim.wo[win][fixed_opt] then
+                local pos = api.nvim_win_get_position(win)
+                local key = pos[axis]
+                if not groups[key] then
+                    groups[key] = {}
+                    table.insert(keys, key)
+                end
+                table.insert(groups[key], win)
+            end
+        end
+        for _, key in ipairs(keys) do
+            local group = groups[key]
+            if #group >= 2 then
+                local other = 3 - axis
+                table.sort(group, function(a, b)
+                    return api.nvim_win_get_position(a)[other] < api.nvim_win_get_position(b)[other]
+                end)
+                local sum = 0
+                for _, win in ipairs(group) do
+                    sum = sum + get(win)
+                end
+                local size = math.floor(sum / #group)
+                -- Fix the windows outside the group, so that the space is only exchanged inside it
+                local in_group, saved = {}, {}
+                for _, win in ipairs(group) do
+                    in_group[win] = true
+                end
+                for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+                    if not in_group[win] then
+                        saved[win] = { vim.wo[win].winfixwidth, vim.wo[win].winfixheight }
+                        vim.wo[win].winfixwidth = true
+                        vim.wo[win].winfixheight = true
+                    end
+                end
+                local set_ok, set_err = pcall(function()
+                    for _, win in ipairs(group) do
+                        set(win, size)
+                        resized[win] = true
+                    end
+                    -- Neovim passes the rounding on to the neighbours; set the last one again
+                    set(group[#group], size)
+                end)
+                for win, fixed in pairs(saved) do
+                    if api.nvim_win_is_valid(win) then
+                        vim.wo[win].winfixwidth = fixed[1]
+                        vim.wo[win].winfixheight = fixed[2]
+                    end
+                end
+                if not set_ok then
+                    error(set_err)
+                end
+            end
+        end
+    end
+
+    -- 'equalalways' is not toggled (turning it back on equalizes every window); the windows
+    -- outside each group are fixed while it is resized instead.
+    equalize(1, "winfixwidth", api.nvim_win_get_width, api.nvim_win_set_width)
+    equalize(2, "winfixheight", api.nvim_win_get_height, api.nvim_win_set_height)
+
+    local count = 0
+    for win in pairs(resized) do
+        require("claude-deck.terminal").fit_pty(win)
+        count = count + 1
+    end
+    return count
+end
+
 -- How long redraw() waits for Claude Code to exit after jobstop() (ms). Changed by the tests.
 M._redraw_timeout = 5000
 
@@ -716,6 +804,9 @@ local SUBCOMMANDS = {
     end,
     redraw = function()
         M.redraw()
+    end,
+    equal = function()
+        M.equal()
     end,
     focus = function()
         M.focus()

@@ -94,6 +94,7 @@ opts = {
 | `set_orchestration(id, enabled)` | `:ClaudeDeck orchestrate on\|off` | ターミナル `id`（nil なら今のターミナル、または集中モードのタブのターミナル）で、`ct spawn` / `ct send` を確認なしで実行できるかどうかを切り替えます。`ct` の節を参照してください |
 | `rename()` | `:ClaudeDeck rename` | 今のタスク名を変更します |
 | `redraw()` | `:ClaudeDeck redraw` | 同じセッションを開き直して、今のターミナルを今の幅で描き直します |
+| `equal()` | `:ClaudeDeck equal` | 今のタブのターミナルの幅（横に並んでいる場合）または高さ（縦に積んでいる場合）をそろえます。ほかの window は変更しません |
 | `show_settings()` | `:ClaudeDeck settings` | Claude Code に渡す設定の JSON（hook と権限）を表示します |
 | `focus()` | `:ClaudeDeck focus` | 集中モードを切り替えます |
 | `send_location()` | `:ClaudeDeck location` | 今のファイルのパスと行（または選択した行の範囲）を Claude の入力欄に挿入します |
@@ -153,6 +154,8 @@ fzf-lua のピッカーでは、`enter` で上のルールどおりに開き、`
 ターミナルの window に戻ると、自動でターミナルモードになります（`auto_insert`）。
 
 ターミナルモードのまま window を操作したい場合は、`keymaps.window = "<C-w>"` を設定してください。その代わり、Claude Code の `Ctrl+W`（単語の削除）は使えなくなります。
+
+エディタやファイルツリーの幅を変えずにターミナルだけを同じ幅に戻すには、`equal()`（`:ClaudeDeck equal`）を実行します。`'winfixwidth'` が設定された window は変更しません。
 
 `'equalalways'` が有効でも、ターミナルを開いたときに他の window の大きさは変わりません。分割はターミナルの領域の中で行います。
 

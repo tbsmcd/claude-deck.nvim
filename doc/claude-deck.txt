@@ -136,6 +136,15 @@ redraw()                                                  *claude-deck.redraw()*
     stale output fragments of the classic renderer
     (|claude-deck-limitations|).
 
+equal()                                                    *claude-deck.equal()*
+    Give the terminal windows of the current tab the same size, leaving
+    the other windows (editor, file tree) alone. Terminals side by side get
+    the same width, stacked ones the same height (the average of their
+    current sizes). Windows with 'winfixwidth' / 'winfixheight' are left as
+    they are. Returns the number of windows resized. With fewer than two
+    terminals in the tab, only a message is shown. Also
+    `:ClaudeDeck equal`.
+
 focus()                                                    *claude-deck.focus()*
     Inside a terminal, open a new tab with file tree | editor | terminal and
     |:tcd| to the terminal's cwd. In that tab, close it and return to the

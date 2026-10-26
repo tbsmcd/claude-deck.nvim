@@ -515,6 +515,13 @@ sleep 1
 check "closed window: redraw warns and stops" "$(lua "$captured")|$(lua '#vim.api.nvim_tabpage_list_wins(0) .. " " .. tostring(require("claude-deck.state").get('"$RT"'))')" "claude-deck: window for #$RT was closed; not redrawn|1 nil"
 lua '(function() vim.cmd("tabclose!"); return "" end)()' >/dev/null
 
+# equal()
+check "equal() with one terminal notifies" "$(lua '(function() vim.cmd("stopinsert | tabnew"); vim.o.columns = 200; require("claude-deck").new(); vim.cmd("stopinsert"); return T_notify(require("claude-deck").equal) end)()')" "claude-deck: fewer than two terminals in this tab"
+check "equal() equalizes terminals only" "$(lua '(function() vim.cmd("stopinsert | tabnew | vnew " .. vim.fn.tempname()); local editor = vim.api.nvim_get_current_win(); require("claude-deck").new(); vim.cmd("stopinsert"); require("claude-deck").new("right"); vim.cmd("stopinsert"); require("claude-deck").new("right"); vim.cmd("stopinsert"); local wins = require("claude-deck.state").wins_in_tab(); local sum = 0; vim.api.nvim_win_set_width(wins[1], 20); vim.api.nvim_win_set_width(wins[2], 50); for _, w in ipairs(wins) do sum = sum + vim.api.nvim_win_get_width(w) end; local ew = vim.api.nvim_win_get_width(editor); local n = require("claude-deck").equal(); local ws, after = {}, 0; for _, w in ipairs(wins) do local x = vim.api.nvim_win_get_width(w); table.insert(ws, x); after = after + x end; return n .. " " .. (math.max(unpack(ws)) - math.min(unpack(ws)) <= 1 and "equal" or "unequal") .. " " .. (sum - after <= 2 and sum >= after and "sum" or "badsum:" .. sum .. "/" .. after) .. " " .. (ew == vim.api.nvim_win_get_width(editor) and "editor" or "editor-changed") end)()')" "3 equal sum editor"
+check ":ClaudeDeck equal works" "$(lua '(function() local wins = require("claude-deck.state").wins_in_tab(); vim.api.nvim_win_set_width(wins[1], 30); vim.cmd("ClaudeDeck equal"); local a, b = vim.api.nvim_win_get_width(wins[1]), vim.api.nvim_win_get_width(wins[3]); return math.abs(a - b) <= 1 and "ok" or (a .. "/" .. b) end)()')" "ok"
+check "user command completion has equal" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck eq", "cmdline"), ",")')" "equal"
+lua '(function() vim.cmd("tabclose!"); return "" end)()' >/dev/null
+
 # User command
 check "user command completion" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck f", "cmdline"), ",")')" "focus,fork"
 check "user command completion has redraw" "$(lua 'table.concat(vim.fn.getcompletion("ClaudeDeck re", "cmdline"), ",")')" "redraw,rename"

@@ -134,6 +134,14 @@ redraw()                                                *claude-deck.redraw()*
     classic で残る古い出力の断片（|claude-deck-limitations|）を消すのに
     使います。
 
+equal()                                                  *claude-deck.equal()*
+    今のタブにあるターミナルの window を同じ大きさにそろえます。エディタや
+    ファイルツリーなどほかの window は変更しません。横に並んだターミナルは
+    同じ幅に、縦に積んだターミナルは同じ高さに（今の大きさの平均に）なります。
+    'winfixwidth' / 'winfixheight' が設定された window は変更しません。
+    大きさを変えた window の数を返します。タブにターミナルが 2 つ未満のとき
+    は、メッセージを表示するだけです。`:ClaudeDeck equal` でも実行できます。
+
 focus()                                                  *claude-deck.focus()*
     ターミナルの中では、「ファイルツリー ｜ エディタ ｜ ターミナル」を並べた
     新しいタブを開き、ターミナルの cwd に |:tcd| します。そのタブの中では、
