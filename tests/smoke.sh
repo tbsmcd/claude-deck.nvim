@@ -1135,7 +1135,7 @@ cat >"$TEST_OUT/restore.lua" <<LUA
 local msg
 local notify = vim.notify
 vim.notify = function(m) msg = m end
-local ids = require("claude-deck").restore({ file = "$TEST_OUT/restore/snap.json" })
+local ids = require("claude-deck").restore({ file = "$TEST_OUT/restore/snap.json", list = true })
 vim.notify = notify
 local t = require("claude-deck.state").get(ids[1])
 return table.concat({ msg, #ids, t.title, t.title_source, t.cwd, tostring(t.orchestration), tostring(t.resumed_from), tostring(t.spawned_by), tostring(t.spawned), t.state, tostring(vim.fn.bufwinid(t.buf)), t.permission_mode, ids[1] }, "|")
@@ -1146,7 +1146,7 @@ RID=${RESTORED##*|}
 sleep 0.5
 check "restore resumes the session" "$(tr '\n' ' ' <"$TEST_OUT/args.$RID")" "--resume s-1"
 check "restore passes the model" "$(tr '\n' ' ' <"$TEST_OUT/args.$RID")" "--model haiku"
-check "restore opens the picker" "$(lua 'table.concat(_G.last_picker.lines, "\n")')" "Child task"
+check "restore with list = true opens the picker" "$(lua 'table.concat(_G.last_picker.lines, "\n")')" "Child task"
 cat >"$TEST_OUT/restore2.json" <<JSON
 {"version":1,"saved_at":1700000000,"pid":4242,"cwd":"$ROOT","terminals":[
 {"id":1,"cwd":"$ROOT","title":"P","title_source":"user","state":"waiting","session_id":"s-p","orchestration":false},
