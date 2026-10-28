@@ -96,7 +96,7 @@ opts = {
 | `rename()` | `:ClaudeDeck rename` | 今のタスク名を変更します |
 | `redraw()` | `:ClaudeDeck redraw` | 同じセッションを開き直して、今のターミナルを今の幅で描き直します |
 | `equal()` | `:ClaudeDeck equal` | 今のタブのターミナルの幅（横に並んでいる場合）または高さ（縦に積んでいる場合）をそろえます。ほかの window は変更しません |
-| `restore(opts?)` | `:ClaudeDeck restore [file]` | 以前の Neovim のスナップショットに記録されたセッションを再開します（[スナップショットと復元](#スナップショットと復元)）。`opts.file`: スナップショットファイル（ピッカーを使いません）、`opts.latest`: 最新のもの |
+| `restore(opts?)` | `:ClaudeDeck restore [file]` | 以前の Neovim のスナップショットに記録されたセッションを再開します（[スナップショットと復元](#スナップショットと復元)）。`opts.file`: スナップショットファイル（ピッカーを使いません）、`opts.latest`: 最新のもの、`opts.list`: 復元後にターミナルのピッカーを開く（スナップショットのピッカーから復元したときは常に開きます） |
 | `show_settings()` | `:ClaudeDeck settings` | Claude Code に渡す設定の JSON（hook と権限）を表示します |
 | `focus()` | `:ClaudeDeck focus` | 集中モードを切り替えます |
 | `send_location()` | `:ClaudeDeck location` | 今のファイルのパスと行（または選択した行の範囲）を Claude の入力欄に挿入します |

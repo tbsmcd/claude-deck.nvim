@@ -150,8 +150,10 @@ restore({opts})                                          *claude-deck.restore()*
     Neovim (|claude-deck-snapshot|), as hidden terminals. Without options,
     pick a snapshot of another Neovim instance from a list (newest first).
     {opts.file} is a snapshot file (no picker); {opts.latest} takes the
-    newest snapshot. Returns the new terminal ids, or nil when the picker
-    is used. Also `:ClaudeDeck restore [file]`.
+    newest snapshot. After restoring, the terminal picker opens so that
+    you can show one; with {opts.file} / {opts.latest} only when
+    {opts.list} is true. Returns the new terminal ids, or nil when the
+    snapshot picker is used. Also `:ClaudeDeck restore [file]`.
 
 focus()                                                    *claude-deck.focus()*
     Inside a terminal, open a new tab with file tree | editor | terminal and

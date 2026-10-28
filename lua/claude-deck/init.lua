@@ -462,7 +462,7 @@ local function read_snapshot(path)
     end
 end
 
-local function restore_file(path)
+local function restore_file(path, show_list)
     local data = read_snapshot(path)
     if not data then
         vim.notify("claude-deck: cannot read snapshot " .. path, vim.log.levels.WARN)
@@ -522,7 +522,7 @@ local function restore_file(path)
         ),
         vim.log.levels.INFO
     )
-    if #ids > 0 then
+    if #ids > 0 and show_list then
         M.list()
     end
     return ids
@@ -530,13 +530,15 @@ end
 
 -- Resume the Claude Code sessions recorded in a snapshot of an earlier Neovim (after a crash),
 -- as hidden terminals. opts.file: a snapshot file (no picker); opts.latest: the newest snapshot
--- of another instance. Otherwise pick one. Returns the new terminal ids, or nil when the
--- picker is used (the restore then runs after the selection) or nothing was restored.
+-- of another instance. Otherwise pick one. After restoring, the terminal picker opens so that
+-- you can show one; with opts.file / opts.latest only when opts.list is true. Returns the new
+-- terminal ids, or nil when the picker is used (the restore then runs after the selection) or
+-- nothing was restored.
 function M.restore(opts)
     ensure_setup()
     opts = opts or {}
     if opts.file then
-        return restore_file(vim.fn.fnamemodify(vim.fn.expand(opts.file), ":p"))
+        return restore_file(vim.fn.fnamemodify(vim.fn.expand(opts.file), ":p"), opts.list)
     end
 
     local snapshot = require("claude-deck.snapshot")
@@ -546,7 +548,7 @@ function M.restore(opts)
         local data = path ~= own and read_snapshot(path)
         if data then
             if opts.latest then
-                return restore_file(path)
+                return restore_file(path, opts.list)
             end
             table.insert(items, { value = path, text = snapshot_line(data) })
         end
@@ -556,7 +558,7 @@ function M.restore(opts)
         return
     end
     require("claude-deck.picker").pick(items, { prompt = "Restore>" }, function(path)
-        restore_file(path)
+        restore_file(path, true)
     end)
 end
 

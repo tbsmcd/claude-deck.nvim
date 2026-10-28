@@ -147,8 +147,10 @@ restore({opts})                                        *claude-deck.restore()*
     Claude Code のセッションを、非表示のターミナルとして再開します。
     引数なしのときは、ほかの Neovim のスナップショットを新しい順に一覧にして
     選びます。{opts.file} はスナップショットファイル（ピッカーを使いません）、
-    {opts.latest} は最新のスナップショットを使います。新しいターミナルの
-    番号のリストを返します（ピッカーを使う場合は nil）。
+    {opts.latest} は最新のスナップショットを使います。復元のあとにターミ
+    ナルのピッカーを開くので、表示したいものを選べます（{opts.file} /
+    {opts.latest} のときは {opts.list} が true の場合だけ）。新しいターミナ
+    ルの番号のリストを返します（スナップショットのピッカーを使う場合は nil）。
     `:ClaudeDeck restore [file]` でも実行できます。
 
 focus()                                                  *claude-deck.focus()*

@@ -96,7 +96,7 @@ opts = {
 | `rename()` | `:ClaudeDeck rename` | Rename the current task |
 | `redraw()` | `:ClaudeDeck redraw` | Draw the current terminal again at the current width by resuming the same session |
 | `equal()` | `:ClaudeDeck equal` | Give the terminals of the current tab the same width (side by side) or height (stacked), leaving other windows alone |
-| `restore(opts?)` | `:ClaudeDeck restore [file]` | Resume the sessions recorded in a snapshot of an earlier Neovim (see [Snapshots and restore](#snapshots-and-restore)). `opts.file`: a snapshot file (no picker); `opts.latest`: the newest one |
+| `restore(opts?)` | `:ClaudeDeck restore [file]` | Resume the sessions recorded in a snapshot of an earlier Neovim (see [Snapshots and restore](#snapshots-and-restore)). `opts.file`: a snapshot file (no picker); `opts.latest`: the newest one; `opts.list`: open the terminal picker afterwards (always after the snapshot picker) |
 | `show_settings()` | `:ClaudeDeck settings` | Show the Claude Code settings JSON (hooks, permissions) |
 | `focus()` | `:ClaudeDeck focus` | Toggle focus mode |
 | `send_location()` | `:ClaudeDeck location` | Insert the current file path and line (or selected lines) into Claude's prompt |
