@@ -21,6 +21,8 @@ local function ordered_object(pairs_list)
     return "{" .. table.concat(parts, ",") .. "}"
 end
 
+M.ordered_object = ordered_object
+
 -- Token usage of a terminal from its transcript (nil when none); see claude-deck.usage
 function M.usage(term)
     return require("claude-deck.usage").get(term)
@@ -148,6 +150,7 @@ function M.orchestrate(id, mode)
     elseif mode ~= "status" then
         return "ct: usage: ct orchestrate on|off|status"
     end
+    state.changed()
     return "orchestration: " .. (term.orchestration and "on" or "off")
 end
 

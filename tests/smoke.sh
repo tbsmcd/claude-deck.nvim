@@ -14,6 +14,8 @@ esac
 TEST_OUT=$(mktemp -d)
 export TEST_OUT
 SOCK="$TEST_OUT/nvim.sock"
+# Snapshots (stdpath("state")) go into the temp dir
+export XDG_STATE_HOME="$TEST_OUT/state"
 # Make notification behaviour deterministic (no frontmost-app check)
 unset __CFBundleIdentifier
 # The renderer tests check what the plugin passes, not what was inherited
@@ -1079,6 +1081,102 @@ hook "$VT" Stop '{}'
 check "the request text is stored normalized" "$(lua 'vim.inspect(require("claude-deck.state").get('"$VT"').last_request.text)')" '"a\nb"'
 lua '(function() vim.cmd("only"); return "" end)()' >/dev/null
 
+# Snapshots
+cat >"$TEST_OUT/snap1.lua" <<'LUA'
+local cd = require("claude-deck")
+local state = require("claude-deck.state")
+cd.new("far_right")
+vim.cmd("stopinsert")
+local a = state.current().id
+cd.new("right")
+vim.cmd("stopinsert")
+local b = state.current().id
+return a .. " " .. b
+LUA
+read SNAP_A SNAP_B <<EOF
+$(nvim --server "$SOCK" --remote-expr "v:lua.T_run('$TEST_OUT/snap1.lua')")
+EOF
+sleep 0.5
+hook "$SNAP_A" SessionStart '{"cwd":"'"$ROOT"'","session_id":"snap-a"}'
+hook "$SNAP_A" Stop '{}'
+lua '(function() local t = require("claude-deck.state").get('"$SNAP_B"'); vim.fn.jobstop(t.job); return "" end)()' >/dev/null
+snapjson() { # Lua expression on the decoded snapshot `d`, its terminals by id in `t`, and `ok`
+    lua '(function()
+        local snapshot = require("claude-deck.snapshot")
+        local ok = vim.wait(2000, function()
+            if vim.uv.fs_stat(snapshot.file()) == nil then return false end
+            local d = vim.json.decode(table.concat(vim.fn.readfile(snapshot.file()), "\n"))
+            for _, x in ipairs(d.terminals) do
+                if x.id == '"$SNAP_B"' and x.state == "exited" then return true end
+            end
+            return false
+        end, 50)
+        local d = vim.json.decode(table.concat(vim.fn.readfile(snapshot.file()), "\n"), { luanil = { object = true } })
+        local t = {}
+        for _, x in ipairs(d.terminals) do t[x.id] = x end
+        return '"$1"'
+    end)()'
+}
+check "snapshot is written after a debounce" "$(snapjson 'tostring(ok) .. " v" .. d.version .. " pid" .. tostring(d.pid == vim.fn.getpid()) .. " " .. tostring(d.clean_exit)')" "true v1 pidtrue nil"
+check "snapshot keeps session id and state" "$(snapjson 't['"$SNAP_A"'].session_id .. " " .. t['"$SNAP_A"'].state')" "snap-a waiting"
+check "snapshot keeps an exited terminal" "$(snapjson 't['"$SNAP_B"'].state .. " " .. tostring(t['"$SNAP_B"'].session_id)')" "exited nil"
+check "snapshot terminals are sorted by id" "$(snapjson 'tostring(d.terminals[1].id < d.terminals[#d.terminals].id)')" "true"
+check "snapshot write leaves no .tmp file" "$(ls "$XDG_STATE_HOME/nvim/claude-deck" | grep -c '\.tmp$')" "0"
+
+# restore() from a snapshot with an exited terminal, a child with a session and one without
+mkdir -p "$TEST_OUT/restore"
+cat >"$TEST_OUT/restore/snap.json" <<JSON
+{"version":1,"saved_at":1700000000,"pid":4242,"cwd":"$ROOT","clean_exit":true,"terminals":[
+{"id":1,"cwd":"$ROOT","title":"Parent","title_source":"user","state":"exited","session_id":"s-0","model":null,"permission_mode":null,"orchestration":false,"spawned_by":null,"resumed_from":null},
+{"id":2,"cwd":"$ROOT","title":"Child task","title_source":"claude","state":"waiting","session_id":"s-1","model":"haiku","permission_mode":"acceptEdits","orchestration":true,"spawned_by":1,"resumed_from":null},
+{"id":3,"cwd":"$ROOT","title":"","title_source":null,"state":"idle","session_id":null,"model":null,"permission_mode":null,"orchestration":false,"spawned_by":null,"resumed_from":null}]}
+JSON
+cat >"$TEST_OUT/restore.lua" <<LUA
+local msg
+local notify = vim.notify
+vim.notify = function(m) msg = m end
+local ids = require("claude-deck").restore({ file = "$TEST_OUT/restore/snap.json" })
+vim.notify = notify
+local t = require("claude-deck.state").get(ids[1])
+return table.concat({ msg, #ids, t.title, t.title_source, t.cwd, tostring(t.orchestration), tostring(t.resumed_from), tostring(t.spawned_by), tostring(t.spawned), t.state, tostring(vim.fn.bufwinid(t.buf)), t.permission_mode, ids[1] }, "|")
+LUA
+RESTORED=$(nvim --server "$SOCK" --remote-expr "v:lua.T_run('$TEST_OUT/restore.lua')")
+check "restore reports restored and skipped" "$RESTORED" "claude-deck: restored 1 terminal (1 skipped: no session)|1|Child task|claude|$ROOT|true|s-1|nil|true|idle|-1|acceptEdits|"
+RID=${RESTORED##*|}
+sleep 0.5
+check "restore resumes the session" "$(tr '\n' ' ' <"$TEST_OUT/args.$RID")" "--resume s-1"
+check "restore passes the model" "$(tr '\n' ' ' <"$TEST_OUT/args.$RID")" "--model haiku"
+check "restore opens the picker" "$(lua 'table.concat(_G.last_picker.lines, "\n")')" "Child task"
+cat >"$TEST_OUT/restore2.json" <<JSON
+{"version":1,"saved_at":1700000000,"pid":4242,"cwd":"$ROOT","terminals":[
+{"id":1,"cwd":"$ROOT","title":"P","title_source":"user","state":"waiting","session_id":"s-p","orchestration":false},
+{"id":2,"cwd":"$ROOT","title":"C","title_source":"claude","state":"waiting","session_id":"s-c","orchestration":false,"spawned_by":1}]}
+JSON
+check "restore remaps spawned_by to the new parent" "$(lua '(function() local ids = require("claude-deck").restore({ file = vim.env.TEST_OUT .. "/restore2.json" }); local s = require("claude-deck.state"); return tostring(s.get(ids[2]).spawned_by == ids[1]) .. tostring(s.get(ids[1]).spawned) .. tostring(s.get(ids[2]).spawned) end)()')" "trueniltrue"
+lua '(function() vim.cmd("only"); return "" end)()' >/dev/null
+
+# The picker lists other instances' snapshots, newest first
+SNAPDIR="$XDG_STATE_HOME/nvim/claude-deck"
+cp "$TEST_OUT/restore/snap.json" "$SNAPDIR/20230101-000000-4242.json"
+check "restore picker line" "$(lua '(function() require("claude-deck").restore(); return table.concat(_G.last_picker.lines, "\n") end)()')" "pid 4242  3 terminals  ~"
+check "restore picker marks a clean exit" "$(lua 'table.concat(_G.last_picker.lines, "\n")')" "(clean exit)"
+check "restore with latest" "$(lua 'tostring(#require("claude-deck").restore({ latest = true }))')" "1"
+lua '(function() vim.cmd("only"); return "" end)()' >/dev/null
+
+# Pruning
+for n in 1 2 3 4 5 6; do
+    cp "$TEST_OUT/restore/snap.json" "$SNAPDIR/2021010$n-000000-1.json"
+done
+touch -t 202001010000 "$SNAPDIR/20230101-000000-4242.json" "$SNAPDIR/20210101-000000-1.json" "$SNAPDIR/20210102-000000-1.json"
+check "old snapshots of other instances are pruned" "$(lua '(function() require("claude-deck.snapshot").write(); return #vim.fn.glob(vim.fn.stdpath("state") .. "/claude-deck/2021010[12]-*", false, true) + #vim.fn.glob(vim.fn.stdpath("state") .. "/claude-deck/2023*", false, true) end)()')" "0"
+check "own snapshot survives pruning" "$(lua 'tostring(vim.uv.fs_stat(require("claude-deck.snapshot").file()) ~= nil)')" "true"
+check "keep limits the number of files" "$(lua '(function() local c = require("claude-deck.config").options.snapshot; c.keep = 3; local s = require("claude-deck.snapshot"); s.write(); c.keep = 20; local n = #s.files(); local own = vim.uv.fs_stat(s.file()) ~= nil; for _, p in ipairs(s.files()) do if p ~= s.file() then os.remove(p) end end; return n .. " " .. tostring(own) end)()')" "3 true"
+
+# Disabled: nothing is written
+check "snapshot.enabled = false writes nothing" "$(lua '(function() local s = require("claude-deck.snapshot"); require("claude-deck.config").options.snapshot.enabled = false; os.remove(s.file()); local t = require("claude-deck.state").sorted()[1]; require("claude-deck.state").set_title(t, "disabled", "user"); vim.wait(1000, function() return false end); require("claude-deck.config").options.snapshot.enabled = true; return tostring(vim.uv.fs_stat(s.file())) end)()')" "nil"
+check "invalid snapshot options fall back to the defaults" "$(lua '(function() local notify = vim.notify; vim.notify = function() end; local c = require("claude-deck.config"); c.setup({ snapshot = { enabled = "x", keep = -1, keep_days = 1.5 } }); local o = c.options.snapshot; vim.notify = notify; c.setup(_G.T_opts); return tostring(o.enabled) .. " " .. o.keep .. " " .. o.keep_days end)()')" "true 20 14"
+lua '(function() require("claude-deck.state").changed(); vim.wait(1000, function() return vim.uv.fs_stat(require("claude-deck.snapshot").file()) ~= nil end, 50); return "" end)()' >/dev/null
+
 messages=$(lua 'vim.api.nvim_exec2("messages", { output = true }).output')
 case "$messages" in
 *rror* | *E[0-9]*) echo "FAIL - no errors in :messages"; echo "$messages"; failures=$((failures + 1)) ;;
@@ -1095,6 +1193,8 @@ if kill -0 $NVIM_PID 2>/dev/null; then
 else
     echo "ok   - :qa quits Neovim"
 fi
+sleep 0.2
+check "a clean exit is recorded in the snapshot" "$(cat "$XDG_STATE_HOME"/nvim/claude-deck/*.json 2>/dev/null)" '"clean_exit":true'
 
 if [ "$failures" -gt 0 ]; then
     echo "$failures test(s) failed"

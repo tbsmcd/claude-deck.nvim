@@ -100,6 +100,14 @@ M.defaults = {
         -- false to skip, or function(cwd).
         tree = "auto",
     },
+    -- Crash-safe record of the terminals (state dir, one file per Neovim) for `restore()`.
+    snapshot = {
+        enabled = true,
+        -- Files kept in total, the oldest are deleted. 0: no limit.
+        keep = 20,
+        -- Files of other Neovim instances older than this many days are deleted. 0: no limit.
+        keep_days = 14,
+    },
     cli = {
         -- Put the `ct` command on PATH inside terminals and let Claude run `ct list` / `ct read`
         -- without a permission prompt.
@@ -175,6 +183,22 @@ local function validate(options)
     if send_location ~= false and type(send_location) ~= "string" then
         warn_invalid("keymaps.send_location", send_location, "use a key such as \"<leader>cp\" or false")
         options.keymaps.send_location = false
+    end
+    local defaults = M.defaults.snapshot
+    if type(options.snapshot) ~= "table" then
+        warn_invalid("snapshot", options.snapshot, "use a table", defaults)
+        options.snapshot = vim.deepcopy(defaults)
+    end
+    if type(options.snapshot.enabled) ~= "boolean" then
+        warn_invalid("snapshot.enabled", options.snapshot.enabled, "use true or false", defaults.enabled)
+        options.snapshot.enabled = defaults.enabled
+    end
+    for _, name in ipairs({ "keep", "keep_days" }) do
+        local value = options.snapshot[name]
+        if type(value) ~= "number" or value % 1 ~= 0 or value < 0 then
+            warn_invalid("snapshot." .. name, value, "use an integer, 0 or more", defaults[name])
+            options.snapshot[name] = defaults[name]
+        end
     end
     local limit = options.cli.spawn_limit
     if type(limit) ~= "number" or limit % 1 ~= 0 or limit < 0 then

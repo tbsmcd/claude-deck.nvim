@@ -117,6 +117,7 @@ function M.set_title(term, title, source)
             end
         end
     end
+    M.changed()
     require("claude-deck.ui").redraw()
 end
 
@@ -128,17 +129,25 @@ function M.normalize_prompt(text)
     return vim.trim(text)
 end
 
+-- Called wherever a field kept in the snapshot changes
+function M.changed()
+    require("claude-deck.snapshot").schedule()
+end
+
 function M.add(term)
     M.terminals[term.id] = term
+    M.changed()
 end
 
 function M.remove(id)
     M.terminals[id] = nil
     require("claude-deck.usage").forget(id)
+    M.changed()
 end
 
 function M.set_state(term, state, message)
     term.state = state
+    M.changed()
     require("claude-deck.ui").redraw()
     require("claude-deck.notify").on_state(term, state, message)
 end

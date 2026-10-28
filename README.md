@@ -12,6 +12,7 @@ Run multiple [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions
 - **Status at a glance**: each terminal shows its id, status and task title in the winbar (colored per status), and its cwd and session id in the statusline
 - **Desktop notifications** when a session finishes or asks for permission (skipped for the terminal you are looking at)
 - **Many sessions**: split right / below, hide with `:q` (the session keeps running), bring back from a picker
+- **Survives a crash**: the terminals are recorded in snapshot files, and `:ClaudeDeck restore` resumes their sessions after Neovim died
 - **Open in any directory** from a directory picker
 - **Fork** a session into a new terminal (`--resume <id> --fork-session`)
 - **Per-terminal model**: start a terminal with `--model <model>` (`new(where, { model = "haiku" })`, `:ClaudeDeck new --model haiku`)
@@ -95,6 +96,7 @@ opts = {
 | `rename()` | `:ClaudeDeck rename` | Rename the current task |
 | `redraw()` | `:ClaudeDeck redraw` | Draw the current terminal again at the current width by resuming the same session |
 | `equal()` | `:ClaudeDeck equal` | Give the terminals of the current tab the same width (side by side) or height (stacked), leaving other windows alone |
+| `restore(opts?)` | `:ClaudeDeck restore [file]` | Resume the sessions recorded in a snapshot of an earlier Neovim (see [Snapshots and restore](#snapshots-and-restore)). `opts.file`: a snapshot file (no picker); `opts.latest`: the newest one |
 | `show_settings()` | `:ClaudeDeck settings` | Show the Claude Code settings JSON (hooks, permissions) |
 | `focus()` | `:ClaudeDeck focus` | Toggle focus mode |
 | `send_location()` | `:ClaudeDeck location` | Insert the current file path and line (or selected lines) into Claude's prompt |
@@ -206,6 +208,14 @@ require("claude-deck").setup({ renderer = "fullscreen" }) -- or renderer = false
 With `renderer = false`, claude-deck does not touch the environment variable: if `CLAUDE_CODE_NO_FLICKER` is set in Neovim's environment, Claude uses it; otherwise Claude Code's `tui` setting decides.
 
 The renderer is passed to Claude with the `CLAUDE_CODE_NO_FLICKER` environment variable (`0` for classic, `1` for fullscreen), which takes precedence over the `tui` setting. It applies to terminals opened after the change.
+
+### Snapshots and restore
+
+The terminals live only in Neovim's memory, so a crash would lose the list. claude-deck therefore writes a snapshot of them to `vim.fn.stdpath("state") .. "/claude-deck/<start time>-<pid>.json"` (one file per Neovim) whenever a terminal is added or removed, or its status, title, session id, model, permission mode or orchestration changes. Writes are debounced (at most one per 500 ms) and atomic, and a clean exit marks the file with `"clean_exit": true`. Each terminal records `id`, `cwd`, `title`, `title_source`, `state`, `session_id`, `model`, `permission_mode`, `orchestration`, `spawned_by` and `resumed_from`.
+
+The Claude Code conversations survive a crash in Claude Code's own transcripts. `:ClaudeDeck restore` lists the snapshots of other Neovim instances (newest first, with the date, pid, number of terminals and cwds) and lets you pick one. It then resumes every terminal that had not exited and had a session id with `--resume <session id>`, in the same cwd with the same model, permission mode, orchestration setting and title, as hidden terminals (`resumed_from` is the old session id, and `spawned_by` is mapped to the restored parent, or empty if the parent was not restored). Terminals that never started a conversation (no session id) and terminals whose directory is gone are skipped and counted in the message. The terminals come back as `New` and get their status from the hooks as usual; the terminal list opens so you can show one. `:ClaudeDeck restore <file>` skips the picker; `require("claude-deck").restore({ latest = true })` takes the newest snapshot.
+
+The `snapshot` option controls the files: `enabled = false` stops writing (restore still reads existing files), `keep` is the number of files kept in total (the oldest are deleted) and `keep_days` the age after which files of other instances are deleted; `0` means no limit. The file of the running Neovim is never deleted.
 
 ### Status
 
@@ -343,6 +353,11 @@ require("claude-deck").setup({
     picker = "auto", -- "auto" | "fzf-lua" | "select"
     focus = {
         tree = "auto", -- "auto" | false | function(cwd)
+    },
+    snapshot = {
+        enabled = true, -- write snapshots of the terminals for restore()
+        keep = 20, -- files kept in total (0: no limit)
+        keep_days = 14, -- delete other instances' files older than this (0: no limit)
     },
     cli = {
         enabled = true, -- `ct` on PATH and allowed without a prompt (except `ct spawn`, `ct send` and `ct orchestrate`, see `allow_orchestration`)

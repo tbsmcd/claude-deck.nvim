@@ -142,6 +142,15 @@ equal()                                                  *claude-deck.equal()*
     大きさを変えた window の数を返します。タブにターミナルが 2 つ未満のとき
     は、メッセージを表示するだけです。`:ClaudeDeck equal` でも実行できます。
 
+restore({opts})                                        *claude-deck.restore()*
+    以前の Neovim のスナップショット（|claude-deck-snapshot|）に記録された
+    Claude Code のセッションを、非表示のターミナルとして再開します。
+    引数なしのときは、ほかの Neovim のスナップショットを新しい順に一覧にして
+    選びます。{opts.file} はスナップショットファイル（ピッカーを使いません）、
+    {opts.latest} は最新のスナップショットを使います。新しいターミナルの
+    番号のリストを返します（ピッカーを使う場合は nil）。
+    `:ClaudeDeck restore [file]` でも実行できます。
+
 focus()                                                  *claude-deck.focus()*
     ターミナルの中では、「ファイルツリー ｜ エディタ ｜ ターミナル」を並べた
     新しいタブを開き、ターミナルの cwd に |:tcd| します。そのタブの中では、
@@ -263,6 +272,23 @@ show({id}, {where})                                       *claude-deck.show()*
 
 'equalalways' が有効でも、ターミナルを開いたときに他の window の大きさは
 変わりません。
+
+                                                       *claude-deck-snapshot*
+スナップショットと復元 ~
+
+ターミナルの一覧は Neovim のメモリ上にしかありません。claude-deck は、
+ターミナルの追加・削除や、状態・タイトル・session id・モデル・権限モード・
+orchestration の変更のたびに、スナップショットを
+`stdpath("state")/claude-deck/<起動時刻>-<pid>.json`（Neovim ごとに 1 ファイル）
+に書きます。書き込みはデバウンスされ（500 ms に 1 回）アトミックです。
+正常に終了すると `"clean_exit": true` が付きます。
+
+クラッシュのあとは、|claude-deck.restore()|（`:ClaudeDeck restore`）が、
+終了しておらず session id があるターミナルを、`--resume` で、同じ cwd・
+モデル・権限モード・orchestration・タイトルのまま再開します。session id が
+ないターミナルや、ディレクトリがなくなったターミナルはスキップされ、
+メッセージに件数が出ます。`spawned_by` は復元した親に付け替えます。
+ファイルは `snapshot` オプション（|claude-deck-config|）で制御します。
 
                                                        *claude-deck-scrolling*
 会話をさかのぼる ~
@@ -610,6 +636,12 @@ orchestration を求めた場合（たとえば /orchestrate）を除き、自�
                           （既定: true）
     picker                "auto"、"fzf-lua"、"select" のいずれか
     focus.tree            "auto"、false、function(cwd) のいずれか
+    snapshot.enabled      |claude-deck.restore()| 用にターミナルのスナップ
+                          ショットを書く（既定: true）
+    snapshot.keep         残すファイルの総数。古いものから削除する。
+                          0 なら無制限（既定: 20）
+    snapshot.keep_days    ほかの Neovim のファイルをこの日数が過ぎたら
+                          削除する。0 なら無制限（既定: 14）
     cli.enabled           `ct` を PATH に入れ、許可の確認なしで実行できる
                           ようにする（`ct spawn`・`ct send`・`ct orchestrate` を除く）
                           （既定: true）

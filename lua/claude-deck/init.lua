@@ -167,6 +167,12 @@ function M.setup(opts)
             end
         end,
     })
+    vim.api.nvim_create_autocmd("VimLeavePre", {
+        group = group,
+        callback = function()
+            require("claude-deck.snapshot").leave()
+        end,
+    })
     vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
         group = group,
         callback = function(args)
@@ -424,6 +430,134 @@ function M.fork(where, opts)
         }
     )
     state.set_title(term, "↳" .. (parent.title ~= "" and parent.title or ("#" .. parent.id)), "auto")
+end
+
+-- Text of a restore() picker line: "2026-10-28 09:12  pid 75871  3 terminals  ~/a, ~/b (clean exit)"
+local function snapshot_line(data)
+    local cwds, seen = {}, {}
+    for _, term in ipairs(data.terminals) do
+        if type(term.cwd) == "string" and not seen[term.cwd] then
+            seen[term.cwd] = true
+            table.insert(cwds, vim.fn.fnamemodify(term.cwd, ":~"))
+        end
+    end
+    return string.format(
+        "%s  pid %s  %d terminal%s  %s%s",
+        os.date("%Y-%m-%d %H:%M", data.saved_at),
+        tostring(data.pid),
+        #data.terminals,
+        #data.terminals == 1 and "" or "s",
+        table.concat(cwds, ", "),
+        data.clean_exit and " (clean exit)" or ""
+    )
+end
+
+-- nil for a missing or broken file, or one that is not a snapshot
+local function read_snapshot(path)
+    local ok, data = pcall(function()
+        return vim.json.decode(table.concat(vim.fn.readfile(path), "\n"), { luanil = { object = true, array = true } })
+    end)
+    if ok and type(data) == "table" and type(data.terminals) == "table" and type(data.saved_at) == "number" then
+        return data
+    end
+end
+
+local function restore_file(path)
+    local data = read_snapshot(path)
+    if not data then
+        vim.notify("claude-deck: cannot read snapshot " .. path, vim.log.levels.WARN)
+        return
+    end
+
+    local ids, new_id, no_session, no_dir = {}, {}, 0, 0
+    local restored = {}
+    for _, saved in ipairs(data.terminals) do
+        if saved.state ~= "exited" then
+            if type(saved.session_id) ~= "string" or saved.session_id == "" then
+                no_session = no_session + 1
+            elseif type(saved.cwd) ~= "string" or vim.fn.isdirectory(saved.cwd) == 0 then
+                no_dir = no_dir + 1
+                vim.notify("claude-deck: skipped #" .. tostring(saved.id) .. ": directory is gone: " .. tostring(saved.cwd), vim.log.levels.WARN)
+            else
+                local ok, term = pcall(terminal.start_detached, saved.cwd, {
+                    extra_args = { "--resume", saved.session_id },
+                    model = saved.model,
+                    permission_mode = config.is_permission_mode(saved.permission_mode) and saved.permission_mode or nil,
+                    orchestration = saved.orchestration == true,
+                })
+                if ok then
+                    if type(saved.title) == "string" and saved.title ~= "" then
+                        state.set_title(term, saved.title, saved.title_source or "auto")
+                    end
+                    term.resumed_from = saved.session_id
+                    term.spawned = saved.spawned_by ~= nil or nil
+                    new_id[saved.id] = term.id
+                    table.insert(restored, { term = term, saved = saved })
+                    table.insert(ids, term.id)
+                else
+                    vim.notify("claude-deck: cannot restore #" .. tostring(saved.id) .. ": " .. tostring(term), vim.log.levels.WARN)
+                end
+            end
+        end
+    end
+    -- The parent may be restored after its child, so the ids are mapped at the end
+    for _, item in ipairs(restored) do
+        item.term.spawned_by = item.saved.spawned_by and new_id[item.saved.spawned_by] or nil
+    end
+    state.changed()
+
+    local skipped = {}
+    if no_session > 0 then
+        table.insert(skipped, no_session .. " skipped: no session")
+    end
+    if no_dir > 0 then
+        table.insert(skipped, no_dir .. " skipped: directory is gone")
+    end
+    vim.notify(
+        string.format(
+            "claude-deck: restored %d terminal%s%s",
+            #ids,
+            #ids == 1 and "" or "s",
+            #skipped > 0 and " (" .. table.concat(skipped, ", ") .. ")" or ""
+        ),
+        vim.log.levels.INFO
+    )
+    if #ids > 0 then
+        M.list()
+    end
+    return ids
+end
+
+-- Resume the Claude Code sessions recorded in a snapshot of an earlier Neovim (after a crash),
+-- as hidden terminals. opts.file: a snapshot file (no picker); opts.latest: the newest snapshot
+-- of another instance. Otherwise pick one. Returns the new terminal ids, or nil when the
+-- picker is used (the restore then runs after the selection) or nothing was restored.
+function M.restore(opts)
+    ensure_setup()
+    opts = opts or {}
+    if opts.file then
+        return restore_file(vim.fn.fnamemodify(vim.fn.expand(opts.file), ":p"))
+    end
+
+    local snapshot = require("claude-deck.snapshot")
+    local own = snapshot.file()
+    local items = {}
+    for _, path in ipairs(snapshot.files()) do
+        local data = path ~= own and read_snapshot(path)
+        if data then
+            if opts.latest then
+                return restore_file(path)
+            end
+            table.insert(items, { value = path, text = snapshot_line(data) })
+        end
+    end
+    if #items == 0 then
+        vim.notify("claude-deck: no snapshots to restore", vim.log.levels.INFO)
+        return
+    end
+    require("claude-deck.picker").pick(items, { prompt = "Restore>" }, function(path)
+        restore_file(path)
+    end)
 end
 
 -- Give the terminal windows of the current tab the same size, leaving the other windows alone:
@@ -713,6 +847,7 @@ function M.set_orchestration(id, enabled)
         return
     end
     term.orchestration = enabled and true or false
+    state.changed()
     vim.notify("claude-deck: orchestration " .. (term.orchestration and "on" or "off") .. " for #" .. term.id)
 end
 
@@ -807,6 +942,9 @@ local SUBCOMMANDS = {
     end,
     equal = function()
         M.equal()
+    end,
+    restore = function(args)
+        M.restore({ file = args[1] })
     end,
     focus = function()
         M.focus()

@@ -44,6 +44,15 @@ function M.check()
         health.info("renderer: false (CLAUDE_CODE_NO_FLICKER is unset in Neovim; Claude Code's `tui` setting decides)")
     end
 
+    local snapshot = require("claude-deck.snapshot")
+    if config.options.snapshot.enabled then
+        health.ok(string.format("Snapshots: %s (%d files)", snapshot.dir(), #snapshot.files()))
+    else
+        health.info(
+            string.format("Snapshots are disabled (`snapshot.enabled`); %s has %d files", snapshot.dir(), #snapshot.files())
+        )
+    end
+
     for _, script in ipairs({ "claude-deck-hook", "ct" }) do
         if vim.fn.executable(config.bin_dir .. "/" .. script) == 1 then
             health.ok("bin/" .. script .. " is executable")

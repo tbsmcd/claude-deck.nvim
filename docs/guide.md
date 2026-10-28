@@ -167,6 +167,8 @@ If you run `:q` when there is only one window, Neovim does not quit. The termina
 
 To end Claude, run `/exit` in Claude's prompt input.
 
+If Neovim itself dies (a crash, a killed terminal), the hidden terminals are lost, but claude-deck keeps a snapshot of them. After restarting Neovim, run `:ClaudeDeck restore`, pick the snapshot and the sessions come back (hidden, resumed with `--resume`); then pick the one you want from the list that opens.
+
 ## 4. Working with several terminals
 
 ### Split to add more

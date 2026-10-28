@@ -199,6 +199,7 @@ function M.start(win, cwd, extra_args, start_opts)
         end
         term.orchestration = flag == true
     end
+    state.changed()
 
     local env = { CLAUDE_DECK_ID = tostring(id) }
     if opts.cli.enabled then
@@ -219,6 +220,7 @@ function M.start(win, cwd, extra_args, start_opts)
                     -- Not when the terminal has been started again with a new job (redraw())
                     if state.get(id) == term and term.job == job then
                         term.state = "exited"
+                        state.changed()
                         local request = term.last_request
                         if request then
                             request.completed = true

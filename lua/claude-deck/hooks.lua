@@ -53,6 +53,7 @@ local function handle(term, event, data)
             term[key] = data[key]
         end
     end
+    state.changed()
 
     if event == "SessionStart" then
         -- A title set by the user is kept

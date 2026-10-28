@@ -12,6 +12,7 @@ Neovim のターミナルで [Claude Code](https://docs.claude.com/en/docs/claud
 - **状態がひと目で分かる**: 各ターミナルの winbar に番号・状態・タスク名を（状態ごとの色で）表示し、ステータスラインに cwd と session id を表示します
 - **デスクトップ通知**: セッションが入力待ちになったときや、許可を求めているときに通知します（今見ているターミナルは除く）
 - **複数のセッション**: 右や下に分割して増やせます。`:q` で閉じても裏で動き続け、ピッカーから呼び戻せます
+- **クラッシュに強い**: ターミナルの一覧をスナップショットファイルに記録し、Neovim が落ちたあとも `:ClaudeDeck restore` でセッションを再開できます
 - **好きなディレクトリで開く**: ディレクトリを選んで新しいターミナルを開けます
 - **セッションの分岐**: 今のセッションを分岐させた新しいターミナルを開けます（`--resume <id> --fork-session`）
 - **ターミナルごとのモデル**: `--model <model>` を付けてターミナルを開けます（`new(where, { model = "haiku" })`、`:ClaudeDeck new --model haiku`）
@@ -95,6 +96,7 @@ opts = {
 | `rename()` | `:ClaudeDeck rename` | 今のタスク名を変更します |
 | `redraw()` | `:ClaudeDeck redraw` | 同じセッションを開き直して、今のターミナルを今の幅で描き直します |
 | `equal()` | `:ClaudeDeck equal` | 今のタブのターミナルの幅（横に並んでいる場合）または高さ（縦に積んでいる場合）をそろえます。ほかの window は変更しません |
+| `restore(opts?)` | `:ClaudeDeck restore [file]` | 以前の Neovim のスナップショットに記録されたセッションを再開します（[スナップショットと復元](#スナップショットと復元)）。`opts.file`: スナップショットファイル（ピッカーを使いません）、`opts.latest`: 最新のもの |
 | `show_settings()` | `:ClaudeDeck settings` | Claude Code に渡す設定の JSON（hook と権限）を表示します |
 | `focus()` | `:ClaudeDeck focus` | 集中モードを切り替えます |
 | `send_location()` | `:ClaudeDeck location` | 今のファイルのパスと行（または選択した行の範囲）を Claude の入力欄に挿入します |
@@ -206,6 +208,14 @@ require("claude-deck").setup({ renderer = "fullscreen" }) -- または renderer 
 `renderer = false` のときは、環境変数を変更しません。Neovim の環境に `CLAUDE_CODE_NO_FLICKER` があればそれが使われ、なければ Claude Code の `tui` の設定に従います。
 
 表示方式は環境変数 `CLAUDE_CODE_NO_FLICKER`（classic は `0`、fullscreen は `1`）で Claude に渡します。この環境変数は `tui` の設定より優先されます。変更は、そのあとに開いたターミナルから反映されます。
+
+### スナップショットと復元
+
+ターミナルの一覧は Neovim のメモリ上にしかないため、クラッシュすると失われます。そこで claude-deck は、ターミナルの追加・削除や、状態・タイトル・session id・モデル・権限モード・orchestration の変更のたびに、スナップショットを `vim.fn.stdpath("state") .. "/claude-deck/<起動時刻>-<pid>.json"`（Neovim ごとに 1 ファイル）に書きます。書き込みはデバウンスされ（500 ms に 1 回まで）、アトミックに行われます。正常に終了したときは、ファイルに `"clean_exit": true` が付きます。ターミナルごとに記録するのは `id`・`cwd`・`title`・`title_source`・`state`・`session_id`・`model`・`permission_mode`・`orchestration`・`spawned_by`・`resumed_from` です。
+
+Claude Code の会話そのものは、クラッシュしても Claude Code 自身の transcript に残っています。`:ClaudeDeck restore` は、ほかの Neovim のスナップショットを新しい順に（日時・pid・ターミナル数・cwd つきで）一覧にして選ばせます。選んだスナップショットのうち、終了しておらず session id があるターミナルを、`--resume <session id>` で、同じ cwd・モデル・権限モード・orchestration・タイトルのまま、非表示のターミナルとして再開します（`resumed_from` には元の session id が入り、`spawned_by` は復元した親に付け替えます。親を復元しなかった場合は空になります）。まだ会話を始めていないターミナル（session id なし）と、ディレクトリがなくなったターミナルはスキップされ、メッセージに件数が出ます。復元したターミナルは `New` で戻り、状態はこれまでどおりフックから更新されます。続けてターミナルの一覧が開くので、表示したいものを選べます。`:ClaudeDeck restore <file>` ならピッカーを使わず、`require("claude-deck").restore({ latest = true })` なら最新のスナップショットを使います。
+
+ファイルは `snapshot` オプションで制御します。`enabled = false` で書き込みを止めます（restore は既存のファイルを読めます）。`keep` は残すファイルの総数（古いものから削除）、`keep_days` は、ほかの Neovim のファイルを削除するまでの日数です。`0` は無制限を意味します。実行中の Neovim のファイルは削除されません。
 
 ### 状態
 
@@ -345,6 +355,11 @@ require("claude-deck").setup({
     picker = "auto", -- "auto" | "fzf-lua" | "select"
     focus = {
         tree = "auto", -- "auto" | false | function(cwd)
+    },
+    snapshot = {
+        enabled = true, -- restore() 用にターミナルのスナップショットを書く
+        keep = 20, -- 残すファイルの総数（0: 無制限）
+        keep_days = 14, -- ほかの Neovim のファイルをこの日数が過ぎたら削除（0: 無制限）
     },
     cli = {
         enabled = true, -- `ct` を PATH に入れ、許可の確認なしで実行できるようにする（`ct spawn`・`ct send`・`ct orchestrate` を除く。`allow_orchestration` を参照）

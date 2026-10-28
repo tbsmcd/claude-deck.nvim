@@ -145,6 +145,14 @@ equal()                                                    *claude-deck.equal()*
     terminals in the tab, only a message is shown. Also
     `:ClaudeDeck equal`.
 
+restore({opts})                                          *claude-deck.restore()*
+    Resume the Claude Code sessions recorded in a snapshot of an earlier
+    Neovim (|claude-deck-snapshot|), as hidden terminals. Without options,
+    pick a snapshot of another Neovim instance from a list (newest first).
+    {opts.file} is a snapshot file (no picker); {opts.latest} takes the
+    newest snapshot. Returns the new terminal ids, or nil when the picker
+    is used. Also `:ClaudeDeck restore [file]`.
+
 focus()                                                    *claude-deck.focus()*
     Inside a terminal, open a new tab with file tree | editor | terminal and
     |:tcd| to the terminal's cwd. In that tab, close it and return to the
@@ -259,6 +267,22 @@ Code's CTRL-W, delete word, is then unavailable).
 twice for <Esc><Esc>. Useful if you map <Esc> to leave terminal mode.
 
 Opening a terminal does not resize other windows, even with 'equalalways'.
+
+                                                       *claude-deck-snapshot*
+Snapshots and restore ~
+
+The terminals live only in Neovim's memory. claude-deck writes a snapshot of
+them to `stdpath("state")/claude-deck/<start time>-<pid>.json` (one file per
+Neovim) when a terminal is added or removed, or its status, title, session
+id, model, permission mode or orchestration changes. Writes are debounced
+(one per 500 ms) and atomic; a clean exit adds `"clean_exit": true`.
+
+After a crash, |claude-deck.restore()| (`:ClaudeDeck restore`) resumes every
+terminal that had not exited and had a session id, with `--resume`, in the
+same cwd with the same model, permission mode, orchestration and title.
+Terminals without a session id, or whose directory is gone, are skipped
+and counted in the message. `spawned_by` is mapped to the restored parent.
+Control the files with the `snapshot` option (|claude-deck-config|).
 
                                                        *claude-deck-scrolling*
 Scrolling back ~
@@ -599,6 +623,12 @@ succeeded.
                           instead of quitting Neovim  (default: true)
     picker                "auto", "fzf-lua" or "select"
     focus.tree            "auto", false or function(cwd)
+    snapshot.enabled      write snapshots of the terminals for
+                          |claude-deck.restore()|  (default: true)
+    snapshot.keep         files kept in total, the oldest are deleted;
+                          0: no limit  (default: 20)
+    snapshot.keep_days    delete other instances' files older than this
+                          many days; 0: no limit  (default: 14)
     cli.enabled           put `ct` on PATH and allow it, except `ct spawn`,
                           `ct send` and `ct orchestrate`  (default: true)
     cli.system_prompt     tell Claude about `ct`  (default: true)
